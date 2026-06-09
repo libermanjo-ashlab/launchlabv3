@@ -1,0 +1,23 @@
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#FAFAF9;--surface:#FFFFFF;--dark:#09090B;--border:#E4E4E7;
+  --text:#09090B;--muted:#71717A;--subtle:#A1A1AA;
+  --disc:#7C3AED;--disc-bg:#F5F3FF;
+  --crea:#0891B2;--crea-bg:#ECFEFF;
+  --mktg:#DB2777;--mktg-bg:#FDF2F8;
+  --mgmt:#059669;--mgmt-bg:#ECFDF5;
+  --ok:#059669;--ok-bg:#ECFDF5;
+  --warn:#D97706;--warn-bg:#FFFBEB;
+  --err:#EF4444;--err-bg:#FEF2F2;
+  --grad:linear-gradient(135deg,#7C3AED,#0891B2);
+  --font-head:'Space Grotesk','Helvetica Neue',sans-serif;
+  --font-body:'DM Sans','Helvetica Neue',sans-serif;
+}
+body{font-family:var(--font-body);background:var(--bg);color:var(--text);min-height:100vh;-webkit-font-smoothing:antialiased}
+@keyframes spin{to{transform:rotate(360deg)}}
+@keyframes fadeIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:0.6}}
+.spinner{width:36px;height:36px;border-radius:50%;border:3px solid var(--disc);border-top-color:transparent;animation:spin 0.8s linear infinite}
+.fade-in{animation:fadeIn 0.25s ease}
+input,textarea,select,button{font-family:var(--font-body);font-size:14px}
+::-webkit-scrollbar{width:4px}::-webkit-scrollbar-thumb{background:var(--disc);border-radius:2px;opacity:0.3}
