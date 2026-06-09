@@ -69,4 +69,16 @@ export const api = {
     googleAuth: (bizId) => request("GET",  `/integrations/google/auth?businessId=${bizId}`),
     disconnect: (bizId, provider) => request("POST", `/integrations/${bizId}/${provider}/disconnect`),
   },
+
+  agents: {
+    runMarketing: bizId=>request("POST",`/agents/${bizId}/marketing/run`),
+    implement:    (bizId,insight)=>request("POST",`/agents/${bizId}/management/implement`,{insight}),
+    activity:     bizId=>request("GET",`/agents/${bizId}/activity`),
+    deployStatus: bizId=>request("GET",`/agents/${bizId}/deploy-status`),
+  },
+  metrics: {
+    get:     bizId=>request("GET",`/metrics/${bizId}`),
+    save:    (bizId,data)=>request("PUT",`/metrics/${bizId}`,data),
+    suggest: (bizId,question)=>request("POST",`/metrics/${bizId}/suggest`,{question}),
+  },
 };
