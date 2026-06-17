@@ -1,31 +1,30 @@
 import React from "react";
 import ReactDOM from "react-dom/client";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
-import "./index.css";
 import useStore from "./lib/store";
-import Welcome   from "./pages/Welcome";
-import Discovery from "./pages/Discovery";
-import Results   from "./pages/Results";
-import Creation  from "./pages/Creation";
-import Hub       from "./pages/Hub";
-import Dashboard from "./pages/Dashboard";
-function RequireAuth({ children }) {
+import Welcome    from "./pages/Welcome";
+import Dashboard  from "./pages/Dashboard";
+import Discovery  from "./pages/Discovery";
+import Results    from "./pages/Results";
+import Creation   from "./pages/Creation";
+import Hub        from "./pages/Hub";
+import "./index.css";
+
+function Private({ children }) {
   const token = useStore(s => s.token);
   return token ? children : <Navigate to="/" replace />;
 }
-export default function App() {
-  return (
-    <BrowserRouter>
-      <Routes>
-        <Route path="/"              element={<Welcome />} />
-        <Route path="/discovery"     element={<RequireAuth><Discovery /></RequireAuth>} />
-        <Route path="/results"       element={<RequireAuth><Results /></RequireAuth>} />
-        <Route path="/creation/:id"  element={<RequireAuth><Creation /></RequireAuth>} />
-        <Route path="/hub/:id"       element={<RequireAuth><Hub /></RequireAuth>} />
-        <Route path="/dashboard"     element={<RequireAuth><Dashboard /></RequireAuth>} />
-        <Route path="*"              element={<Navigate to="/" replace />} />
-      </Routes>
-    </BrowserRouter>
-  );
-}
-ReactDOM.createRoot(document.getElementById("root")).render(<React.StrictMode><App /></React.StrictMode>);
+
+ReactDOM.createRoot(document.getElementById("root")).render(
+  <BrowserRouter>
+    <Routes>
+      <Route path="/"               element={<Welcome/>} />
+      <Route path="/dashboard"      element={<Private><Dashboard/></Private>} />
+      <Route path="/discovery"      element={<Private><Discovery/></Private>} />
+      <Route path="/results"        element={<Private><Results/></Private>} />
+      <Route path="/creation/:id"   element={<Private><Creation/></Private>} />
+      <Route path="/hub/:id"        element={<Private><Hub/></Private>} />
+      <Route path="*"               element={<Navigate to="/" replace />} />
+    </Routes>
+  </BrowserRouter>
+);

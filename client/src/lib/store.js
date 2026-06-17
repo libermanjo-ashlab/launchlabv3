@@ -3,68 +3,41 @@ import { persist } from "zustand/middleware";
 
 const useStore = create(
   persist(
-    (set, get) => ({
-      // ── AUTH ──────────────────────────────────────────────────────────────────
+    (set) => ({
       token:    null,
       user:     null,
       setAuth:  (token, user) => set({ token, user }),
-      clearAuth: () => set({ token: null, user: null, currentBusinessId: null }),
+      clearAuth: () => set({ token:null, user:null, currentBusinessId:null }),
 
-      // ── NAVIGATION ────────────────────────────────────────────────────────────
       currentBusinessId: null,
       setCurrentBusiness: (id) => set({ currentBusinessId: id }),
 
-      // ── DISCOVERY ─────────────────────────────────────────────────────────────
-      intake: {
-        location: "", hours: 15, budget: 2000,
-        skills: [], assets: [], risk: "medium",
-        incomeGoal: "", ownIdea: "",
-      },
+      intake: { location:"", hours:15, budget:1000, skills:[], assets:[], risk:"medium", incomeGoal:"", ownIdea:"", businessExperience:"", age:null },
       setIntake: (updates) => set(s => ({ intake: { ...s.intake, ...updates } })),
-      resetIntake: () => set({ intake: { location: "", hours: 15, budget: 2000, skills: [], assets: [], risk: "medium", incomeGoal: "", ownIdea: "" } }),
+      resetIntake: () => set({ intake: { location:"", hours:15, budget:1000, skills:[], assets:[], risk:"medium", incomeGoal:"", ownIdea:"", businessExperience:"", age:null } }),
 
-      // ── IDEAS ─────────────────────────────────────────────────────────────────
       ideas:       [],
       selectedIdea: null,
-      setIdeas:      (ideas) => set({ ideas }),
-      setSelectedIdea: (idea) => set({ selectedIdea: idea }),
+      setIdeas:        (ideas) => set({ ideas }),
+      setSelectedIdea: (idea)  => set({ selectedIdea: idea }),
 
-      // ── BUSINESSES (cached from server) ───────────────────────────────────────
       businesses: [],
-      setBusinesses: (businesses) => set({ businesses }),
-      updateBusiness: (id, updates) => set(s => ({
-        businesses: s.businesses.map(b => b.id === id ? { ...b, ...updates } : b),
-      })),
-      addBusiness: (b) => set(s => ({ businesses: [b, ...s.businesses] })),
+      setBusinesses:  (b) => set({ businesses: b }),
+      updateBusiness: (id, u) => set(s => ({ businesses: s.businesses.map(b => b.id===id?{...b,...u}:b) })),
+      addBusiness:    (b) => set(s => ({ businesses: [b, ...s.businesses] })),
 
-      // ── TASKS (local state, synced with server) ────────────────────────────────
-      tasks: {},  // { [businessId]: Task[] }
-      setTasks: (businessId, tasks) => set(s => ({ tasks: { ...s.tasks, [businessId]: tasks } })),
-      updateTask: (businessId, taskId, updates) => set(s => ({
-        tasks: {
-          ...s.tasks,
-          [businessId]: (s.tasks[businessId] || []).map(t => t.id === taskId ? { ...t, ...updates } : t),
-        },
-      })),
-      addTask: (businessId, task) => set(s => ({
-        tasks: { ...s.tasks, [businessId]: [...(s.tasks[businessId] || []), task] },
-      })),
-      removeTask: (businessId, taskId) => set(s => ({
-        tasks: { ...s.tasks, [businessId]: (s.tasks[businessId] || []).filter(t => t.id !== taskId) },
-      })),
+      tasks: {},
+      setTasks:     (bizId, t) => set(s => ({ tasks: {...s.tasks, [bizId]:t} })),
+      updateTask:   (bizId, id, u) => set(s => ({ tasks: {...s.tasks, [bizId]:(s.tasks[bizId]||[]).map(t=>t.id===id?{...t,...u}:t)} })),
+      addTask:      (bizId, t) => set(s => ({ tasks: {...s.tasks, [bizId]:[...(s.tasks[bizId]||[]),t]} })),
+      removeTask:   (bizId, id) => set(s => ({ tasks: {...s.tasks, [bizId]:(s.tasks[bizId]||[]).filter(t=>t.id!==id)} })),
 
-      // ── HUB MODES (per business) ───────────────────────────────────────────────
-      hubModes: {},  // { [businessId]: { discovery, creation, marketing, management } }
-      setHubMode: (businessId, stage, mode) => set(s => ({
-        hubModes: {
-          ...s.hubModes,
-          [businessId]: { ...(s.hubModes[businessId] || {}), [stage]: mode },
-        },
-      })),
+      hubModes: {},
+      setHubMode: (bizId, stage, mode) => set(s => ({ hubModes: {...s.hubModes, [bizId]:{...(s.hubModes[bizId]||{}), [stage]:mode}} })),
     }),
     {
-      name: "launchlab-store",
-      partialize: (s) => ({ token: s.token, user: s.user, intake: s.intake, currentBusinessId: s.currentBusinessId }),
+      name: "launchlab",
+      partialize: s => ({ token:s.token, user:s.user, intake:s.intake, currentBusinessId:s.currentBusinessId }),
     }
   )
 );

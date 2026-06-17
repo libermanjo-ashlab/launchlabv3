@@ -1,84 +1,65 @@
 const BASE = "/api";
-
 function getToken() {
-  try {
-    const s = JSON.parse(localStorage.getItem("launchlab-store") || "{}");
-    return s?.state?.token || null;
-  } catch { return null; }
+  try { return JSON.parse(localStorage.getItem("launchlab")||"{}").state?.token||null; } catch { return null; }
 }
-
-async function request(method, path, body) {
+async function req(method, path, body) {
   const token = getToken();
   const res = await fetch(`${BASE}${path}`, {
     method,
-    headers: {
-      "Content-Type": "application/json",
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
-    },
-    ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
+    headers: { "Content-Type":"application/json", ...(token?{Authorization:`Bearer ${token}`}:{}) },
+    ...(body!==undefined?{body:JSON.stringify(body)}:{}),
   });
   const data = await res.json();
-  if (!res.ok) throw new Error(data.error || `Request failed: ${res.status}`);
+  if (!res.ok) throw new Error(data.error||`Request failed (${res.status})`);
   return data;
 }
-
-// ── AUTH ──────────────────────────────────────────────────────────────────────
 export const api = {
   auth: {
-    register: (body)  => request("POST", "/auth/register", body),
-    login:    (body)  => request("POST", "/auth/login", body),
-    me:       ()      => request("GET",  "/auth/me"),
-    update:   (body)  => request("PUT",  "/auth/me", body),
+    register: b  => req("POST", "/auth/register", b),
+    login:    b  => req("POST", "/auth/login", b),
+    me:       () => req("GET",  "/auth/me"),
+    update:   b  => req("PUT",  "/auth/me", b),
   },
-
-  // ── BUSINESSES ──────────────────────────────────────────────────────────────
   businesses: {
-    list:    ()        => request("GET",    "/businesses"),
-    get:     (id)      => request("GET",    `/businesses/${id}`),
-    create:  (body)    => request("POST",   "/businesses", body),
-    update:  (id, b)   => request("PUT",    `/businesses/${id}`, b),
-    delete:  (id)      => request("DELETE", `/businesses/${id}`),
-    outputs: (id)      => request("GET",    `/businesses/${id}/outputs`),
+    list:    ()       => req("GET",    "/businesses"),
+    get:     id       => req("GET",    `/businesses/${id}`),
+    create:  b        => req("POST",   "/businesses", b),
+    update:  (id,b)   => req("PUT",    `/businesses/${id}`, b),
+    delete:  id       => req("DELETE", `/businesses/${id}`),
+    outputs: id       => req("GET",    `/businesses/${id}/outputs`),
   },
-
-  // ── TASKS ────────────────────────────────────────────────────────────────────
   tasks: {
-    list:   (bizId)       => request("GET",    `/tasks/business/${bizId}`),
-    create: (bizId, body) => request("POST",   `/tasks/business/${bizId}`, body),
-    update: (id, body)    => request("PUT",    `/tasks/${id}`, body),
-    delete: (id)          => request("DELETE", `/tasks/${id}`),
-    run:    (id)          => request("POST",   `/tasks/${id}/run`),
-    bulk:   (bizId, tasks)=> request("POST",   `/tasks/business/${bizId}/bulk`, { tasks }),
+    list:   bizId         => req("GET",    `/tasks/business/${bizId}`),
+    create: (bizId,b)     => req("POST",   `/tasks/business/${bizId}`, b),
+    update: (id,b)        => req("PUT",    `/tasks/${id}`, b),
+    delete: id            => req("DELETE", `/tasks/${id}`),
+    run:    id            => req("POST",   `/tasks/${id}/run`),
+    bulk:   (bizId,tasks) => req("POST",   `/tasks/business/${bizId}/bulk`, { tasks }),
   },
-
-  // ── GENERATION ───────────────────────────────────────────────────────────────
   generate: {
-    ideas:          (intake)           => request("POST", "/generate/ideas",           { intake }),
-    tasks:          (idea, intake, id) => request("POST", "/generate/tasks",           { idea, intake, businessId: id }),
-    website:        (businessId)       => request("POST", "/generate/website",         { businessId }),
-    businessPlan:   (businessId)       => request("POST", "/generate/business-plan",   { businessId }),
-    socialContent:  (businessId)       => request("POST", "/generate/social-content",  { businessId }),
-    emailTemplates: (businessId)       => request("POST", "/generate/email-templates", { businessId }),
-    chat:           (message, bizId)   => request("POST", "/generate/chat",            { message, businessId: bizId }),
+    ideas:          intake => req("POST", "/generate/ideas",           { intake }),
+    tasks:          (idea,intake,id) => req("POST", "/generate/tasks", { idea, intake, businessId:id }),
+    website:        id => req("POST", "/generate/website",         { businessId:id }),
+    businessPlan:   id => req("POST", "/generate/business-plan",   { businessId:id }),
+    socialContent:  id => req("POST", "/generate/social-content",  { businessId:id }),
+    emailTemplates: id => req("POST", "/generate/email-templates", { businessId:id }),
+    chat:           (msg,bizId) => req("POST", "/generate/chat",   { message:msg, businessId:bizId }),
   },
-
-  // ── INTEGRATIONS ─────────────────────────────────────────────────────────────
   integrations: {
-    list:       (bizId) => request("GET",  `/integrations/${bizId}`),
-    stripe:     (bizId) => request("POST", `/integrations/${bizId}/stripe`),
-    googleAuth: (bizId) => request("GET",  `/integrations/google/auth?businessId=${bizId}`),
-    disconnect: (bizId, provider) => request("POST", `/integrations/${bizId}/${provider}/disconnect`),
+    list:       bizId    => req("GET",  `/integrations/${bizId}`),
+    stripe:     bizId    => req("POST", `/integrations/${bizId}/stripe`),
+    googleAuth: bizId    => req("GET",  `/integrations/google/auth?businessId=${bizId}`),
+    disconnect: (bizId,p)=> req("POST", `/integrations/${bizId}/${p}/disconnect`),
   },
-
   agents: {
-    runMarketing: bizId=>request("POST",`/agents/${bizId}/marketing/run`),
-    implement:    (bizId,insight)=>request("POST",`/agents/${bizId}/management/implement`,{insight}),
-    activity:     bizId=>request("GET",`/agents/${bizId}/activity`),
-    deployStatus: bizId=>request("GET",`/agents/${bizId}/deploy-status`),
+    runMarketing: bizId         => req("POST", `/agents/${bizId}/marketing/run`),
+    implement:    (bizId,insight)=> req("POST", `/agents/${bizId}/management/implement`, { insight }),
+    activity:     bizId         => req("GET",  `/agents/${bizId}/activity`),
+    deployStatus: bizId         => req("GET",  `/agents/${bizId}/deploy-status`),
   },
   metrics: {
-    get:     bizId=>request("GET",`/metrics/${bizId}`),
-    save:    (bizId,data)=>request("PUT",`/metrics/${bizId}`,data),
-    suggest: (bizId,question)=>request("POST",`/metrics/${bizId}/suggest`,{question}),
+    get:     bizId          => req("GET", `/metrics/${bizId}`),
+    save:    (bizId,data)   => req("PUT", `/metrics/${bizId}`, data),
+    suggest: (bizId,question)=>req("POST",`/metrics/${bizId}/suggest`, { question }),
   },
 };
