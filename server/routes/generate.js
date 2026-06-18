@@ -40,6 +40,7 @@ router.post("/tasks", requireAuth, async (req, res, next) => {
     const { idea, intake, businessId } = req.body;
     if (!idea || !intake) return res.status(400).json({ error:"idea and intake are required" });
     const tasks = await ai.generateTasks(idea, intake);
+    if (!Array.isArray(tasks)) return res.status(500).json({ error:"Task generation failed — please try again" });
     if (businessId) {
       const biz = await prisma.business.findFirst({ where:{ id:businessId, userId:req.userId } });
       if (!biz) return res.status(404).json({ error:"Business not found" });

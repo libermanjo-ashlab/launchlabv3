@@ -103,6 +103,7 @@ Rules:
     },
     required: ["ideas"],
   }, "submit_ideas", 4000);
+  if (!Array.isArray(result.ideas)) throw new Error("Model did not return a valid ideas list");
   return result.ideas;
 }
 
@@ -164,6 +165,7 @@ Use $ for all dollar amounts.
     },
     required: ["tasks"],
   }, "submit_tasks", 3000);
+  if (!Array.isArray(result.tasks)) throw new Error("Model did not return a valid task list");
   return result.tasks;
 }
 
@@ -310,6 +312,7 @@ Keep each string field under 20 words.
     },
     required: ["insights"],
   }, "submit_insights", 2000);
+  if (!Array.isArray(result.insights)) throw new Error("Model did not return a valid insights list");
   return result.insights;
 }
 

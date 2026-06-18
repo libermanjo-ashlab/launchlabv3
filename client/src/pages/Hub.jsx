@@ -60,7 +60,7 @@ function AgentPanel({ businessId, metrics, age, planInfo }) {
     setRunning(true); setError(""); setInsights([]);
     try {
       const {insights:data} = await api.agents.runMarketing(businessId);
-      setInsights(data);
+      setInsights(Array.isArray(data) ? data : []);
       api.agents.activity(businessId).then(d=>setActivity(d.activity||[])).catch(()=>{});
       refreshAccess();
     } catch(e){ setError(e.message); }
