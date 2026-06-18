@@ -16,6 +16,15 @@ router.get("/business/:businessId", requireAuth, async (req, res, next) => {
   try {
     const business = await prisma.business.findFirst({ where: { id: req.params.businessId, userId: req.userId } });
     if (!business) return res.status(404).json({ error: "Business not found" });
+
+    // Auto-reset any task that has been stuck in "running" for more than 5 minutes.
+    // This happens when the server crashed or the AI call timed out without a catch.
+    const staleThreshold = new Date(Date.now() - 5 * 60 * 1000);
+    await prisma.task.updateMany({
+      where: { businessId: req.params.businessId, status: "running", updatedAt: { lt: staleThreshold } },
+      data:  { status: "pending" },
+    }).catch(() => {}); // non-fatal
+
     const tasks = await prisma.task.findMany({ where: { businessId: req.params.businessId }, orderBy: { sortOrder: "asc" } });
     res.json({ tasks: tasks.map(t => ({ ...t, steps: JSON.parse(t.steps || "[]"), outputData: t.outputData ? JSON.parse(t.outputData) : null })) });
   } catch (e) { next(e); }
@@ -86,16 +95,18 @@ router.post("/:id/run", requireAuth, async (req, res, next) => {
 
     const outputData = await generateTaskOutput(task, business, idea, intake);
 
-    // If this is a website generation task, also save to BusinessOutput
+    // If this is a website generation task, also save to BusinessOutput.
+    // Use findFirst → update/create (not a hard-coded ID upsert) so we always
+    // update the existing record regardless of how its cuid was generated.
     if (/website|web page|landing page/i.test(task.name) && outputData.websiteHtml) {
-      await prisma.businessOutput.upsert({
-        where: { id: `website-${business.id}` },
-        update: { content: outputData.websiteHtml, updatedAt: new Date() },
-        create: { id: `website-${business.id}`, businessId: business.id, type: "website", title: "Business Website", content: outputData.websiteHtml },
-      }).catch(async () => {
-        // If upsert fails due to missing id, just create
-        await prisma.businessOutput.create({ data: { businessId: business.id, type: "website", title: "Business Website", content: outputData.websiteHtml } });
+      const existingWebsite = await prisma.businessOutput.findFirst({
+        where: { businessId: business.id, type: "website" },
       });
+      if (existingWebsite) {
+        await prisma.businessOutput.update({ where: { id: existingWebsite.id }, data: { content: outputData.websiteHtml } });
+      } else {
+        await prisma.businessOutput.create({ data: { businessId: business.id, type: "website", title: "Business Website", content: outputData.websiteHtml } });
+      }
       delete outputData.websiteHtml;
     }
 

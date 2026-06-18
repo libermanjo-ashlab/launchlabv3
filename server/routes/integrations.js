@@ -1,5 +1,6 @@
 const router      = require("express").Router();
 const requireAuth = require("../middleware/auth");
+const jwt         = require("jsonwebtoken");
 const { PrismaClient } = require("@prisma/client");
 
 const prisma = new PrismaClient();
@@ -59,24 +60,45 @@ router.post("/:businessId/:provider/disconnect", requireAuth, async (req, res, n
 
 // ── GOOGLE OAUTH ──────────────────────────────────────────────────────────────
 // GET /api/integrations/google/auth?businessId=xxx
+// Signs a short-lived JWT containing userId+businessId as the OAuth state
+// parameter so the callback can verify ownership without needing a session.
 router.get("/google/auth", requireAuth, (req, res) => {
   if (!process.env.GOOGLE_CLIENT_ID) {
     return res.status(503).json({ error: "Google OAuth not configured. Add GOOGLE_CLIENT_ID to .env" });
   }
+  const businessId = req.query.businessId || "";
+  // Sign state with JWT_SECRET — expires in 10 min (longer than any real OAuth flow)
+  const state = jwt.sign({ userId: req.userId, businessId }, process.env.JWT_SECRET, { expiresIn: "10m" });
   const url = new URL("https://accounts.google.com/o/oauth2/v2/auth");
   url.searchParams.set("client_id",     process.env.GOOGLE_CLIENT_ID);
   url.searchParams.set("redirect_uri",  process.env.GOOGLE_REDIRECT_URI);
   url.searchParams.set("response_type", "code");
   url.searchParams.set("scope",         "https://www.googleapis.com/auth/business.manage email profile");
-  url.searchParams.set("state",         req.query.businessId || "");
+  url.searchParams.set("state",         state);
   res.json({ url: url.toString() });
 });
 
 // GET /api/integrations/google/callback
+// Verifies the signed state before writing tokens — prevents a forged state
+// from writing someone else's Google tokens onto a victim's business.
 router.get("/google/callback", async (req, res, next) => {
   try {
-    const { code, state: businessId } = req.query;
+    const { code, state } = req.query;
     if (!code) return res.redirect(`${process.env.CLIENT_URL}?error=google_auth_failed`);
+
+    // Verify the signed state and extract userId + businessId
+    let userId, businessId;
+    try {
+      const payload = jwt.verify(state, process.env.JWT_SECRET);
+      userId     = payload.userId;
+      businessId = payload.businessId;
+    } catch {
+      return res.redirect(`${process.env.CLIENT_URL}?error=invalid_oauth_state`);
+    }
+
+    // Confirm the business still belongs to this user
+    const biz = await prisma.business.findFirst({ where: { id: businessId, userId } });
+    if (!biz) return res.redirect(`${process.env.CLIENT_URL}?error=business_not_found`);
 
     const tokenRes = await fetch("https://oauth2.googleapis.com/token", {
       method: "POST",
@@ -87,15 +109,14 @@ router.get("/google/callback", async (req, res, next) => {
       }),
     });
     const tokens = await tokenRes.json();
-    if (tokens.error) throw new Error(tokens.error_description);
+    if (tokens.error) throw new Error(tokens.error_description || "Google token exchange failed");
 
-    if (businessId) {
-      await prisma.integration.upsert({
-        where:  { businessId_provider: { businessId, provider: "google" } },
-        update: { status: "connected", accessToken: tokens.access_token, refreshToken: tokens.refresh_token || null },
-        create: { businessId, provider: "google", status: "connected", accessToken: tokens.access_token, refreshToken: tokens.refresh_token || null },
-      });
-    }
+    await prisma.integration.upsert({
+      where:  { businessId_provider: { businessId, provider: "google" } },
+      update: { status: "connected", accessToken: tokens.access_token, refreshToken: tokens.refresh_token || null },
+      create: { businessId, provider: "google", status: "connected", accessToken: tokens.access_token, refreshToken: tokens.refresh_token || null },
+    });
+
     res.redirect(`${process.env.CLIENT_URL}/hub/${businessId}?tab=settings&google=connected`);
   } catch (e) { next(e); }
 });

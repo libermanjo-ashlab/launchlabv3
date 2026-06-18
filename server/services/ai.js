@@ -2,26 +2,45 @@ const Anthropic = require("@anthropic-ai/sdk");
 const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 const MODEL  = "claude-sonnet-4-6";
 
+// Retry wrapper with exponential backoff. Retries on network errors and 5xx
+// responses; passes 4xx through immediately (bad request won't self-heal).
+async function withRetry(fn, maxAttempts = 3) {
+  let lastErr;
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    try {
+      return await fn();
+    } catch (err) {
+      lastErr = err;
+      const status = err.status || err.statusCode;
+      if (status && status >= 400 && status < 500) throw err; // don't retry 4xx
+      if (attempt < maxAttempts) {
+        await new Promise(r => setTimeout(r, 1000 * 2 ** (attempt - 1))); // 1s, 2s
+      }
+    }
+  }
+  throw lastErr;
+}
+
 // Plain text call — used for HTML outputs (website, business plan) and chat.
 async function chat(prompt, max = 3000) {
-  const msg = await client.messages.create({
+  const msg = await withRetry(() => client.messages.create({
     model: MODEL,
     max_tokens: max,
     messages: [{ role: "user", content: prompt }],
-  });
+  }));
   return msg.content.find(b => b.type === "text")?.text || "";
 }
 
 // Structured output call — uses tool_choice to force the model to return valid
 // JSON matching the given schema. Eliminates JSON parsing errors entirely.
 async function chatStructured(prompt, schema, toolName, max = 3000) {
-  const msg = await client.messages.create({
+  const msg = await withRetry(() => client.messages.create({
     model: MODEL,
     max_tokens: max,
     tools: [{ name: toolName, description: "Submit the structured output.", input_schema: schema }],
     tool_choice: { type: "tool", name: toolName },
     messages: [{ role: "user", content: prompt }],
-  });
+  }));
   const block = msg.content.find(b => b.type === "tool_use");
   if (!block) throw new Error("No structured output returned by model");
   return block.input;
