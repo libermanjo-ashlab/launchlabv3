@@ -80,8 +80,9 @@ router.post("/:id/run", requireAuth, async (req, res, next) => {
 
     // Generate real output based on task type
     const business = await prisma.business.findUnique({ where: { id: task.businessId } });
-    const intake   = JSON.parse(business.intakeData || "{}");
-    const idea     = JSON.parse(business.ideaData   || "{}");
+    let intake = {}, idea = {};
+    try { intake = JSON.parse(business.intakeData || "{}"); } catch {}
+    try { idea   = JSON.parse(business.ideaData   || "{}"); } catch {}
 
     const outputData = await generateTaskOutput(task, business, idea, intake);
 

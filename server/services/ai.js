@@ -343,4 +343,19 @@ Answer in 2-3 sentences. Be specific and practical.
   return text.trim();
 }
 
-module.exports = { generateIdeas, generateTasks, generateWebsite, generateBusinessPlan, generateSocialContent, generateEmailTemplates, runMarketingAgent, runManagementAgent, chatResponse };
+async function generatePitchDeck(business, idea, intake) {
+  const text = await chat(`
+Create a 10-slide investor pitch deck for ${business.name} (${idea.name || "business"}).
+Format as clean standalone HTML with inline styles and embedded CSS.
+
+Business data: Budget $${business.budget?.toLocaleString() || 0} | Revenue target ${idea.revenue || "TBD"} | Location: ${business.location}
+
+Slides: Cover, Problem, Solution, Market Opportunity, Revenue Model, Pricing, Go-To-Market, Financial Projections, Competitive Advantage, The Ask.
+
+Design: clean, modern, dark background (#1a1a2e), accent color #7C3AED. Each slide is a full-width section.
+Return ONLY raw HTML starting with <!DOCTYPE html>.
+`, 6000);
+  return text.replace(/^```html?\s*/i, "").replace(/\s*```\s*$/i, "").trim();
+}
+
+module.exports = { generateIdeas, generateTasks, generateWebsite, generateBusinessPlan, generateSocialContent, generateEmailTemplates, generatePitchDeck, runMarketingAgent, runManagementAgent, chatResponse };
