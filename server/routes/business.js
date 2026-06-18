@@ -28,13 +28,16 @@ router.post("/", requireAuth, async (req, res, next) => {
     const safeIdea   = typeof ideaData   === "string" ? ideaData   : JSON.stringify(ideaData   || {});
     const safeIntake = typeof intakeData === "string" ? intakeData : JSON.stringify(intakeData || {});
 
+    const safeBudget       = Math.max(0, Math.min(parseFloat(budget) || 0, 10_000_000));
+    const safeHoursPerWeek = Math.max(0, Math.min(parseInt(hoursPerWeek) || 0, 168));
+
     const business = await prisma.business.create({
       data: {
         userId: req.userId,
-        name, tagline: tagline || "",
-        location,
-        budget: parseFloat(budget) || 0,
-        hoursPerWeek: parseInt(hoursPerWeek) || 0,
+        name: name.slice(0, 200), tagline: (tagline || "").slice(0, 300),
+        location: location.slice(0, 200),
+        budget: safeBudget,
+        hoursPerWeek: safeHoursPerWeek,
         ideaData:   safeIdea,
         intakeData: safeIntake,
       },

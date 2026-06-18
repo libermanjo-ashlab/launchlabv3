@@ -152,7 +152,7 @@ router.delete("/:businessId/usage", requireAuth, async (req, res, next) => {
 });
 
 // ── AUTOPILOT (Autopilot tier only) ───────────────────────────────────────────
-const AUTOPILOT_INTERVAL_MS = 10 * 60 * 1000; // every 10 minutes
+const AUTOPILOT_INTERVAL_MS = 10 * 60 * 1000; // base interval — jitter added per business
 
 async function runAutopilotCycle(businessId) {
   try {
@@ -196,9 +196,12 @@ async function runAutopilotCycle(businessId) {
 
 function startAutopilot(businessId) {
   if (autopilotLoops[businessId]) return;
+  // Add up to 60 s of random jitter so all businesses don't slam the Claude API
+  // simultaneously when many autopilot accounts are active.
+  const jitter = Math.floor(Math.random() * 60_000);
   runAutopilotCycle(businessId); // run once immediately
-  autopilotLoops[businessId] = setInterval(()=>runAutopilotCycle(businessId), AUTOPILOT_INTERVAL_MS);
-  console.log(`[Autopilot] Started for business ${businessId}`);
+  autopilotLoops[businessId] = setInterval(() => runAutopilotCycle(businessId), AUTOPILOT_INTERVAL_MS + jitter);
+  console.log(`[Autopilot] Started for business ${businessId} (interval ${Math.round((AUTOPILOT_INTERVAL_MS + jitter)/1000)}s)`);
 }
 function stopAutopilot(businessId) {
   if (autopilotLoops[businessId]) { clearInterval(autopilotLoops[businessId]); delete autopilotLoops[businessId]; console.log(`[Autopilot] Stopped for business ${businessId}`); }

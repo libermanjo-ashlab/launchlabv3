@@ -17,6 +17,9 @@ router.get("/:businessId", requireAuth, async (req, res, next) => {
 // POST /api/integrations/:businessId/stripe — initiate Stripe Connect
 router.post("/:businessId/stripe", requireAuth, async (req, res, next) => {
   try {
+    const business = await prisma.business.findFirst({ where: { id: req.params.businessId, userId: req.userId } });
+    if (!business) return res.status(404).json({ error: "Business not found" });
+
     if (!process.env.STRIPE_SECRET_KEY) {
       return res.status(503).json({ error: "Stripe not configured. Add STRIPE_SECRET_KEY to .env" });
     }

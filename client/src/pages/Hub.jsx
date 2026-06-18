@@ -102,7 +102,7 @@ function AgentPanel({ businessId, metrics, age, planInfo }) {
           <p style={{ fontSize:13, color:C.muted, lineHeight:1.65, marginBottom:14, fontFamily:FB }}>
             Analyzes your business data and finds the highest-impact changes. Each insight is specific to your numbers.
           </p>
-          {access?.effective?.isTrial && !access.effective.trialExpired && (
+          {access?.effective?.isTrial && !access.effective.trialExpired && !access.effective.locked && (
             <div style={{ fontSize:11, color:C.muted, marginBottom:10, fontFamily:FB, display:"flex", alignItems:"center", gap:10 }}>
               <span>Free trial: {Math.max(0,3-(access.usage?.marketingRuns||0))} marketing analyses left</span>
               {planInfo?.isAdmin && (

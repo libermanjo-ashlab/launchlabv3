@@ -1,4 +1,14 @@
 require("dotenv").config();
+
+// Fail fast on missing required environment variables so the server never starts
+// in a broken state and silently accepts requests it cannot handle.
+const REQUIRED_ENV = ["JWT_SECRET", "ANTHROPIC_API_KEY"];
+const missing = REQUIRED_ENV.filter(k => !process.env[k]);
+if (missing.length) {
+  console.error(`[Startup] Missing required environment variables: ${missing.join(", ")}`);
+  process.exit(1);
+}
+
 if (!process.env.DATABASE_URL) { process.env.DATABASE_URL = "file:./prod.db"; console.log("[Config] DATABASE_URL defaulted to file:./prod.db"); }
 
 const express   = require("express");

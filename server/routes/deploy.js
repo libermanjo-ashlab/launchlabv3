@@ -106,20 +106,16 @@ router.post("/netlify/:businessId/update", requireAuth, async (req, res, next) =
     });
     if (!business) return res.status(404).json({ error: "Business not found" });
 
-    const idea   = JSON.parse(business.ideaData   || "{}");
-    const intake = JSON.parse(business.intakeData  || "{}");
+    let idea = {}, intake = {};
+    try { idea   = JSON.parse(business.ideaData   || "{}"); } catch {}
+    try { intake = JSON.parse(business.intakeData  || "{}"); } catch {}
 
-    // Allow caller to inject custom instructions for the update
     const { updateInstructions } = req.body;
-    if (updateInstructions) {
-      intake._updateInstructions = updateInstructions;
-    }
+    if (updateInstructions) intake._updateInstructions = updateInstructions;
 
-    // Step 1: AI regenerates the website
-    console.log("[Deploy] Regenerating website with AI...");
     const newHtml = await generateWebsite(business, idea, intake);
 
-    // Step 2: Save new version to BusinessOutput
+    // Save new version to BusinessOutput
     const existing = await prisma.businessOutput.findFirst({
       where: { businessId: business.id, type: "website" },
     });
@@ -127,12 +123,8 @@ router.post("/netlify/:businessId/update", requireAuth, async (req, res, next) =
       ? await prisma.businessOutput.update({ where: { id: existing.id }, data: { content: newHtml } })
       : await prisma.businessOutput.create({ data: { businessId: business.id, type: "website", title: business.name + " — Website", content: newHtml } });
 
-    // Step 3: Deploy to Netlify
-    console.log("[Deploy] Pushing to Netlify...");
     const site = await getOrCreateNetlifySite(token, business);
     const { deployId, liveUrl } = await deploySite(token, site.siteId, newHtml);
-
-    // Step 4: Save updated metadata
     await prisma.integration.updateMany({
       where: { businessId: business.id, provider: "netlify" },
       data: { metadata: JSON.stringify({ ...site, liveUrl, deployId, lastDeployed: new Date().toISOString() }) },

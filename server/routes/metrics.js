@@ -61,7 +61,8 @@ router.post("/:businessId/suggest", requireAuth, async (req, res, next) => {
     if (!biz) return res.status(404).json({ error:"Business not found" });
 
     const metrics = await getMetrics(req.params.businessId);
-    const idea    = JSON.parse(biz.ideaData||"{}");
+    let idea = {};
+    try { idea = JSON.parse(biz.ideaData || "{}"); } catch {}
 
     const msg = await ai.messages.create({
       model:"claude-sonnet-4-6", max_tokens:600,

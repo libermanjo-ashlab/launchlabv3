@@ -105,7 +105,9 @@ async function handleWebhook(req, res) {
       const sub = event.data.object;
       const user = await prisma.user.findFirst({ where:{ stripeCustomerId: sub.customer } });
       if (user) {
-        await prisma.user.update({ where:{ id:user.id }, data:{ plan:"trial", trialEndsAt:new Date(0) } });
+        // Set trialEndsAt to now so the account is immediately locked (expired trial),
+        // but don't use epoch (new Date(0)) — that permanently breaks re-subscription flows.
+        await prisma.user.update({ where:{ id:user.id }, data:{ plan:"trial", trialEndsAt: new Date() } });
         console.log(`[Stripe] User ${user.id} subscription cancelled — reverted to expired trial`);
       }
     }

@@ -18,13 +18,29 @@ router.post("/register", async (req, res, next) => {
   try {
     const { email, password, name, goal, age } = req.body;
     if (!email || !password || !name) return res.status(400).json({ error: "email, password, and name are required" });
+
+    // Basic email format check
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      return res.status(400).json({ error: "Please enter a valid email address" });
+    }
     if (password.length < 8) return res.status(400).json({ error: "Password must be at least 8 characters" });
+    if (name.trim().length < 2) return res.status(400).json({ error: "Name must be at least 2 characters" });
+
+    // Age bounds — under 13 is COPPA territory; over 120 is clearly invalid
+    let parsedAge = null;
+    if (age !== undefined && age !== null && age !== "") {
+      parsedAge = parseInt(age);
+      if (isNaN(parsedAge) || parsedAge < 13 || parsedAge > 120) {
+        return res.status(400).json({ error: "Age must be between 13 and 120" });
+      }
+    }
+
     const exists = await prisma.user.findUnique({ where: { email: email.toLowerCase() } });
     if (exists) return res.status(409).json({ error: "An account with this email already exists" });
     const hashed = await bcrypt.hash(password, 12);
     const trialEndsAt = new Date(Date.now() + TRIAL_DAYS*24*60*60*1000);
     const user = await prisma.user.create({
-      data: { email: email.toLowerCase(), password: hashed, name, goal: goal||null, age: age ? parseInt(age) : null, plan:"trial", trialEndsAt },
+      data: { email: email.toLowerCase(), password: hashed, name: name.trim(), goal: goal||null, age: parsedAge, plan:"trial", trialEndsAt },
     });
     res.status(201).json({ token: makeToken(user.id), user: publicUser(user) });
   } catch(e) { next(e); }

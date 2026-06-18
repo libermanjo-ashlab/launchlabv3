@@ -30,7 +30,20 @@ router.post("/ideas", requireAuth, async (req, res, next) => {
   try {
     const { intake } = req.body;
     if (!intake?.location) return res.status(400).json({ error:"Location is required" });
-    const ideas = await ai.generateIdeas(intake);
+
+    // Sanitise intake so oversized inputs can't DoS the AI or inflate token usage
+    const clean = {
+      ...intake,
+      location:  String(intake.location  || "").slice(0, 200),
+      incomeGoal:String(intake.incomeGoal|| "").slice(0, 200),
+      ownIdea:   String(intake.ownIdea   || "").slice(0, 1000),
+      skills:    Array.isArray(intake.skills)  ? intake.skills.slice(0, 30).map(s => String(s).slice(0, 100))  : [],
+      assets:    Array.isArray(intake.assets)  ? intake.assets.slice(0, 30).map(s => String(s).slice(0, 100))  : [],
+      hours:     Math.max(1, Math.min(Number(intake.hours)  || 10, 168)),
+      budget:    Math.max(0, Math.min(Number(intake.budget) || 0,  10_000_000)),
+    };
+
+    const ideas = await ai.generateIdeas(clean);
     res.json({ ideas });
   } catch(e) { next(e); }
 });
