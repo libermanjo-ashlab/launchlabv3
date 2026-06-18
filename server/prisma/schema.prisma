@@ -6,32 +6,38 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 model User {
-  id         String     @id @default(cuid())
-  email      String     @unique
-  password   String
-  name       String
-  age        Int?
-  goal       String?
-  createdAt  DateTime   @default(now())
-  businesses Business[]
+  id               String     @id @default(cuid())
+  email            String     @unique
+  password         String
+  name             String
+  age              Int?
+  goal             String?
+  plan             String     @default("trial")
+  trialEndsAt      DateTime?
+  stripeCustomerId String?
+  isAdmin          Boolean    @default(false)
+  simulatedPlan    String?
+  createdAt        DateTime   @default(now())
+  businesses       Business[]
 }
 model Business {
-  id           String           @id @default(cuid())
-  userId       String
-  user         User             @relation(fields: [userId], references: [id], onDelete: Cascade)
-  name         String
-  tagline      String?
-  location     String
-  budget       Float
-  hoursPerWeek Int
-  status       String           @default("setup")
-  ideaData     String
-  intakeData   String
-  createdAt    DateTime         @default(now())
-  updatedAt    DateTime         @updatedAt
-  tasks        Task[]
-  outputs      BusinessOutput[]
-  integrations Integration[]
+  id               String           @id @default(cuid())
+  userId           String
+  user             User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name             String
+  tagline          String?
+  location         String
+  budget           Float
+  hoursPerWeek     Int
+  status           String           @default("setup")
+  ideaData         String
+  intakeData       String
+  autopilotEnabled Boolean          @default(false)
+  createdAt        DateTime         @default(now())
+  updatedAt        DateTime         @updatedAt
+  tasks            Task[]
+  outputs          BusinessOutput[]
+  integrations     Integration[]
   @@index([userId])
 }
 model Task {

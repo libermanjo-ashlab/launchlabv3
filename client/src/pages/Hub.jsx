@@ -28,17 +28,32 @@ function StatCard({ label, value, onChange, prefix="", suffix="" }) {
   );
 }
 
-function AgentPanel({ businessId, metrics, age }) {
+function UpgradeCard({ reason, navigate }) {
+  return (
+    <div style={{ ...card("16px 18px"), background:"#FFFBEB", border:"1px solid #D9770630", marginBottom:16 }}>
+      <div style={{ fontFamily:FH, fontWeight:600, fontSize:14, marginBottom:6, color:"#92400E" }}>Upgrade needed</div>
+      <p style={{ fontSize:13, color:"#92400E", lineHeight:1.6, marginBottom:12, fontFamily:FB }}>{reason}</p>
+      <button onClick={()=>navigate("/pricing")} style={{ ...btn("#D97706","#fff",13) }}>View plans</button>
+    </div>
+  );
+}
+
+function AgentPanel({ businessId, metrics, age, planInfo }) {
   const [insights,     setInsights]     = useState([]);
   const [running,      setRunning]      = useState(false);
   const [implementing, setImplementing] = useState(null);
   const [liveUrl,      setLiveUrl]      = useState(null);
   const [activity,     setActivity]     = useState([]);
   const [error,        setError]        = useState("");
+  const [access,       setAccess]       = useState(null);
+  const navigate = useNavigate();
+
+  const refreshAccess = () => api.agents.access(businessId).then(setAccess).catch(()=>{});
 
   useEffect(()=>{
     api.agents.activity(businessId).then(d=>setActivity(d.activity||[])).catch(()=>{});
     api.agents.deployStatus(businessId).then(d=>{ if(d.liveUrl) setLiveUrl(d.liveUrl); }).catch(()=>{});
+    refreshAccess();
   },[businessId]);
 
   const runAnalysis = async () => {
@@ -47,6 +62,7 @@ function AgentPanel({ businessId, metrics, age }) {
       const {insights:data} = await api.agents.runMarketing(businessId);
       setInsights(data);
       api.agents.activity(businessId).then(d=>setActivity(d.activity||[])).catch(()=>{});
+      refreshAccess();
     } catch(e){ setError(e.message); }
     setRunning(false);
   };
@@ -57,6 +73,7 @@ function AgentPanel({ businessId, metrics, age }) {
       const result = await api.agents.implement(businessId,insight);
       setLiveUrl(result.liveUrl);
       api.agents.activity(businessId).then(d=>setActivity(d.activity||[])).catch(()=>{});
+      refreshAccess();
     } catch(e){ setError(e.message); }
     setImplementing(null);
   };
@@ -85,9 +102,18 @@ function AgentPanel({ businessId, metrics, age }) {
           <p style={{ fontSize:13, color:C.muted, lineHeight:1.65, marginBottom:14, fontFamily:FB }}>
             Analyzes your business data and finds the highest-impact changes. Each insight is specific to your numbers.
           </p>
-          <button onClick={runAnalysis} disabled={running} style={{ ...btn(running?"#9CA3AF":C.grad), width:"100%", marginBottom:14, display:"flex", alignItems:"center", justifyContent:"center", gap:10 }}>
+          {access?.effective?.isTrial && !access.effective.trialExpired && (
+            <div style={{ fontSize:11, color:C.muted, marginBottom:10, fontFamily:FB, display:"flex", alignItems:"center", gap:10 }}>
+              <span>Free trial: {Math.max(0,3-(access.usage?.marketingRuns||0))} marketing analyses left</span>
+              {planInfo?.isAdmin && (
+                <button onClick={async()=>{ await api.agents.resetUsage(businessId).catch(()=>{}); refreshAccess(); }} style={{ ...btnO("#9333EA",10), padding:"2px 8px" }}>Reset usage (admin)</button>
+              )}
+            </div>
+          )}
+          {access && !access.marketing.allowed && <UpgradeCard reason={access.marketing.reason} navigate={navigate} />}
+          <button onClick={runAnalysis} disabled={running || (access && !access.marketing.allowed)} style={{ ...btn(running?"#9CA3AF":(access&&!access.marketing.allowed)?"#D1D5DB":C.grad), width:"100%", marginBottom:14, display:"flex", alignItems:"center", justifyContent:"center", gap:10, cursor:(access&&!access.marketing.allowed)?"not-allowed":"pointer" }}>
             {running && <span style={{ width:14, height:14, borderRadius:"50%", border:"2px solid rgba(255,255,255,0.4)", borderTopColor:"#fff", animation:"spin 0.7s linear infinite", flexShrink:0 }}/>}
-            {running?"Analyzing your business...":"Run marketing analysis"}
+            {running?"Analyzing your business...":(access&&!access.marketing.allowed)?"Upgrade to run analysis":"Run marketing analysis"}
           </button>
 
           {running && (
@@ -112,10 +138,14 @@ function AgentPanel({ businessId, metrics, age }) {
               <p style={{ fontSize:12, fontWeight:600, color:C.muted, textTransform:"uppercase", letterSpacing:"0.05em", marginBottom:3, fontFamily:FB }}>Recommended action</p>
               <p style={{ fontSize:13, color:C.text, lineHeight:1.6, marginBottom:8, fontFamily:FB }}>{insight.recommendation}</p>
               <div style={{ background:C.okBg, borderRadius:6, padding:"6px 10px", marginBottom:10, fontSize:12, color:C.ok, fontFamily:FB }}>Expected: {insight.expectedImpact}</div>
-              <button onClick={()=>implement(insight)} disabled={!!implementing} style={{ ...btn(implementing===insight.id?"#9CA3AF":C.dark,"#fff",12), width:"100%", display:"flex", alignItems:"center", justifyContent:"center", gap:8, opacity:implementing&&implementing!==insight.id?0.5:1 }}>
-                {implementing===insight.id&&<span style={{ width:12, height:12, borderRadius:"50%", border:"2px solid rgba(255,255,255,0.4)", borderTopColor:"#fff", animation:"spin 0.7s linear infinite" }}/>}
-                {implementing===insight.id?"Management agent implementing...":"Hand off to management agent"}
-              </button>
+              {access && !access.management.allowed ? (
+                <button onClick={()=>navigate("/pricing")} style={{ ...btn("#D97706","#fff",12), width:"100%" }}>Upgrade to implement this</button>
+              ) : (
+                <button onClick={()=>implement(insight)} disabled={!!implementing} style={{ ...btn(implementing===insight.id?"#9CA3AF":C.dark,"#fff",12), width:"100%", display:"flex", alignItems:"center", justifyContent:"center", gap:8, opacity:implementing&&implementing!==insight.id?0.5:1 }}>
+                  {implementing===insight.id&&<span style={{ width:12, height:12, borderRadius:"50%", border:"2px solid rgba(255,255,255,0.4)", borderTopColor:"#fff", animation:"spin 0.7s linear infinite" }}/>}
+                  {implementing===insight.id?"Management agent implementing...":"Hand off to management agent"}
+                </button>
+              )}
             </div>
           ))}
         </div>
@@ -174,6 +204,48 @@ function AgentPanel({ businessId, metrics, age }) {
   );
 }
 
+function AutopilotCard({ businessId, planInfo, navigate }) {
+  const [enabled, setEnabled] = useState(null);
+  const [busy,    setBusy]    = useState(false);
+  const isAutopilotPlan = planInfo?.plan === "autopilot";
+
+  useEffect(()=>{
+    api.agents.getAutopilot(businessId).then(d=>setEnabled(!!d.autopilotEnabled)).catch(()=>setEnabled(false));
+  },[businessId]);
+
+  const toggle = async () => {
+    if (!isAutopilotPlan) return navigate("/pricing");
+    setBusy(true);
+    try {
+      const { autopilotEnabled } = await api.agents.setAutopilot(businessId, !enabled);
+      setEnabled(autopilotEnabled);
+    } catch(e) { /* silently fail, access already gated by plan check above */ }
+    setBusy(false);
+  };
+
+  return (
+    <div style={{ ...card("16px 18px"), marginBottom:24, background:isAutopilotPlan?(enabled?C.okBg:C.surface):"#F4F4F5", border:`1px solid ${isAutopilotPlan&&enabled?C.ok+"30":C.border}` }}>
+      <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start" }}>
+        <div style={{ flex:1 }}>
+          <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:6 }}>
+            <div style={{ fontFamily:FH, fontWeight:600, fontSize:14 }}>Autopilot mode</div>
+            {!isAutopilotPlan && <span style={{ background:"#F4F4F5", color:C.muted, fontSize:9, fontWeight:700, padding:"2px 8px", borderRadius:20, textTransform:"uppercase", letterSpacing:"0.04em" }}>Autopilot plan only</span>}
+            {isAutopilotPlan && enabled && <span style={{ background:C.ok, color:"#fff", fontSize:9, fontWeight:700, padding:"2px 8px", borderRadius:20, textTransform:"uppercase", letterSpacing:"0.04em" }}>Running</span>}
+          </div>
+          <p style={{ fontSize:13, color:C.muted, lineHeight:1.6, fontFamily:FB }}>
+            {isAutopilotPlan
+              ? "When enabled, your agents run on their own schedule — analyzing performance and implementing changes automatically, with no input from you."
+              : "Let your business run itself — agents check in automatically and implement improvements without you doing anything. Available on the Autopilot plan ($102/mo)."}
+          </p>
+        </div>
+        <button onClick={toggle} disabled={busy||enabled===null} style={{ ...btn(isAutopilotPlan?(enabled?C.err:C.ok):"#D97706","#fff",12), flexShrink:0, marginLeft:16 }}>
+          {!isAutopilotPlan ? "Upgrade" : busy ? "..." : enabled ? "Turn off" : "Turn on"}
+        </button>
+      </div>
+    </div>
+  );
+}
+
 export default function Hub() {
   const { id: businessId } = useParams();
   const { user, hubModes, setHubMode } = useStore();
@@ -192,12 +264,17 @@ export default function Hub() {
   const [mgmtAns,     setMgmtAns]   = useState("");
   const [chatOpen,    setChatOpen]   = useState(false);
   const [chatMsgs,    setChatMsgs]   = useState([{ role:"ai", text:"I am here to help. Ask me about your business, setup steps, or growth strategy." }]);
+  const [planInfo,    setPlanInfo]   = useState(null);
   const navigate = useNavigate();
 
   const modes   = hubModes[businessId]||{ marketing:"Full auto", management:"Manual" };
   const age     = user?.age;
   const isMinor = age && age < 18;
   const isYoung = age && age >= 18 && age < 25;
+
+  useEffect(()=>{
+    api.subscriptions.me().then(setPlanInfo).catch(()=>{});
+  },[]);
 
   useEffect(()=>{
     Promise.all([
@@ -244,10 +321,19 @@ export default function Hub() {
         <div style={{ padding:"22px 18px 16px", borderBottom:"1px solid rgba(255,255,255,0.06)", position:"relative" }}>
           <div style={{ fontFamily:FH, fontWeight:700, fontSize:16, background:C.grad, WebkitBackgroundClip:"text", WebkitTextFillColor:"transparent", letterSpacing:"-0.03em", marginBottom:6 }}>LaunchLab</div>
           <div style={{ fontFamily:FH, fontWeight:600, fontSize:14, color:"#fff", marginBottom:4, lineHeight:1.3 }}>{business?.name}</div>
-          <div style={{ display:"flex", alignItems:"center", gap:6 }}>
+          <div style={{ display:"flex", alignItems:"center", gap:6, marginBottom:8 }}>
             <div style={{ width:5, height:5, borderRadius:"50%", background:"#4ADE80" }} />
             <span style={{ fontSize:11, color:"rgba(255,255,255,0.35)", fontFamily:FB }}>{business?.location}</span>
           </div>
+          {planInfo && (
+            <div onClick={()=>navigate("/pricing")} style={{ cursor:"pointer", display:"inline-flex", alignItems:"center", gap:5, background:planInfo.locked?"rgba(220,38,38,0.15)":`${C.primary}20`, border:`1px solid ${planInfo.locked?"#DC262640":C.primary+"40"}`, borderRadius:6, padding:"3px 8px" }}>
+              <span style={{ fontSize:10, color:planInfo.locked?"#FCA5A5":"#A78BFA", fontWeight:600, textTransform:"uppercase", letterSpacing:"0.04em", fontFamily:FB }}>
+                {planInfo.isAdmin
+                  ? `Admin — ${planInfo.simulating ? "previewing "+planInfo.simulating.replace("_"," ") : "full access"}`
+                  : planInfo.locked ? "Trial expired" : planInfo.isTrial ? `Trial — ${planInfo.trialDaysLeft}d left` : planInfo.plan}
+              </span>
+            </div>
+          )}
         </div>
         <nav style={{ padding:"12px 8px", flex:1 }}>
           {navItems.map(({id,label})=>(
@@ -443,7 +529,7 @@ export default function Hub() {
                 {genError&&<div style={{ marginTop:12, background:C.errBg, borderRadius:8, padding:"10px 14px", fontSize:13, color:C.err, fontFamily:FB }}>{genError}</div>}
               </div>
 
-              <AgentPanel businessId={businessId} metrics={metrics} age={age}/>
+              <AgentPanel businessId={businessId} metrics={metrics} age={age} planInfo={planInfo}/>
             </div>
           )}
 
@@ -462,6 +548,8 @@ export default function Hub() {
                 {modes.management==="Guided"&&"Guided mode — your AI will prompt you with questions to keep your numbers current."}
                 {modes.management==="Full auto"&&"Full auto mode — connect integrations and the agent tracks everything automatically."}
               </div>
+
+              <AutopilotCard businessId={businessId} planInfo={planInfo} navigate={navigate} />
 
               {/* AI question box */}
               <div style={{ ...card("16px 18px"), marginBottom:24, background:C.primaryBg, border:`1px solid ${C.primary}15` }}>

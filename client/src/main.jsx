@@ -8,6 +8,7 @@ import Discovery  from "./pages/Discovery";
 import Results    from "./pages/Results";
 import Creation   from "./pages/Creation";
 import Hub        from "./pages/Hub";
+import Pricing    from "./pages/Pricing";
 import "./index.css";
 
 function Private({ children }) {
@@ -19,6 +20,7 @@ ReactDOM.createRoot(document.getElementById("root")).render(
   <BrowserRouter>
     <Routes>
       <Route path="/"               element={<Welcome/>} />
+      <Route path="/pricing"        element={<Pricing/>} />
       <Route path="/dashboard"      element={<Private><Dashboard/></Private>} />
       <Route path="/discovery"      element={<Private><Discovery/></Private>} />
       <Route path="/results"        element={<Private><Results/></Private>} />

@@ -6,14 +6,24 @@ import { C, FH, FB, btn, btnO, card } from "../components";
 
 export default function Dashboard() {
   const { user, clearAuth, businesses, setBusinesses, setCurrentBusiness } = useStore();
-  const [loading, setLoading] = useState(true);
+  const [loading,  setLoading]  = useState(true);
+  const [planInfo, setPlanInfo] = useState(null);
   const navigate = useNavigate();
 
   useEffect(()=>{
     api.businesses.list().then(d=>setBusinesses(d.businesses)).catch(console.error).finally(()=>setLoading(false));
+    api.subscriptions.me().then(setPlanInfo).catch(()=>{});
   },[]);
 
   const logout = () => { clearAuth(); navigate("/"); };
+
+  const simulate = async (val) => {
+    try {
+      await api.auth.simulatePlan(val);
+      const fresh = await api.subscriptions.me();
+      setPlanInfo(fresh);
+    } catch(e) { console.error(e); }
+  };
 
   return (
     <div style={{ minHeight:"100vh", background:C.bg, fontFamily:FB }}>
@@ -22,11 +32,48 @@ export default function Dashboard() {
         <div style={{ display:"flex", alignItems:"center", gap:14 }}>
           <span style={{ fontSize:13, color:C.muted }}>{user?.name}</span>
           {user?.age && <span style={{ fontSize:11, color:C.muted, background:C.bg, borderRadius:20, padding:"3px 10px", border:`1px solid ${C.border}` }}>Age {user.age}</span>}
+          <button onClick={()=>navigate("/pricing")} style={{ ...btnO(C.primary,12), padding:"5px 12px" }}>Plans</button>
           <button onClick={logout} style={{ ...btnO(C.muted,12), padding:"5px 12px" }}>Sign out</button>
         </div>
       </div>
 
       <div style={{ maxWidth:680, margin:"0 auto", padding:"52px 24px" }}>
+        {planInfo?.isAdmin && (
+          <div style={{ ...card("16px 18px"), marginBottom:20, background:"#0F0F17", border:"1px solid #7C3AED40" }}>
+            <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:6 }}>
+              <span style={{ fontFamily:FH, fontWeight:700, fontSize:14, color:"#fff" }}>Admin testing mode</span>
+              <span style={{ background:"#7C3AED25", color:"#C4B5FD", fontSize:10, fontWeight:700, padding:"2px 8px", borderRadius:20, textTransform:"uppercase", letterSpacing:"0.04em" }}>
+                {planInfo.simulating ? `Previewing: ${planInfo.simulating.replace("_"," ")}` : "Full access"}
+              </span>
+            </div>
+            <p style={{ fontSize:12, color:"#9CA3AF", marginBottom:14, fontFamily:FB, lineHeight:1.6 }}>
+              Switch your effective plan to preview exactly what each tier sees and how the paywall behaves. This only affects your account — no other user is impacted.
+            </p>
+            <div style={{ display:"flex", gap:8, flexWrap:"wrap" }}>
+              {[["full","Full access"],["trial","Trial (active)"],["trial_expired","Trial (expired)"],["starter","Starter $29"],["active","Active $65"],["autopilot","Autopilot $102"]].map(([val,label])=>{
+                const isActive = (val==="full" && !planInfo.simulating) || planInfo.simulating===val;
+                return (
+                  <button key={val} onClick={()=>simulate(val)} style={{ ...btn(isActive?"#7C3AED":"#27272A","#fff",11), padding:"6px 12px" }}>{label}</button>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+        {planInfo && (planInfo.isTrial || planInfo.locked) && (
+          <div style={{ ...card("14px 18px"), marginBottom:24, background:planInfo.locked?"#FEF2F2":C.primaryBg, border:`1px solid ${planInfo.locked?"#DC262625":C.primary+"20"}`, display:"flex", justifyContent:"space-between", alignItems:"center" }}>
+            <div>
+              <div style={{ fontSize:13, fontWeight:600, color:planInfo.locked?C.err:C.primary, fontFamily:FB, marginBottom:2 }}>
+                {planInfo.locked ? "Your free trial has ended" : `${planInfo.trialDaysLeft} day${planInfo.trialDaysLeft!==1?"s":""} left on your free trial`}
+              </div>
+              <div style={{ fontSize:12, color:C.muted, fontFamily:FB }}>
+                {planInfo.locked ? "Choose a plan to keep using the marketing and management agents." : "Upgrade anytime to unlock unlimited agent runs."}
+              </div>
+            </div>
+            <button onClick={()=>navigate("/pricing")} style={{ ...btn(planInfo.locked?C.err:C.primary,"#fff",12), flexShrink:0 }}>View plans</button>
+          </div>
+        )}
+
         <div style={{ fontFamily:FH, fontWeight:700, fontSize:28, letterSpacing:"-0.05em", marginBottom:4 }}>
           {user?.name ? `Welcome back, ${user.name}.` : "Welcome back."}
         </div>

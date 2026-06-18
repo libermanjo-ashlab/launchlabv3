@@ -64,7 +64,7 @@ router.post("/:businessId/suggest", requireAuth, async (req, res, next) => {
     const idea    = JSON.parse(biz.ideaData||"{}");
 
     const msg = await ai.messages.create({
-      model:"claude-sonnet-4-20250514", max_tokens:600,
+      model:"claude-sonnet-4-6", max_tokens:600,
       messages:[{ role:"user", content:`
 You are the management agent for "${biz.name}" (${idea.name||"service business"} in ${biz.location}).
 Current metrics: revenue $${metrics.revenue.this_month}/mo, ${metrics.clients.active} active clients, ${metrics.leads.this_month} leads this month, ${metrics.social.instagram} Instagram followers.

@@ -19,6 +19,7 @@ export const api = {
     login:    b  => req("POST", "/auth/login", b),
     me:       () => req("GET",  "/auth/me"),
     update:   b  => req("PUT",  "/auth/me", b),
+    simulatePlan: simulatedPlan => req("PUT", "/auth/admin/simulate", { simulatedPlan }),
   },
   businesses: {
     list:    ()       => req("GET",    "/businesses"),
@@ -51,11 +52,22 @@ export const api = {
     googleAuth: bizId    => req("GET",  `/integrations/google/auth?businessId=${bizId}`),
     disconnect: (bizId,p)=> req("POST", `/integrations/${bizId}/${p}/disconnect`),
   },
+
+  subscriptions: {
+    plans:    () => req("GET",  "/subscriptions/plans"),
+    me:       () => req("GET",  "/subscriptions/me"),
+    checkout: planId => req("POST", "/subscriptions/checkout", { planId }),
+    portal:   () => req("POST", "/subscriptions/portal"),
+  },
   agents: {
     runMarketing: bizId         => req("POST", `/agents/${bizId}/marketing/run`),
     implement:    (bizId,insight)=> req("POST", `/agents/${bizId}/management/implement`, { insight }),
     activity:     bizId         => req("GET",  `/agents/${bizId}/activity`),
+    access:       bizId         => req("GET",  `/agents/${bizId}/access`),
+    getAutopilot: bizId         => req("GET",  `/agents/${bizId}/autopilot`),
+    setAutopilot: (bizId,enabled)=> req("POST", `/agents/${bizId}/autopilot`, { enabled }),
     deployStatus: bizId         => req("GET",  `/agents/${bizId}/deploy-status`),
+    resetUsage:   bizId         => req("DELETE", `/agents/${bizId}/usage`),
   },
   metrics: {
     get:     bizId          => req("GET", `/metrics/${bizId}`),

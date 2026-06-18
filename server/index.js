@@ -15,6 +15,7 @@ const integRoutes    = require("./routes/integrations");
 const deployRoutes   = require("./routes/deploy");
 const agentRoutes    = require("./routes/agents");
 const metricsRoutes  = require("./routes/metrics");
+const { router: subscriptionRoutes, handleWebhook } = require("./routes/subscriptions");
 
 const app    = express();
 const prisma = new PrismaClient();
@@ -22,20 +23,25 @@ const PORT   = process.env.PORT || 3000;
 const isProd = process.env.NODE_ENV === "production";
 
 app.use(cors({ origin: isProd ? process.env.CLIENT_URL : "http://localhost:5173", credentials: true }));
+
+// Stripe webhook needs the raw body BEFORE express.json() parses it
+app.post("/api/subscriptions/webhook", express.raw({ type: "application/json" }), handleWebhook);
+
 app.use(express.json({ limit: "10mb" }));
 
 const aiLimiter = rateLimit({ windowMs: 60_000, max: 30, message: { error: "Too many requests — please wait a moment." } });
 
-app.use("/api/auth",         authRoutes);
-app.use("/api/businesses",   businessRoutes);
-app.use("/api/tasks",        taskRoutes);
-app.use("/api/generate",     aiLimiter, generateRoutes);
-app.use("/api/integrations", integRoutes);
-app.use("/api/deploy",       deployRoutes);
-app.use("/api/agents",       agentRoutes);
-app.use("/api/metrics",      metricsRoutes);
+app.use("/api/auth",          authRoutes);
+app.use("/api/businesses",    businessRoutes);
+app.use("/api/tasks",         taskRoutes);
+app.use("/api/generate",      aiLimiter, generateRoutes);
+app.use("/api/integrations",  integRoutes);
+app.use("/api/deploy",        deployRoutes);
+app.use("/api/agents",        agentRoutes);
+app.use("/api/metrics",       metricsRoutes);
+app.use("/api/subscriptions", subscriptionRoutes);
 
-app.get("/api/health", (req, res) => res.json({ ok: true, version: "1.0.0" }));
+app.get("/api/health", (req, res) => res.json({ ok: true, version: "1.1.0" }));
 
 if (isProd) {
   const dist = path.join(__dirname, "../client/dist");
@@ -54,7 +60,11 @@ async function start() {
     const { execSync } = require("child_process");
     try { execSync("npx prisma db push --accept-data-loss", { cwd: __dirname, stdio: "inherit" }); } catch(e) { console.warn("[DB] Migration warning:", e.message); }
   }
-  app.listen(PORT, () => console.log(`LaunchLab running on port ${PORT} [${isProd?"production":"development"}]`));
+  await authRoutes.ensureAdminAccount().catch(e => console.warn("[Admin] Setup warning:", e.message));
+  app.listen(PORT, async () => {
+    console.log(`LaunchLab running on port ${PORT} [${isProd?"production":"development"}]`);
+    await agentRoutes.resumeAllAutopilots();
+  });
 }
 
 start().catch(e => { console.error("Startup failed:", e); process.exit(1); });

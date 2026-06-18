@@ -95,14 +95,14 @@ export function WorkflowRail({ currentStage, completedStages=[], businessName, u
                 <div style={{ width:22,height:22,borderRadius:"50%",flexShrink:0,display:"flex",alignItems:"center",justifyContent:"center",fontSize:10,fontWeight:700,fontFamily:FB,color:"#fff",background:done?C.ok:active?stageColor[stage.key]:"transparent",border:`1.5px solid ${done?C.ok:active?stageColor[stage.key]:"#ffffff20"}` }}>
                   {done?"+":(si+1)}
                 </div>
-                <span style={{ fontSize:13,fontWeight:active?600:400,color:locked?"#ffffff20":active?"#fff":"#ffffff60",fontFamily:FB }}>{stage.label}</span>
+                <span style={{ fontSize:13,fontWeight:active?600:400,color:locked?"#ffffff30":active?"#fff":"#ffffffa0",fontFamily:FB }}>{stage.label}</span>
               </div>
               {active && stage.subs && ["discovery"].includes(currentStage) && (
                 <div style={{ marginLeft:35,marginTop:2,marginBottom:4 }}>
                   {stage.subs.map((sub,si2)=>(
                     <div key={si2} style={{ display:"flex",alignItems:"center",gap:8,padding:"4px 8px",borderRadius:6 }}>
-                      <div style={{ width:4,height:4,borderRadius:"50%",background:"#ffffff30",flexShrink:0 }}/>
-                      <span style={{ fontSize:11,color:"#ffffff40",fontFamily:FB }}>{sub}</span>
+                      <div style={{ width:4,height:4,borderRadius:"50%",background:"#ffffff60",flexShrink:0 }}/>
+                      <span style={{ fontSize:11,color:"#ffffffb0",fontFamily:FB }}>{sub}</span>
                     </div>
                   ))}
                 </div>
