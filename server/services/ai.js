@@ -2,43 +2,33 @@ const Anthropic = require("@anthropic-ai/sdk");
 const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 const MODEL  = "claude-sonnet-4-6";
 
-function safeJSON(text) {
-  const m = text.match(/\[[\s\S]*\]|\{[\s\S]*\}/);
-  if (!m) throw new Error("No JSON in response");
-  let s = m[0];
-
-  // Normalise the raw string before any parse attempt:
-  // 1. Replace literal newlines / tabs inside string values with a space so
-  //    they don't break the JSON parser (multi-sentence "why" fields are the
-  //    main culprit).
-  // 2. Collapse any remaining control characters.
-  s = s.replace(/[\r\n\t]+/g, " ");
-
-  // Strip trailing comma before a closing bracket/brace (model sometimes adds one).
-  s = s.replace(/,(\s*[}\]])/g, "$1");
-
-  try { return JSON.parse(s); } catch(e) {
-    // Recovery 1: truncate at the last complete object in an array.
-    const last = s.lastIndexOf("},");
-    if (last > 0) {
-      try { return JSON.parse(s.slice(0, last + 1) + "]"); } catch {}
-    }
-    // Recovery 2: truncate at the last complete object that ends the array.
-    const lastClose = s.lastIndexOf("}]");
-    if (lastClose > 0) {
-      try { return JSON.parse(s.slice(0, lastClose + 2)); } catch {}
-    }
-    throw new Error("JSON parse failed: " + e.message);
-  }
+// Plain text call — used for HTML outputs (website, business plan) and chat.
+async function chat(prompt, max = 3000) {
+  const msg = await client.messages.create({
+    model: MODEL,
+    max_tokens: max,
+    messages: [{ role: "user", content: prompt }],
+  });
+  return msg.content.find(b => b.type === "text")?.text || "";
 }
 
-async function chat(prompt, max=3000) {
-  const msg = await client.messages.create({ model:MODEL, max_tokens:max, messages:[{role:"user",content:prompt}] });
-  return msg.content.find(b=>b.type==="text")?.text||"";
+// Structured output call — uses tool_choice to force the model to return valid
+// JSON matching the given schema. Eliminates JSON parsing errors entirely.
+async function chatStructured(prompt, schema, toolName, max = 3000) {
+  const msg = await client.messages.create({
+    model: MODEL,
+    max_tokens: max,
+    tools: [{ name: toolName, description: "Submit the structured output.", input_schema: schema }],
+    tool_choice: { type: "tool", name: toolName },
+    messages: [{ role: "user", content: prompt }],
+  });
+  const block = msg.content.find(b => b.type === "tool_use");
+  if (!block) throw new Error("No structured output returned by model");
+  return block.input;
 }
 
 function ageContext(age) {
-  if (!age) return { group:"adult", note:"" };
+  if (!age) return { group: "adult", note: "" };
   if (age < 18) return {
     group: "minor",
     note: `Person is ${age} years old (under 18). IMPORTANT: Do NOT suggest LLC formation, business bank accounts, formal contracts, or Stripe business accounts. Focus on sole proprietor or informal arrangements. Payment via Venmo, PayPal.me, or cash. Parent or guardian involvement may be needed for any formal agreements. Business types should be age-appropriate: tutoring, content creation, reselling, pet care, lawn care, photography, social media help, handmade goods.`,
@@ -55,66 +45,126 @@ function ageContext(age) {
 
 async function generateIdeas(intake) {
   const { note } = ageContext(intake.age);
-  const text = await chat(`
-Generate exactly 5 tailored business ideas for this person. Return ONLY a valid JSON array — no prose, no markdown.
+  const result = await chatStructured(`
+Generate exactly 5 tailored side-hustle business ideas for this person.
 
 Profile:
 Location: ${intake.location}
-Age: ${intake.age||"not specified"}
+Age: ${intake.age || "not specified"}
 Hours per week: ${intake.hours}
 Budget: $${Number(intake.budget).toLocaleString()}
-Skills: ${intake.skills?.join(", ")||"none listed"}
-Assets: ${intake.assets?.join(", ")||"none listed"}
-Risk tolerance: ${intake.risk||"medium"}
-Income goal: ${intake.incomeGoal||"not specified"}
-Experience: ${intake.businessExperience||"none"}
-${intake.ownIdea?"Own idea to analyze first: "+intake.ownIdea:""}
+Skills: ${intake.skills?.join(", ") || "none listed"}
+Assets: ${intake.assets?.join(", ") || "none listed"}
+Risk tolerance: ${intake.risk || "medium"}
+Income goal: ${intake.incomeGoal || "not specified"}
+Experience: ${intake.businessExperience || "none"}
+${intake.ownIdea ? "Own idea to analyze first: " + intake.ownIdea : ""}
 
 ${note}
 
-RULES:
+Rules:
 - Every idea must be specific to ${intake.location}
 - Must be feasible within ${intake.hours} hrs/week and $${Number(intake.budget).toLocaleString()} budget
-- Inside JSON string values: no double-quotes, no apostrophes, no newlines
-- Use the $ symbol for all dollar amounts (e.g. $80, $150) — never write the word dollar
-- Keep "why" to ONE sentence (under 25 words), "biggestRisk" under 12 words
-- Return ONLY the JSON array
-
-[{"name":"Business Name","tagline":"Clear value prop under 12 words","why":"One sentence on why this fits them","revenue":"$X,XXX-$X,XXX/mo","timeToFirstRevenue":"X-Y weeks","startupCost":"$X-$X,XXX","biggestRisk":"One specific risk under 12 words","scores":{"Fit":8.5,"Market":7.0,"Capital":9.0,"Time":8.0,"Risk":7.5,"Upside":8.0}}]
-`, 4000);
-  return safeJSON(text);
+- Use $ for all dollar amounts (e.g. $80, $150)
+- why: one sentence under 25 words explaining the fit
+- biggestRisk: under 12 words
+- All scores between 0 and 10
+`, {
+    type: "object",
+    properties: {
+      ideas: {
+        type: "array",
+        items: {
+          type: "object",
+          properties: {
+            name:               { type: "string" },
+            tagline:            { type: "string" },
+            why:                { type: "string" },
+            revenue:            { type: "string" },
+            timeToFirstRevenue: { type: "string" },
+            startupCost:        { type: "string" },
+            biggestRisk:        { type: "string" },
+            scores: {
+              type: "object",
+              properties: {
+                Fit:    { type: "number" },
+                Market: { type: "number" },
+                Capital:{ type: "number" },
+                Time:   { type: "number" },
+                Risk:   { type: "number" },
+                Upside: { type: "number" },
+              },
+              required: ["Fit", "Market", "Capital", "Time", "Risk", "Upside"],
+            },
+          },
+          required: ["name","tagline","why","revenue","timeToFirstRevenue","startupCost","biggestRisk","scores"],
+        },
+      },
+    },
+    required: ["ideas"],
+  }, "submit_ideas", 4000);
+  return result.ideas;
 }
 
 async function generateTasks(idea, intake) {
   const { group, note } = ageContext(intake.age);
   const isMinor = group === "minor";
-
-  const text = await chat(`
+  const result = await chatStructured(`
 Generate a business setup checklist for "${idea.name}" in ${intake.location}.
-Budget: $${Number(intake.budget).toLocaleString()}. Age: ${intake.age||"adult"}.
+Budget: $${Number(intake.budget).toLocaleString()}. Age: ${intake.age || "adult"}.
 
 ${note}
 
 ${isMinor ? `
-MINOR-SPECIFIC RULES:
+Minor-specific rules:
 - No LLC formation tasks
 - No business bank accounts
 - Payment setup: Venmo, PayPal.me, or cash only
 - No formal business registration required
 - Keep every task under 30 minutes
-- Add a parent or guardian note where any agreement is involved
+- Add a parentNote where any agreement or signup is involved
 ` : `
 - All tasks must be completable independently
-- ${group==="young_adult"?"Add helpful context for first-time entrepreneurs":"Keep instructions concise"}
+- ${group === "young_adult" ? "Add helpful context for first-time entrepreneurs" : "Keep instructions concise"}
 `}
 
-Return ONLY a JSON array. No double-quotes, apostrophes, or newlines inside string values. Use $ for all dollar amounts (e.g. $80/hr), never the word dollar.
-
-[{"name":"Task name","category":"Legal or Financial or Digital or Operations or Marketing","description":"What to do and why it matters for this specific business","estimatedTime":"X minutes or X hours","estimatedCost":"$X or Free","canAutomate":true,"${isMinor?"parentNote":"tip"}":"${isMinor?"Note if parent involvement needed":"Optional helpful tip"}","steps":[{"text":"Step description","url":"https://direct-url.com or null"}]}]
-
-Generate 8-12 tasks in logical order. Be specific to ${idea.name} in ${intake.location}.
-`, 2500);
-  return safeJSON(text);
+Generate 8-12 tasks in logical order, specific to ${idea.name} in ${intake.location}.
+Use $ for all dollar amounts.
+`, {
+    type: "object",
+    properties: {
+      tasks: {
+        type: "array",
+        items: {
+          type: "object",
+          properties: {
+            name:          { type: "string" },
+            category:      { type: "string", enum: ["Legal","Financial","Digital","Operations","Marketing"] },
+            description:   { type: "string" },
+            estimatedTime: { type: "string" },
+            estimatedCost: { type: "string" },
+            canAutomate:   { type: "boolean" },
+            tip:           { type: "string" },
+            parentNote:    { type: "string" },
+            steps: {
+              type: "array",
+              items: {
+                type: "object",
+                properties: {
+                  text: { type: "string" },
+                  url:  { type: "string" },
+                },
+                required: ["text"],
+              },
+            },
+          },
+          required: ["name","category","description","estimatedTime","estimatedCost","canAutomate","steps"],
+        },
+      },
+    },
+    required: ["tasks"],
+  }, "submit_tasks", 3000);
+  return result.tasks;
 }
 
 async function generateWebsite(business, idea, intake) {
@@ -124,7 +174,7 @@ Create a complete, mobile-responsive single-page website. Output ONLY the raw HT
 Business: ${business.name}
 Type: ${idea.name}
 Location: ${business.location}
-Tagline: ${business.tagline||idea.tagline||"Professional services"}
+Tagline: ${business.tagline || idea.tagline || "Professional services"}
 Revenue range: ${idea.revenue}
 
 Design requirements:
@@ -137,7 +187,7 @@ Design requirements:
 - No external dependencies except Google Fonts (Space Grotesk)
 - Fast loading, professional, builds trust
 `, 7000);
-  return text.replace(/^```html?\s*/i,"").replace(/\s*```\s*$/i,"").trim();
+  return text.replace(/^```html?\s*/i, "").replace(/\s*```\s*$/i, "").trim();
 }
 
 async function generateBusinessPlan(business, idea, intake) {
@@ -147,65 +197,127 @@ Write a practical, realistic business plan for ${business.name} (${idea.name}).
 Format as clean HTML with inline styles.
 
 Data: Budget $${business.budget.toLocaleString()} | Revenue target ${idea.revenue} | Location: ${business.location} | Hours/week: ${business.hoursPerWeek}
-Skills: ${intake.skills?.join(", ")||"general"} | Age context: ${note||"adult"}
+Skills: ${intake.skills?.join(", ") || "general"} | Age context: ${note || "adult"}
 
 Sections: Executive Summary, Business Overview, Market Opportunity, Revenue Model and Pricing, Startup Costs, 30-60-90 Day Plan, Financial Projection (monthly for 12 months), Key Risks and How to Manage Them.
 
 Write clearly. Avoid jargon. Use the actual numbers provided. Make it actionable.
 `, 6000);
-  return text.replace(/^```html?\s*/i,"").replace(/\s*```\s*$/i,"").trim();
+  return text.replace(/^```html?\s*/i, "").replace(/\s*```\s*$/i, "").trim();
 }
 
 async function generateSocialContent(business, idea, intake) {
-  const text = await chat(`
+  const result = await chatStructured(`
 Create a 30-day social media content calendar for "${business.name}" (${idea.name} in ${business.location}).
-Return ONLY a valid JSON object. No double-quotes, apostrophes, or newlines inside string values. Use $ for dollar amounts, never the word dollar.
-
-{"posts":[{"day":1,"platform":"Instagram","type":"Launch announcement","caption":"Caption text here","hashtags":["tag1","tag2"]},...],
-"bio":{"instagram":"Instagram bio under 150 characters","tiktok":"TikTok bio","facebook":"Facebook page description","google":"Google Business description"}}
-
-Generate 30 posts alternating Instagram and TikTok. Tone: authentic, clear, appropriate for a local service business.
-`, 4000);
-  return safeJSON(text);
+Generate 30 posts alternating Instagram and TikTok.
+Tone: authentic, clear, appropriate for a local service business.
+Use $ for all dollar amounts.
+`, {
+    type: "object",
+    properties: {
+      posts: {
+        type: "array",
+        items: {
+          type: "object",
+          properties: {
+            day:      { type: "number" },
+            platform: { type: "string" },
+            type:     { type: "string" },
+            caption:  { type: "string" },
+            hashtags: { type: "array", items: { type: "string" } },
+          },
+          required: ["day","platform","type","caption","hashtags"],
+        },
+      },
+      bio: {
+        type: "object",
+        properties: {
+          instagram: { type: "string" },
+          tiktok:    { type: "string" },
+          facebook:  { type: "string" },
+          google:    { type: "string" },
+        },
+        required: ["instagram","tiktok","facebook","google"],
+      },
+    },
+    required: ["posts","bio"],
+  }, "submit_social_content", 4000);
+  return result;
 }
 
 async function generateEmailTemplates(business, idea) {
-  const text = await chat(`
+  const result = await chatStructured(`
 Create 8 professional email templates for "${business.name}" (${idea.name}).
-Return ONLY a valid JSON object. No double-quotes, apostrophes, or newlines inside string values. Use $ for dollar amounts, never the word dollar.
-
-{"templates":[{"name":"Template name","subject":"Subject line","body":"Email body with [FIRST_NAME] placeholders — under 100 words","purpose":"When to send this"},...]}
-
 Templates: Welcome, Booking Confirmation, Appointment Reminder, Post-Service Follow-Up, Review Request, Referral Offer, Re-Engagement, Promotion.
-`, 3000);
-  return safeJSON(text);
+Use [FIRST_NAME] placeholders. Body under 100 words each. Use $ for dollar amounts.
+`, {
+    type: "object",
+    properties: {
+      templates: {
+        type: "array",
+        items: {
+          type: "object",
+          properties: {
+            name:    { type: "string" },
+            subject: { type: "string" },
+            body:    { type: "string" },
+            purpose: { type: "string" },
+          },
+          required: ["name","subject","body","purpose"],
+        },
+      },
+    },
+    required: ["templates"],
+  }, "submit_email_templates", 3000);
+  return result;
 }
 
 async function runMarketingAgent(business, metrics, intake) {
-  const idea = JSON.parse(business.ideaData||"{}");
-  const text = await chat(`
-You are the marketing agent for "${business.name}" (${idea.name} in ${business.location}).
+  let idea = {};
+  try { idea = JSON.parse(business.ideaData || "{}"); } catch {}
+  const result = await chatStructured(`
+You are the marketing agent for "${business.name}" (${idea.name || "business"} in ${business.location}).
 
 Current metrics:
-- Revenue: $${metrics.revenue?.this_month||0}/month
-- Active clients: ${metrics.clients?.active||0}
-- Leads this month: ${metrics.leads?.this_month||0}
-- Instagram followers: ${metrics.social?.instagram||0}
-- Bookings this week: ${metrics.bookings?.this_week||0}
+- Revenue: $${metrics.revenue?.this_month || 0}/month
+- Active clients: ${metrics.clients?.active || 0}
+- Leads this month: ${metrics.leads?.this_month || 0}
+- Instagram followers: ${metrics.social?.instagram || 0}
+- Bookings this week: ${metrics.bookings?.this_week || 0}
 
-Generate 4 specific, data-backed marketing insights. One must target the website (type: website).
-Keep all string values under 20 words. No double-quotes, apostrophes, or newlines inside string values. Use $ for dollar amounts, never the word dollar.
-
-Return ONLY a JSON array:
-[{"id":"1","type":"website","priority":"high","agentObservation":"Specific observation from the data","recommendation":"Specific actionable change","expectedImpact":"Projected outcome","implementationChannel":"Website homepage","managementAction":"What to update on the website"}]
-`, 2000);
-  return safeJSON(text);
+Generate 4 specific, data-backed marketing insights. At least one must target the website (type: "website").
+Keep each string field under 20 words.
+`, {
+    type: "object",
+    properties: {
+      insights: {
+        type: "array",
+        items: {
+          type: "object",
+          properties: {
+            id:                    { type: "string" },
+            type:                  { type: "string" },
+            priority:              { type: "string", enum: ["high","medium","low"] },
+            agentObservation:      { type: "string" },
+            recommendation:        { type: "string" },
+            expectedImpact:        { type: "string" },
+            implementationChannel: { type: "string" },
+            managementAction:      { type: "string" },
+          },
+          required: ["id","type","priority","agentObservation","recommendation","expectedImpact","implementationChannel","managementAction"],
+        },
+      },
+    },
+    required: ["insights"],
+  }, "submit_insights", 2000);
+  return result.insights;
 }
 
 async function runManagementAgent(business, insight, currentHtml) {
-  const idea = JSON.parse(business.ideaData||"{}");
+  let idea = {};
+  try { idea = JSON.parse(business.ideaData || "{}"); } catch {}
   const text = await chat(`
-You are the management agent for "${business.name}" (${idea.name}).
+You are the management agent for "${business.name}" (${idea.name || "business"}).
 
 Implement this marketing recommendation on the website:
 Observation: ${insight.agentObservation}
@@ -216,9 +328,9 @@ Update the website to apply this change prominently. Keep the overall design int
 Return ONLY the complete updated HTML starting with <!DOCTYPE html>.
 
 Current website:
-${currentHtml.slice(0,8000)}
+${currentHtml.slice(0, 8000)}
 `, 8000);
-  return { html: text.replace(/^```html?\s*/i,"").replace(/\s*```\s*$/i,"").trim() };
+  return { html: text.replace(/^```html?\s*/i, "").replace(/\s*```\s*$/i, "").trim() };
 }
 
 async function chatResponse(message, context) {
