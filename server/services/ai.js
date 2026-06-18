@@ -6,13 +6,29 @@ function safeJSON(text) {
   const m = text.match(/\[[\s\S]*\]|\{[\s\S]*\}/);
   if (!m) throw new Error("No JSON in response");
   let s = m[0];
-  try { return JSON.parse(s); } catch {
-    s = s.replace(/,(\s*[}\]])/g,"$1");
-    try { return JSON.parse(s); } catch(e) {
-      const last = s.lastIndexOf("},");
-      if (last > 0) try { return JSON.parse(s.slice(0,last+1)+"]"); } catch {}
-      throw new Error("JSON parse failed: "+e.message);
+
+  // Normalise the raw string before any parse attempt:
+  // 1. Replace literal newlines / tabs inside string values with a space so
+  //    they don't break the JSON parser (multi-sentence "why" fields are the
+  //    main culprit).
+  // 2. Collapse any remaining control characters.
+  s = s.replace(/[\r\n\t]+/g, " ");
+
+  // Strip trailing comma before a closing bracket/brace (model sometimes adds one).
+  s = s.replace(/,(\s*[}\]])/g, "$1");
+
+  try { return JSON.parse(s); } catch(e) {
+    // Recovery 1: truncate at the last complete object in an array.
+    const last = s.lastIndexOf("},");
+    if (last > 0) {
+      try { return JSON.parse(s.slice(0, last + 1) + "]"); } catch {}
     }
+    // Recovery 2: truncate at the last complete object that ends the array.
+    const lastClose = s.lastIndexOf("}]");
+    if (lastClose > 0) {
+      try { return JSON.parse(s.slice(0, lastClose + 2)); } catch {}
+    }
+    throw new Error("JSON parse failed: " + e.message);
   }
 }
 
@@ -40,7 +56,7 @@ function ageContext(age) {
 async function generateIdeas(intake) {
   const { note } = ageContext(intake.age);
   const text = await chat(`
-Generate exactly 5 tailored business ideas for this person. Return ONLY a valid JSON array.
+Generate exactly 5 tailored business ideas for this person. Return ONLY a valid JSON array — no prose, no markdown.
 
 Profile:
 Location: ${intake.location}
@@ -59,11 +75,13 @@ ${note}
 RULES:
 - Every idea must be specific to ${intake.location}
 - Must be feasible within ${intake.hours} hrs/week and $${Number(intake.budget).toLocaleString()} budget
-- Do NOT use double-quote or apostrophe characters inside string values
+- Inside JSON string values: no double-quotes, no apostrophes, no newlines
+- Use the $ symbol for all dollar amounts (e.g. $80, $150) — never write the word dollar
+- Keep "why" to ONE sentence (under 25 words), "biggestRisk" under 12 words
 - Return ONLY the JSON array
 
-[{"name":"Business Name","tagline":"Clear value proposition under 12 words","why":"2 sentences on why this fits their specific profile","revenue":"$X,XXX-$X,XXX/mo","timeToFirstRevenue":"X-Y weeks","startupCost":"$X-$X,XXX","biggestRisk":"One specific risk","scores":{"Fit":8.5,"Market":7.0,"Capital":9.0,"Time":8.0,"Risk":7.5,"Upside":8.0}}]
-`, 3500);
+[{"name":"Business Name","tagline":"Clear value prop under 12 words","why":"One sentence on why this fits them","revenue":"$X,XXX-$X,XXX/mo","timeToFirstRevenue":"X-Y weeks","startupCost":"$X-$X,XXX","biggestRisk":"One specific risk under 12 words","scores":{"Fit":8.5,"Market":7.0,"Capital":9.0,"Time":8.0,"Risk":7.5,"Upside":8.0}}]
+`, 4000);
   return safeJSON(text);
 }
 
@@ -90,7 +108,7 @@ MINOR-SPECIFIC RULES:
 - ${group==="young_adult"?"Add helpful context for first-time entrepreneurs":"Keep instructions concise"}
 `}
 
-Return ONLY a JSON array. No double-quote or apostrophe characters inside strings.
+Return ONLY a JSON array. No double-quotes, apostrophes, or newlines inside string values. Use $ for all dollar amounts (e.g. $80/hr), never the word dollar.
 
 [{"name":"Task name","category":"Legal or Financial or Digital or Operations or Marketing","description":"What to do and why it matters for this specific business","estimatedTime":"X minutes or X hours","estimatedCost":"$X or Free","canAutomate":true,"${isMinor?"parentNote":"tip"}":"${isMinor?"Note if parent involvement needed":"Optional helpful tip"}","steps":[{"text":"Step description","url":"https://direct-url.com or null"}]}]
 
@@ -141,7 +159,7 @@ Write clearly. Avoid jargon. Use the actual numbers provided. Make it actionable
 async function generateSocialContent(business, idea, intake) {
   const text = await chat(`
 Create a 30-day social media content calendar for "${business.name}" (${idea.name} in ${business.location}).
-Return ONLY a valid JSON object. No double-quote or apostrophe characters inside string values.
+Return ONLY a valid JSON object. No double-quotes, apostrophes, or newlines inside string values. Use $ for dollar amounts, never the word dollar.
 
 {"posts":[{"day":1,"platform":"Instagram","type":"Launch announcement","caption":"Caption text here","hashtags":["tag1","tag2"]},...],
 "bio":{"instagram":"Instagram bio under 150 characters","tiktok":"TikTok bio","facebook":"Facebook page description","google":"Google Business description"}}
@@ -154,7 +172,7 @@ Generate 30 posts alternating Instagram and TikTok. Tone: authentic, clear, appr
 async function generateEmailTemplates(business, idea) {
   const text = await chat(`
 Create 8 professional email templates for "${business.name}" (${idea.name}).
-Return ONLY a valid JSON object. No double-quote or apostrophe characters inside string values.
+Return ONLY a valid JSON object. No double-quotes, apostrophes, or newlines inside string values. Use $ for dollar amounts, never the word dollar.
 
 {"templates":[{"name":"Template name","subject":"Subject line","body":"Email body with [FIRST_NAME] placeholders — under 100 words","purpose":"When to send this"},...]}
 
@@ -176,7 +194,7 @@ Current metrics:
 - Bookings this week: ${metrics.bookings?.this_week||0}
 
 Generate 4 specific, data-backed marketing insights. One must target the website (type: website).
-Keep all string values under 20 words. No double-quote or apostrophe characters inside string values.
+Keep all string values under 20 words. No double-quotes, apostrophes, or newlines inside string values. Use $ for dollar amounts, never the word dollar.
 
 Return ONLY a JSON array:
 [{"id":"1","type":"website","priority":"high","agentObservation":"Specific observation from the data","recommendation":"Specific actionable change","expectedImpact":"Projected outcome","implementationChannel":"Website homepage","managementAction":"What to update on the website"}]
