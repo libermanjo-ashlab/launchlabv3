@@ -22,6 +22,12 @@ router.post("/", requireAuth, async (req, res, next) => {
     const { name, tagline, location, budget, hoursPerWeek, ideaData, intakeData } = req.body;
     if (!name || !location) return res.status(400).json({ error: "name and location are required" });
 
+    const userExists = await prisma.user.findUnique({ where: { id: req.userId }, select: { id: true } });
+    if (!userExists) return res.status(401).json({ error: "Session expired — please log in again" });
+
+    const safeIdea   = typeof ideaData   === "string" ? ideaData   : JSON.stringify(ideaData   || {});
+    const safeIntake = typeof intakeData === "string" ? intakeData : JSON.stringify(intakeData || {});
+
     const business = await prisma.business.create({
       data: {
         userId: req.userId,
@@ -29,8 +35,8 @@ router.post("/", requireAuth, async (req, res, next) => {
         location,
         budget: parseFloat(budget) || 0,
         hoursPerWeek: parseInt(hoursPerWeek) || 0,
-        ideaData:   JSON.stringify(ideaData   || {}),
-        intakeData: JSON.stringify(intakeData || {}),
+        ideaData:   safeIdea,
+        intakeData: safeIntake,
       },
       include: { tasks: true, outputs: true, integrations: true },
     });

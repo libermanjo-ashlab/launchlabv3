@@ -69,7 +69,8 @@ router.post("/:businessId/marketing/run", requireAuth, async (req, res, next) =>
 
     const biz = await prisma.business.findFirst({ where:{ id:req.params.businessId, userId:req.userId } });
     if (!biz) return res.status(404).json({ error:"Business not found" });
-    const intake  = JSON.parse(biz.intakeData||"{}");
+    let intake = {};
+    try { intake = JSON.parse(biz.intakeData||"{}"); } catch {}
     const metrics = await getUserMetrics(req.params.businessId);
 
     logActivity(req.params.businessId,{ agent:"marketing", action:"Analysis started", detail:"Scanning your business metrics for growth opportunities" });
@@ -157,7 +158,8 @@ async function runAutopilotCycle(businessId) {
   try {
     const biz = await prisma.business.findUnique({ where:{ id:businessId } });
     if (!biz || !biz.autopilotEnabled) { stopAutopilot(businessId); return; }
-    const intake  = JSON.parse(biz.intakeData||"{}");
+    let intake = {};
+    try { intake = JSON.parse(biz.intakeData||"{}"); } catch {}
     const metrics = await getUserMetrics(businessId);
 
     logActivity(businessId,{ agent:"marketing", action:"Autopilot — running analysis", detail:"Scheduled automatic check-in" });

@@ -5,11 +5,16 @@ const ai = require("../services/ai");
 
 const prisma = new PrismaClient();
 
+function safeParse(str, fallback = {}) {
+  if (!str) return fallback;
+  try { return JSON.parse(str); } catch { return fallback; }
+}
+
 async function getBizIntakeIdea(bizId, userId) {
   const biz = await prisma.business.findFirst({ where:{ id:bizId, userId } });
   if (!biz) throw Object.assign(new Error("Business not found"),{status:404});
-  const idea   = JSON.parse(biz.ideaData   || "{}");
-  const intake = JSON.parse(biz.intakeData  || "{}");
+  const idea   = safeParse(biz.ideaData);
+  const intake = safeParse(biz.intakeData);
   return { biz, idea, intake };
 }
 
@@ -36,12 +41,14 @@ router.post("/tasks", requireAuth, async (req, res, next) => {
     if (!idea || !intake) return res.status(400).json({ error:"idea and intake are required" });
     const tasks = await ai.generateTasks(idea, intake);
     if (businessId) {
+      const biz = await prisma.business.findFirst({ where:{ id:businessId, userId:req.userId } });
+      if (!biz) return res.status(404).json({ error:"Business not found" });
       const created = await Promise.all(tasks.map((t,i) =>
         prisma.task.create({ data:{
-          businessId, name:t.name, category:t.category||"Operations",
-          description:t.description, estimatedTime:t.estimatedTime||"",
+          businessId, name:t.name||"Unnamed task", category:t.category||"Operations",
+          description:t.description||"", estimatedTime:t.estimatedTime||"",
           estimatedCost:t.estimatedCost||"Free", canAutomate:!!t.canAutomate,
-          steps:JSON.stringify(t.steps||[]), mode:t.canAutomate?"auto":"guided",
+          steps:JSON.stringify(Array.isArray(t.steps)?t.steps:[]), mode:t.canAutomate?"auto":"guided",
           status:"pending", sortOrder:i,
           outputData: (t.parentNote||t.tip) ? JSON.stringify({ fields:[], parentNote:t.parentNote||t.tip||"" }) : null,
         }})
