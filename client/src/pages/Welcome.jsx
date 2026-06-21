@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { api } from "../lib/api";
 import useStore from "../lib/store";
-import { C, FH, FB, btn, inp } from "../components";
+import { C, FH, FB, btn, inp, Logo } from "../components";
 
 // ── AGENT DEMO SCROLL SECTION ──────────────────────────────────────────────
 function AgentDemoSection() {
@@ -154,7 +154,10 @@ export default function Welcome() {
         <div style={{ position:"absolute", inset:0, background:"radial-gradient(ellipse at 50% 0%, #7C3AED18, transparent 60%)", pointerEvents:"none" }} />
 
         <div style={{ position:"relative", zIndex:1, width:"100%", maxWidth:520, textAlign:"center" }}>
-          <div style={{ fontFamily:FH, fontWeight:700, fontSize:15, background:C.grad, WebkitBackgroundClip:"text", WebkitTextFillColor:"transparent", letterSpacing:"-0.02em", marginBottom:28 }}>LAUNCHLAB</div>
+          <div style={{ display:"flex", alignItems:"center", justifyContent:"center", gap:8, marginBottom:28 }}>
+            <Logo size={22}/>
+            <div style={{ fontFamily:FH, fontWeight:700, fontSize:15, background:C.grad, WebkitBackgroundClip:"text", WebkitTextFillColor:"transparent", letterSpacing:"-0.02em" }}>EARNEDLAB</div>
+          </div>
 
           <div style={{ fontFamily:FH, fontWeight:700, fontSize:48, color:"#fff", lineHeight:1.05, letterSpacing:"-0.045em", marginBottom:6 }}>
             Your business.
@@ -164,7 +167,7 @@ export default function Welcome() {
           </div>
 
           <p style={{ fontSize:16, color:"#ffffff70", lineHeight:1.7, marginBottom:36, maxWidth:420, marginLeft:"auto", marginRight:"auto" }}>
-            LaunchLab finds the right business for you, builds everything automatically, and gets you to your first dollar this week.
+            EarnedLab finds the right business for you, builds everything automatically, and gets you to your first dollar this week.
           </p>
 
           <div style={{ display:"flex", justifyContent:"center", gap:40, marginBottom:48 }}>
@@ -220,7 +223,7 @@ export default function Welcome() {
 
       {/* Footer */}
       <div style={{ padding:"32px 24px", textAlign:"center", borderTop:"1px solid rgba(255,255,255,0.06)" }}>
-        <span style={{ fontSize:12, color:"#ffffff30", fontFamily:FB }}>LaunchLab — built for people who want to start, not just plan.</span>
+        <span style={{ fontSize:12, color:"#ffffff30", fontFamily:FB }}>EarnedLab — built for people who want to start, not just plan.</span>
       </div>
     </div>
   );

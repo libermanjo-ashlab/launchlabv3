@@ -36,7 +36,7 @@ const useStore = create(
       setHubMode: (bizId, stage, mode) => set(s => ({ hubModes: {...s.hubModes, [bizId]:{...(s.hubModes[bizId]||{}), [stage]:mode}} })),
     }),
     {
-      name: "launchlab",
+      name: "earnedlab",
       partialize: s => ({ token:s.token, user:s.user, intake:s.intake, currentBusinessId:s.currentBusinessId }),
     }
   )

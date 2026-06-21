@@ -1,6 +1,6 @@
 const BASE = "/api";
 function getToken() {
-  try { return JSON.parse(localStorage.getItem("launchlab")||"{}").state?.token||null; } catch { return null; }
+  try { return JSON.parse(localStorage.getItem("earnedlab")||"{}").state?.token||null; } catch { return null; }
 }
 async function req(method, path, body) {
   const token = getToken();

@@ -201,7 +201,7 @@ export default function Creation() {
                               })}
                             </div>
                             <p style={{fontSize:12,color:C.muted,marginTop:8,lineHeight:1.6,fontFamily:FB}}>
-                              {task.mode==="auto"?"LaunchLab completes this automatically and shows you the output to review."
+                              {task.mode==="auto"?"EarnedLab completes this automatically and shows you the output to review."
                               :task.mode==="guided"?"Each step opens the relevant page directly. You stay in control of what happens."
                               :"Complete this yourself and mark it done when finished."}
                             </p>

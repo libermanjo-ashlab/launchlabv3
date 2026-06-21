@@ -72,7 +72,7 @@ async function start() {
   }
   await authRoutes.ensureAdminAccount().catch(e => console.warn("[Admin] Setup warning:", e.message));
   app.listen(PORT, async () => {
-    console.log(`LaunchLab running on port ${PORT} [${isProd?"production":"development"}]`);
+    console.log(`EarnedLab running on port ${PORT} [${isProd?"production":"development"}]`);
     await agentRoutes.resumeAllAutopilots();
   });
 }

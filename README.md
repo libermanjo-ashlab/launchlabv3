@@ -1,4 +1,4 @@
-# LaunchLab (Student Edition)
+# EarnedLab
 
 > Speed-first, accessibility-focused, all tasks completable in under 30 minutes — deployable on Railway in under 5 minutes.
 
