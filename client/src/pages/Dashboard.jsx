@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { api } from "../lib/api";
 import useStore from "../lib/store";
-import { C, FH, FB, btn, btnO, card } from "../components";
+import { C, FH, FB, btn, btnO, card, Logo } from "../components";
 
 export default function Dashboard() {
   const { user, clearAuth, businesses, setBusinesses, setCurrentBusiness } = useStore();
@@ -28,7 +28,10 @@ export default function Dashboard() {
   return (
     <div style={{ minHeight:"100vh", background:C.bg, fontFamily:FB }}>
       <div style={{ background:C.surface, borderBottom:`1px solid ${C.border}`, height:54, display:"flex", alignItems:"center", justifyContent:"space-between", padding:"0 32px" }}>
-        <span style={{ fontFamily:FH, fontWeight:700, fontSize:17, letterSpacing:"-0.04em", background:C.grad, WebkitBackgroundClip:"text", WebkitTextFillColor:"transparent" }}>LaunchLab</span>
+        <div style={{ display:"flex", alignItems:"center", gap:9 }}>
+          <Logo size={26}/>
+          <span style={{ fontFamily:FH, fontWeight:700, fontSize:17, letterSpacing:"-0.04em", background:C.grad, WebkitBackgroundClip:"text", WebkitTextFillColor:"transparent" }}>EarnedLab</span>
+        </div>
         <div style={{ display:"flex", alignItems:"center", gap:14 }}>
           <span style={{ fontSize:13, color:C.muted }}>{user?.name}</span>
           {user?.age && <span style={{ fontSize:11, color:C.muted, background:C.bg, borderRadius:20, padding:"3px 10px", border:`1px solid ${C.border}` }}>Age {user.age}</span>}

@@ -19,6 +19,19 @@ export const inp   = (e={}) => ({ width:"100%",padding:"11px 14px",borderRadius:
 export const lbl   = { fontSize:12,fontWeight:600,color:C.muted,textTransform:"uppercase",letterSpacing:"0.06em",display:"block",marginBottom:7,fontFamily:FB };
 export const hint  = { fontSize:12,color:C.muted,marginTop:5,fontFamily:FB,lineHeight:1.55 };
 
+// EarnedLab logo mark — mirrors the provided brand asset (large square + 4 bars)
+export function Logo({ size = 28 }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 56 56" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <rect x="0" y="0"  width="29" height="23" rx="2" fill="#9980C8"/>
+      <rect x="0" y="27" width="5"  height="29" rx="1.5" fill="#8B6AC8"/>
+      <rect x="9" y="27" width="7"  height="29" rx="1.5" fill="#7655C0"/>
+      <rect x="21" y="27" width="13" height="29" rx="1.5" fill="#6468B8"/>
+      <rect x="38" y="27" width="18" height="29" rx="1.5" fill="#5060B0"/>
+    </svg>
+  );
+}
+
 export function Spinner({ color=C.primary, size=32 }) {
   return <div style={{ width:size,height:size,borderRadius:"50%",border:`3px solid ${color}25`,borderTopColor:color,animation:"spin 0.8s linear infinite",flexShrink:0 }} />;
 }
@@ -80,7 +93,10 @@ export function WorkflowRail({ currentStage, completedStages=[], businessName, u
   return (
     <div style={{ width:220,background:C.dark,minHeight:"100vh",display:"flex",flexDirection:"column",flexShrink:0 }}>
       <div style={{ padding:"22px 20px 16px",borderBottom:"1px solid #ffffff0a" }}>
-        <div style={{ fontFamily:FH,fontWeight:700,fontSize:16,background:C.grad,WebkitBackgroundClip:"text",WebkitTextFillColor:"transparent",letterSpacing:"-0.03em",marginBottom:4 }}>LaunchLab</div>
+        <div style={{ display:"flex",alignItems:"center",gap:8,marginBottom:4 }}>
+          <Logo size={26}/>
+          <span style={{ fontFamily:FH,fontWeight:700,fontSize:16,background:C.grad,WebkitBackgroundClip:"text",WebkitTextFillColor:"transparent",letterSpacing:"-0.03em" }}>EarnedLab</span>
+        </div>
         {userName && <div style={{ fontSize:11,color:"#ffffff40",fontFamily:FB }}>{userName}</div>}
       </div>
       <div style={{ flex:1,padding:"14px 10px" }}>

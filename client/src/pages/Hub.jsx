@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import useStore from "../lib/store";
 import { api } from "../lib/api";
-import { C, FH, FB, btn, btnO, card, inp, lbl, GuidePanel, DownloadBtn } from "../components";
+import { C, FH, FB, btn, btnO, card, inp, lbl, GuidePanel, DownloadBtn, Logo } from "../components";
 
 const MODE_CYCLE = ["Manual","Guided","Full auto"];
 
@@ -319,7 +319,10 @@ export default function Hub() {
       <div style={{ width:220, background:C.dark, display:"flex", flexDirection:"column", flexShrink:0, position:"relative", overflow:"hidden" }}>
         <div style={{ position:"absolute", top:0, right:0, width:120, height:120, background:`radial-gradient(ellipse,${C.primary}18,transparent 70%)`, pointerEvents:"none" }} />
         <div style={{ padding:"22px 18px 16px", borderBottom:"1px solid rgba(255,255,255,0.06)", position:"relative" }}>
-          <div style={{ fontFamily:FH, fontWeight:700, fontSize:16, background:C.grad, WebkitBackgroundClip:"text", WebkitTextFillColor:"transparent", letterSpacing:"-0.03em", marginBottom:6 }}>LaunchLab</div>
+          <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:6 }}>
+            <Logo size={24}/>
+            <span style={{ fontFamily:FH, fontWeight:700, fontSize:16, background:C.grad, WebkitBackgroundClip:"text", WebkitTextFillColor:"transparent", letterSpacing:"-0.03em" }}>EarnedLab</span>
+          </div>
           <div style={{ fontFamily:FH, fontWeight:600, fontSize:14, color:"#fff", marginBottom:4, lineHeight:1.3 }}>{business?.name}</div>
           <div style={{ display:"flex", alignItems:"center", gap:6, marginBottom:8 }}>
             <div style={{ width:5, height:5, borderRadius:"50%", background:"#4ADE80" }} />
