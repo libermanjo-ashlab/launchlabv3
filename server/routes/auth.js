@@ -26,12 +26,12 @@ router.post("/register", async (req, res, next) => {
     if (password.length < 8) return res.status(400).json({ error: "Password must be at least 8 characters" });
     if (name.trim().length < 2) return res.status(400).json({ error: "Name must be at least 2 characters" });
 
-    // Age bounds — under 13 is COPPA territory; over 120 is clearly invalid
+    // Age bounds — must be 18+ per Terms of Service
     let parsedAge = null;
     if (age !== undefined && age !== null && age !== "") {
       parsedAge = parseInt(age);
-      if (isNaN(parsedAge) || parsedAge < 13 || parsedAge > 120) {
-        return res.status(400).json({ error: "Age must be between 13 and 120" });
+      if (isNaN(parsedAge) || parsedAge < 18 || parsedAge > 120) {
+        return res.status(400).json({ error: "You must be 18 or older to use EarnedLab" });
       }
     }
 

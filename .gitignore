@@ -6,4 +6,6 @@ dist/
 .DS_Store
 *.log
 .vscode/settings.json
-server/prisma/migrations/
+
+# NOTE: server/prisma/migrations/ is intentionally NOT ignored.
+# Prisma needs committed migration files for `migrate deploy` to work on Railway.

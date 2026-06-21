@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, Link } from "react-router-dom";
 import { api } from "../lib/api";
 import useStore from "../lib/store";
 import { C, FH, FB, btn, inp, Logo } from "../components";
@@ -115,19 +115,12 @@ function PricingTeaser({ onSelect }) {
 export default function Welcome() {
   const [mode,    setMode]    = useState("register");
   const [form,    setForm]    = useState({ name:"", email:"", password:"", age:"" });
+  const [agreed,  setAgreed]  = useState(false);
   const [error,   setError]   = useState("");
   const [loading, setLoading] = useState(false);
   const { setAuth, setIntake } = useStore();
   const navigate = useNavigate();
   const up = (k,v) => setForm(p=>({...p,[k]:v}));
-
-  const ageNum   = parseInt(form.age)||0;
-  const ageGroup = ageNum > 0 ? (ageNum < 18 ? "under18" : ageNum < 25 ? "18to24" : "25plus") : null;
-  const ageNote  = {
-    under18: "No business license or bank account needed — we'll guide you accordingly.",
-    "18to24": "We'll explain each step clearly along the way.",
-    "25plus":  "Full setup options including legal structure and accounts.",
-  }[ageGroup] || "";
 
   const scrollToForm = () => document.getElementById("signup-form")?.scrollIntoView({ behavior:"smooth", block:"center" });
 
@@ -136,6 +129,7 @@ export default function Welcome() {
     if (!form.email.trim()) return setError("Please enter your email");
     if (!form.password) return setError("Please enter a password");
     if (mode==="register" && form.password.length < 8) return setError("Password must be at least 8 characters");
+    if (mode==="register" && !agreed) return setError("Please confirm you are 18 or older and agree to the Terms, Privacy Policy, and Disclaimer");
     setError(""); setLoading(true);
     try {
       const fn = mode==="login" ? api.auth.login : api.auth.register;
@@ -193,11 +187,20 @@ export default function Welcome() {
               <input type="password" value={form.password} onChange={e=>up("password",e.target.value)} placeholder={mode==="register"?"Password (8+ characters)":"Password"} onKeyDown={e=>e.key==="Enter"&&submit()}
                 style={{ ...inp(), background:"rgba(255,255,255,0.07)", border:"1.5px solid rgba(255,255,255,0.12)", color:"#fff", padding:"13px 16px" }} />
               {mode==="register" && (
-                <div>
-                  <input type="number" value={form.age} onChange={e=>up("age",e.target.value)} placeholder="Your age" min="10" max="99"
+                <>
+                  <input type="number" value={form.age} onChange={e=>up("age",e.target.value)} placeholder="Your age" min="18" max="99"
                     style={{ ...inp(), background:"rgba(255,255,255,0.07)", border:"1.5px solid rgba(255,255,255,0.12)", color:"#fff", padding:"13px 16px" }} />
-                  {ageNote && <p style={{ fontSize:12, color:"#A78BFA", marginTop:8, lineHeight:1.5, fontFamily:FB }}>{ageNote}</p>}
-                </div>
+                  <label style={{ display:"flex", alignItems:"flex-start", gap:10, cursor:"pointer", marginTop:4 }}>
+                    <input type="checkbox" checked={agreed} onChange={e=>setAgreed(e.target.checked)}
+                      style={{ marginTop:3, flexShrink:0, accentColor:C.primary, width:15, height:15 }} />
+                    <span style={{ fontSize:12, color:"#ffffffb0", lineHeight:1.6, fontFamily:FB }}>
+                      I'm 18 or older and agree to the{" "}
+                      <Link to="/terms" target="_blank" style={{ color:"#A78BFA", textDecoration:"underline" }}>Terms</Link>,{" "}
+                      <Link to="/privacy" target="_blank" style={{ color:"#A78BFA", textDecoration:"underline" }}>Privacy Policy</Link>, and{" "}
+                      <Link to="/disclaimer" target="_blank" style={{ color:"#A78BFA", textDecoration:"underline" }}>Disclaimer</Link>
+                    </span>
+                  </label>
+                </>
               )}
             </div>
 
@@ -223,7 +226,12 @@ export default function Welcome() {
 
       {/* Footer */}
       <div style={{ padding:"32px 24px", textAlign:"center", borderTop:"1px solid rgba(255,255,255,0.06)" }}>
-        <span style={{ fontSize:12, color:"#ffffff30", fontFamily:FB }}>EarnedLab — built for people who want to start, not just plan.</span>
+        <p style={{ fontSize:12, color:"#ffffff30", fontFamily:FB, marginBottom:12 }}>EarnedLab — built for people who want to start, not just plan.</p>
+        <div style={{ display:"flex", justifyContent:"center", gap:20 }}>
+          {[["Terms","/terms"],["Privacy","/privacy"],["Disclaimer","/disclaimer"]].map(([label,path])=>(
+            <Link key={path} to={path} style={{ fontSize:11, color:"#ffffff30", textDecoration:"underline", fontFamily:FB }}>{label}</Link>
+          ))}
+        </div>
       </div>
     </div>
   );

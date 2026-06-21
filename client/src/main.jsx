@@ -9,6 +9,7 @@ import Results    from "./pages/Results";
 import Creation   from "./pages/Creation";
 import Hub        from "./pages/Hub";
 import Pricing    from "./pages/Pricing";
+import { TermsPage, PrivacyPage, DisclaimerPage } from "./pages/Legal";
 import "./index.css";
 
 function Private({ children }) {
@@ -26,6 +27,9 @@ ReactDOM.createRoot(document.getElementById("root")).render(
       <Route path="/results"        element={<Private><Results/></Private>} />
       <Route path="/creation/:id"   element={<Private><Creation/></Private>} />
       <Route path="/hub/:id"        element={<Private><Hub/></Private>} />
+      <Route path="/terms"          element={<TermsPage/>} />
+      <Route path="/privacy"        element={<PrivacyPage/>} />
+      <Route path="/disclaimer"     element={<DisclaimerPage/>} />
       <Route path="*"               element={<Navigate to="/" replace />} />
     </Routes>
   </BrowserRouter>

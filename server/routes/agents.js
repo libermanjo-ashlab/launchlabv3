@@ -6,6 +6,7 @@ const requireAuth = require("../middleware/auth");
 const { PrismaClient } = require("@prisma/client");
 const { runMarketingAgent, runManagementAgent } = require("../services/agents");
 const { createSite, deploySite } = require("../services/netlify");
+const { runAutopilotIteration } = require("../services/autopilotLoop");
 const { getEffectivePlan, canRunMarketing, canImplement, canUseAutopilot } = require("../services/plans");
 
 const prisma = new PrismaClient();
@@ -156,41 +157,25 @@ const AUTOPILOT_INTERVAL_MS = 10 * 60 * 1000; // base interval — jitter added 
 
 async function runAutopilotCycle(businessId) {
   try {
-    const biz = await prisma.business.findUnique({ where:{ id:businessId } });
+    const biz = await prisma.business.findUnique({ where: { id: businessId } });
     if (!biz || !biz.autopilotEnabled) { stopAutopilot(businessId); return; }
-    let intake = {};
-    try { intake = JSON.parse(biz.intakeData||"{}"); } catch {}
-    const metrics = await getUserMetrics(businessId);
 
-    logActivity(businessId,{ agent:"marketing", action:"Autopilot — running analysis", detail:"Scheduled automatic check-in" });
-    const insights = await runMarketingAgent(biz, metrics, intake);
-    if (!insights.length) return;
+    logActivity(businessId, { agent: "marketing", action: "Autopilot — observing", detail: "Scheduled check-in: reading metrics and deciding next action" });
 
-    const top = insights.find(i=>i.priority==="high") || insights[0];
-    const websiteOut = await prisma.businessOutput.findFirst({ where:{ businessId, type:"website" } });
-    if (!websiteOut) { logActivity(businessId,{ agent:"management", action:"Autopilot paused", detail:"No website generated yet — skipping this cycle" }); return; }
+    const result = await runAutopilotIteration(biz);
 
-    if (!process.env.NETLIFY_TOKEN) { logActivity(businessId,{ agent:"management", action:"Autopilot paused", detail:"NETLIFY_TOKEN not configured" }); return; }
-
-    logActivity(businessId,{ agent:"management", action:"Autopilot — implementing", detail:top.recommendation?.slice(0,80) });
-    const { html } = await runManagementAgent(biz, top, websiteOut.content);
-    await prisma.businessOutput.update({ where:{ id:websiteOut.id }, data:{ content:html } });
-
-    const token = process.env.NETLIFY_TOKEN;
-    let netlifyIntg = await prisma.integration.findFirst({ where:{ businessId, provider:"netlify" } });
-    let siteId, siteUrl;
-    if (netlifyIntg?.status==="connected" && netlifyIntg.metadata) ({ siteId, siteUrl } = JSON.parse(netlifyIntg.metadata));
-    else {
-      const site = await createSite(token, biz.name);
-      siteId = site.siteId; siteUrl = site.siteUrl;
-      await prisma.integration.upsert({ where:{ businessId_provider:{ businessId, provider:"netlify" } }, update:{ status:"connected", metadata:JSON.stringify({ siteId, siteUrl }) }, create:{ businessId, provider:"netlify", status:"connected", metadata:JSON.stringify({ siteId, siteUrl }) } });
+    // Surface the outcome in the activity feed
+    const acted = result.results.filter(r => r.status === "done");
+    const failed = result.results.filter(r => r.status === "failed");
+    if (acted.length === 0 && failed.length === 0) {
+      logActivity(businessId, { agent: "management", action: "Autopilot — no action needed", detail: result.assessment });
+    } else {
+      for (const r of acted)  logActivity(businessId, { agent: "management", action: `Autopilot — updated ${r.channel}`, detail: r.detail });
+      for (const r of failed) logActivity(businessId, { agent: "management", action: `Autopilot — skipped ${r.channel}`, detail: r.detail });
     }
-    const { liveUrl, deployId } = await deploySite(token, siteId, html);
-    await prisma.integration.updateMany({ where:{ businessId, provider:"netlify" }, data:{ metadata:JSON.stringify({ siteId, siteUrl, liveUrl, deployId, lastDeployed:new Date().toISOString() }) } });
-    logActivity(businessId,{ agent:"management", action:"Autopilot — live", detail:`Updated automatically at ${liveUrl}` });
   } catch(e) {
     console.error("[Autopilot] cycle error for", businessId, e.message);
-    logActivity(businessId,{ agent:"management", action:"Autopilot — error", detail:e.message });
+    logActivity(businessId, { agent: "management", action: "Autopilot — error", detail: e.message });
   }
 }
 
