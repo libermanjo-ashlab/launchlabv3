@@ -45,13 +45,19 @@ async function loadUserAndPlan(userId) {
   return { user, effective: getEffectivePlan(user) };
 }
 
-router.get("/:businessId/activity", requireAuth, (req, res) => {
-  res.json({ activity: activityLog[req.params.businessId]||[] });
+router.get("/:businessId/activity", requireAuth, async (req, res, next) => {
+  try {
+    const biz = await prisma.business.findFirst({ where:{ id:req.params.businessId, userId:req.userId } });
+    if (!biz) return res.status(404).json({ error:"Business not found" });
+    res.json({ activity: activityLog[req.params.businessId]||[] });
+  } catch(e) { next(e); }
 });
 
 // GET plan + usage status for a business (used by frontend to show gates)
 router.get("/:businessId/access", requireAuth, async (req, res, next) => {
   try {
+    const biz = await prisma.business.findFirst({ where:{ id:req.params.businessId, userId:req.userId } });
+    if (!biz) return res.status(404).json({ error:"Business not found" });
     const { user, effective } = await loadUserAndPlan(req.userId);
     const usage = await getUsage(req.params.businessId);
     const marketing  = canRunMarketing(effective, usage);
@@ -133,6 +139,8 @@ router.post("/:businessId/management/implement", requireAuth, async (req, res, n
 
 router.get("/:businessId/deploy-status", requireAuth, async (req, res, next) => {
   try {
+    const biz = await prisma.business.findFirst({ where:{ id:req.params.businessId, userId:req.userId } });
+    if (!biz) return res.status(404).json({ error:"Business not found" });
     const intg = await prisma.integration.findFirst({ where:{ businessId:req.params.businessId, provider:"netlify" } });
     if (!intg||intg.status!=="connected") return res.json({ deployed:false });
     const meta = JSON.parse(intg.metadata||"{}");
@@ -145,7 +153,7 @@ router.delete("/:businessId/usage", requireAuth, async (req, res, next) => {
   try {
     const user = await prisma.user.findUnique({ where:{ id:req.userId } });
     if (!user?.isAdmin) return res.status(403).json({ error:"Not authorized" });
-    const biz = await prisma.business.findFirst({ where:{ id:req.params.businessId, userId:req.userId } });
+    const biz = await prisma.business.findFirst({ where:{ id:req.params.businessId } });
     if (!biz) return res.status(404).json({ error:"Business not found" });
     await prisma.businessOutput.deleteMany({ where:{ businessId:biz.id, type:"usage" } });
     res.json({ reset:true });
@@ -159,6 +167,15 @@ async function runAutopilotCycle(businessId) {
   try {
     const biz = await prisma.business.findUnique({ where: { id: businessId } });
     if (!biz || !biz.autopilotEnabled) { stopAutopilot(businessId); return; }
+
+    // Re-check plan on every cycle so cancelled subscribers stop immediately
+    const { effective } = await loadUserAndPlan(biz.userId);
+    if (!canUseAutopilot(effective).allowed) {
+      console.log(`[Autopilot] Stopping for business ${businessId} — owner no longer on pro_autopilot plan`);
+      await prisma.business.update({ where:{ id:businessId }, data:{ autopilotEnabled:false } });
+      stopAutopilot(businessId);
+      return;
+    }
 
     logActivity(businessId, { agent: "marketing", action: "Autopilot — observing", detail: "Scheduled check-in: reading metrics and deciding next action" });
 

@@ -15,9 +15,14 @@ model User {
   plan             String     @default("trial")
   trialEndsAt      DateTime?
   stripeCustomerId String?
-  isAdmin          Boolean    @default(false)
-  simulatedPlan    String?
-  createdAt        DateTime   @default(now())
+  isAdmin                  Boolean    @default(false)
+  simulatedPlan            String?
+  emailVerified            Boolean    @default(false)
+  emailVerificationToken   String?
+  emailVerificationExpires DateTime?
+  passwordResetToken       String?
+  passwordResetExpires     DateTime?
+  createdAt                DateTime   @default(now())
   businesses       Business[]
 }
 model Business {

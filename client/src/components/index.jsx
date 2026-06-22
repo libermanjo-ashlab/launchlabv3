@@ -1,4 +1,7 @@
-import { useState } from "react";
+import { useState, Component } from "react";
+import * as Sentry from "@sentry/react";
+
+const SUPPORT = "support@earnedlab.com";
 
 export const C = {
   bg:"#F8F7F5", surface:"#FFFFFF", dark:"#0A0A0F", border:"#E2E0DB",
@@ -75,10 +78,65 @@ export function TagInput({ tags=[], onChange, placeholder="Type and press Enter"
 
 export function ErrorBox({ msg, onRetry }) {
   if (!msg) return null;
+  const isServerErr = msg.includes("went wrong") || msg.includes("500") || msg.includes("server");
   return (
     <div style={{ ...card("12px 16px"),background:C.errBg,border:`1px solid ${C.err}25`,marginBottom:16 }}>
-      <div style={{ fontSize:13,color:C.err,fontFamily:FB,marginBottom:onRetry?10:0 }}>{msg}</div>
+      <div style={{ fontSize:13,color:C.err,fontFamily:FB,marginBottom:(onRetry||isServerErr)?8:0,lineHeight:1.5 }}>{msg}</div>
+      {isServerErr && (
+        <div style={{ fontSize:12,color:C.err,opacity:0.7,fontFamily:FB,marginBottom:onRetry?8:0 }}>
+          If this keeps happening, email{" "}
+          <a href={`mailto:${SUPPORT}`} style={{ color:C.err,textDecoration:"underline" }}>{SUPPORT}</a>
+        </div>
+      )}
       {onRetry && <button onClick={onRetry} style={btn(C.err,"#fff",12)}>Try again</button>}
+    </div>
+  );
+}
+
+// Full-page error boundary — wraps the entire app via Sentry.ErrorBoundary
+export function AppErrorBoundary({ children }) {
+  if (!import.meta.env.VITE_SENTRY_DSN) {
+    return <NativeErrorBoundary>{children}</NativeErrorBoundary>;
+  }
+  return (
+    <Sentry.ErrorBoundary fallback={ErrorFallback}>
+      {children}
+    </Sentry.ErrorBoundary>
+  );
+}
+
+class NativeErrorBoundary extends Component {
+  constructor(props) { super(props); this.state = { hasError: false, error: null }; }
+  static getDerivedStateFromError(error) { return { hasError: true, error }; }
+  componentDidCatch(error, info) { console.error("[ErrorBoundary]", error, info); }
+  render() {
+    if (this.state.hasError) return <ErrorFallback error={this.state.error} resetError={() => this.setState({ hasError:false, error:null })} />;
+    return this.props.children;
+  }
+}
+
+function ErrorFallback({ error, resetError }) {
+  return (
+    <div style={{ minHeight:"100vh", background:"#0A0A0F", display:"flex", alignItems:"center", justifyContent:"center", padding:24, fontFamily:FB }}>
+      <div style={{ maxWidth:480, width:"100%", textAlign:"center" }}>
+        <div style={{ fontSize:48, marginBottom:20 }}>⚠️</div>
+        <h1 style={{ fontFamily:FH, fontWeight:700, fontSize:24, color:"#fff", letterSpacing:"-0.03em", marginBottom:12 }}>Something went wrong</h1>
+        <p style={{ fontSize:14, color:"rgba(255,255,255,0.5)", lineHeight:1.75, marginBottom:28 }}>
+          EarnedLab hit an unexpected error. We've been notified and are looking into it.
+        </p>
+        <div style={{ display:"flex", flexDirection:"column", gap:10, alignItems:"center" }}>
+          {resetError && (
+            <button onClick={resetError} style={{ background:"#fff", color:"#0A0A0F", border:"none", borderRadius:10, padding:"12px 28px", fontSize:14, fontWeight:700, cursor:"pointer", fontFamily:FB }}>
+              Try again
+            </button>
+          )}
+          <a href="/dashboard" style={{ fontSize:13, color:"rgba(255,255,255,0.4)", fontFamily:FB, textDecoration:"underline" }}>Go to dashboard</a>
+          <p style={{ fontSize:12, color:"rgba(255,255,255,0.25)", marginTop:8, lineHeight:1.6 }}>
+            Still stuck? Email us at{" "}
+            <a href={`mailto:${SUPPORT}`} style={{ color:"rgba(255,255,255,0.4)", textDecoration:"underline" }}>{SUPPORT}</a>
+          </p>
+        </div>
+      </div>
     </div>
   );
 }

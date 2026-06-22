@@ -4,8 +4,39 @@ import { api } from "../lib/api";
 import useStore from "../lib/store";
 import { C, FH, FB, btn, btnO, card, Logo } from "../components";
 
+function EmailVerificationBanner({ user, token, setAuth }) {
+  const [sent,    setSent]    = useState(false);
+  const [sending, setSending] = useState(false);
+
+  if (!user || user.emailVerified) return null;
+
+  const resend = async () => {
+    setSending(true);
+    try {
+      await api.auth.resendVerification();
+      setSent(true);
+    } catch (e) { console.error(e); }
+    finally { setSending(false); }
+  };
+
+  return (
+    <div style={{ background:"rgba(234,179,8,0.1)", border:"1px solid rgba(234,179,8,0.25)", borderRadius:12, padding:"12px 18px", marginBottom:20, display:"flex", justifyContent:"space-between", alignItems:"center", gap:12, flexWrap:"wrap" }}>
+      <span style={{ fontSize:13, color:"#FDE68A", fontFamily:FB, lineHeight:1.5 }}>
+        📧 Please verify your email address to keep your account secure.
+      </span>
+      {sent ? (
+        <span style={{ fontSize:12, color:"#86EFAC", fontFamily:FB }}>Verification email sent!</span>
+      ) : (
+        <button onClick={resend} disabled={sending} style={{ background:"rgba(234,179,8,0.2)", border:"1px solid rgba(234,179,8,0.35)", color:"#FDE68A", borderRadius:8, padding:"5px 14px", fontSize:12, fontWeight:600, cursor:"pointer", fontFamily:FB, flexShrink:0 }}>
+          {sending ? "Sending…" : "Resend email"}
+        </button>
+      )}
+    </div>
+  );
+}
+
 export default function Dashboard() {
-  const { user, clearAuth, businesses, setBusinesses, setCurrentBusiness } = useStore();
+  const { user, token, setAuth, clearAuth, businesses, setBusinesses, setCurrentBusiness } = useStore();
   const [loading,  setLoading]  = useState(true);
   const [planInfo, setPlanInfo] = useState(null);
   const navigate = useNavigate();
@@ -41,6 +72,7 @@ export default function Dashboard() {
       </div>
 
       <div style={{ maxWidth:680, margin:"0 auto", padding:"52px 24px" }}>
+        <EmailVerificationBanner user={user} token={token} setAuth={setAuth} />
         {planInfo?.isAdmin && (
           <div style={{ ...card("16px 18px"), marginBottom:20, background:"#0F0F17", border:"1px solid #7C3AED40" }}>
             <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:6 }}>
@@ -53,7 +85,7 @@ export default function Dashboard() {
               Switch your effective plan to preview exactly what each tier sees and how the paywall behaves. This only affects your account — no other user is impacted.
             </p>
             <div style={{ display:"flex", gap:8, flexWrap:"wrap" }}>
-              {[["full","Full access"],["trial","Trial (active)"],["trial_expired","Trial (expired)"],["starter","Starter $29"],["active","Active $65"],["autopilot","Autopilot $102"]].map(([val,label])=>{
+              {[["full","Full access"],["trial","Trial (active)"],["trial_expired","Trial (expired)"],["starter","Starter $39"],["pro","Pro $89"],["pro_autopilot","Pro Autopilot $199"]].map(([val,label])=>{
                 const isActive = (val==="full" && !planInfo.simulating) || planInfo.simulating===val;
                 return (
                   <button key={val} onClick={()=>simulate(val)} style={{ ...btn(isActive?"#7C3AED":"#27272A","#fff",11), padding:"6px 12px" }}>{label}</button>

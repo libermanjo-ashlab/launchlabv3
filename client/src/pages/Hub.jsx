@@ -207,7 +207,7 @@ function AgentPanel({ businessId, metrics, age, planInfo }) {
 function AutopilotCard({ businessId, planInfo, navigate }) {
   const [enabled, setEnabled] = useState(null);
   const [busy,    setBusy]    = useState(false);
-  const isAutopilotPlan = planInfo?.plan === "autopilot";
+  const isAutopilotPlan = planInfo?.plan === "pro_autopilot";
 
   useEffect(()=>{
     api.agents.getAutopilot(businessId).then(d=>setEnabled(!!d.autopilotEnabled)).catch(()=>setEnabled(false));
@@ -235,7 +235,7 @@ function AutopilotCard({ businessId, planInfo, navigate }) {
           <p style={{ fontSize:13, color:C.muted, lineHeight:1.6, fontFamily:FB }}>
             {isAutopilotPlan
               ? "When enabled, your agents run on their own schedule — analyzing performance and implementing changes automatically, with no input from you."
-              : "Let your business run itself — agents check in automatically and implement improvements without you doing anything. Available on the Autopilot plan ($102/mo)."}
+              : "Let your business run itself — agents check in automatically and implement improvements without you doing anything. Available on the Pro Autopilot plan ($199/mo)."}
           </p>
         </div>
         <button onClick={toggle} disabled={busy||enabled===null} style={{ ...btn(isAutopilotPlan?(enabled?C.err:C.ok):"#D97706","#fff",12), flexShrink:0, marginLeft:16 }}>

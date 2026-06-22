@@ -15,11 +15,15 @@ async function req(method, path, body) {
 }
 export const api = {
   auth: {
-    register: b  => req("POST", "/auth/register", b),
-    login:    b  => req("POST", "/auth/login", b),
-    me:       () => req("GET",  "/auth/me"),
-    update:   b  => req("PUT",  "/auth/me", b),
-    simulatePlan: simulatedPlan => req("PUT", "/auth/admin/simulate", { simulatedPlan }),
+    register:           b       => req("POST", "/auth/register", b),
+    login:              b       => req("POST", "/auth/login", b),
+    me:                 ()      => req("GET",  "/auth/me"),
+    update:             b       => req("PUT",  "/auth/me", b),
+    simulatePlan:       simulatedPlan => req("PUT", "/auth/admin/simulate", { simulatedPlan }),
+    verifyEmail:        token   => req("GET",  `/auth/verify-email?token=${token}`),
+    resendVerification: ()      => req("POST", "/auth/resend-verification"),
+    forgotPassword:     email   => req("POST", "/auth/forgot-password", { email }),
+    resetPassword:      (token, password) => req("POST", "/auth/reset-password", { token, password }),
   },
   businesses: {
     list:    ()       => req("GET",    "/businesses"),

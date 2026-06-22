@@ -5,6 +5,7 @@ const router      = require("express").Router();
 const requireAuth = require("../middleware/auth");
 const { PrismaClient } = require("@prisma/client");
 const { PLAN_INFO, TRIAL_LIMITS, getEffectivePlan } = require("../services/plans");
+const { sendReceiptEmail } = require("../services/email");
 
 const prisma = new PrismaClient();
 
@@ -13,15 +14,15 @@ function getStripe() {
   return require("stripe")(process.env.STRIPE_SECRET_KEY);
 }
 
-const PRICE_ENV = { starter:"STRIPE_PRICE_STARTER", active:"STRIPE_PRICE_ACTIVE", autopilot:"STRIPE_PRICE_AUTOPILOT" };
+const PRICE_ENV = { starter:"STRIPE_PRICE_STARTER", pro:"STRIPE_PRICE_PRO", pro_autopilot:"STRIPE_PRICE_PRO_AUTOPILOT" };
 
 // GET /api/subscriptions/plans — public plan definitions for pricing page
 router.get("/plans", (req, res) => {
   res.json({
     plans: [
-      { id:"starter",   ...PLAN_INFO.starter,   features:["Marketing agent insights & reports","Manual stat tracking and analysis","Unlimited insight generation","Email support"] },
-      { id:"active",    ...PLAN_INFO.active,    features:["Everything in Starter","Management agent implements changes","Live website updates on request","Marketing + Management work together","Priority support"] },
-      { id:"autopilot", ...PLAN_INFO.autopilot, features:["Everything in Active","Fully autonomous operation","Agents run on their own schedule","No manual input required","White-glove support"] },
+      { id:"starter",       ...PLAN_INFO.starter,       features:["Marketing agent insights & reports","Manual stat tracking and analysis","Unlimited insight generation","Email support"] },
+      { id:"pro",           ...PLAN_INFO.pro,           features:["Everything in Starter","Management agent implements changes","Live website updates on request","Marketing + Management work together","Priority support"] },
+      { id:"pro_autopilot", ...PLAN_INFO.pro_autopilot, features:["Everything in Pro","Fully autonomous operation","Agents run on their own schedule","No manual input required","White-glove support"] },
     ],
     trial: { days:7, marketingRuns:TRIAL_LIMITS.marketingRuns, managementImplements:TRIAL_LIMITS.managementImplements },
   });
@@ -96,8 +97,15 @@ async function handleWebhook(req, res) {
       const userId  = session.metadata?.userId;
       const planId  = session.metadata?.planId;
       if (userId && planId) {
-        await prisma.user.update({ where:{ id:userId }, data:{ plan:planId } });
-        console.log(`[Stripe] User ${userId} upgraded to ${planId}`);
+        const existing = await prisma.user.findUnique({ where:{ id:userId } });
+        if (!existing) { console.warn(`[Stripe] checkout.session.completed: user ${userId} not found`); }
+        else {
+          const updated = await prisma.user.update({ where:{ id:userId }, data:{ plan:planId } });
+          console.log(`[Stripe] User ${userId} upgraded to ${planId}`);
+          sendReceiptEmail(updated.email, updated.name, planId).catch(e =>
+            console.error("[Stripe] Receipt email failed:", e.message)
+          );
+        }
       }
     }
 

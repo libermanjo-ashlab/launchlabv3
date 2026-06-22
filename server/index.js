@@ -1,8 +1,21 @@
 require("dotenv").config();
 
-// Fail fast on missing required environment variables so the server never starts
-// in a broken state and silently accepts requests it cannot handle.
+// ── Sentry must init before any other requires so it can instrument them ──
+const Sentry = require("@sentry/node");
+if (process.env.SENTRY_DSN) {
+  Sentry.init({
+    dsn: process.env.SENTRY_DSN,
+    environment: process.env.NODE_ENV || "development",
+    tracesSampleRate: 0.1,
+  });
+  console.log("[Sentry] Error tracking enabled");
+}
+
 const REQUIRED_ENV = ["JWT_SECRET", "ANTHROPIC_API_KEY"];
+if (process.env.NODE_ENV === "production" && !process.env.CLIENT_URL) {
+  console.error("[Startup] CLIENT_URL is required in production — CORS would be open to all origins without it");
+  process.exit(1);
+}
 const missing = REQUIRED_ENV.filter(k => !process.env[k]);
 if (missing.length) {
   console.error(`[Startup] Missing required environment variables: ${missing.join(", ")}`);
@@ -26,6 +39,7 @@ const deployRoutes   = require("./routes/deploy");
 const agentRoutes    = require("./routes/agents");
 const metricsRoutes  = require("./routes/metrics");
 const { router: subscriptionRoutes, handleWebhook } = require("./routes/subscriptions");
+const { startBackupSchedule } = require("./services/backup");
 
 const app    = express();
 const prisma = new PrismaClient();
@@ -51,7 +65,7 @@ app.use("/api/agents",        agentRoutes);
 app.use("/api/metrics",       metricsRoutes);
 app.use("/api/subscriptions", subscriptionRoutes);
 
-app.get("/api/health", (req, res) => res.json({ ok: true, version: "1.1.0" }));
+app.get("/api/health", (req, res) => res.json({ ok: true, version: "1.2.0" }));
 
 if (isProd) {
   const dist = path.join(__dirname, "../client/dist");
@@ -59,9 +73,18 @@ if (isProd) {
   app.get("*", (req, res) => res.sendFile(path.join(dist, "index.html")));
 }
 
+// Sentry Express error handler must be BEFORE the generic error handler
+if (process.env.SENTRY_DSN) Sentry.setupExpressErrorHandler(app);
+
 app.use((err, req, res, next) => {
-  console.error("[Error]", err.message);
-  res.status(err.status||500).json({ error: err.message||"Internal server error" });
+  const status = err.status || 500;
+  if (status >= 500) {
+    console.error("[Error]", err.message, err.stack);
+    if (process.env.SENTRY_DSN) Sentry.captureException(err);
+  }
+  res.status(status).json({
+    error: status >= 500 ? "Something went wrong on our end. If this continues, email support@earnedlab.com" : (err.message || "Request failed"),
+  });
 });
 
 async function start() {
@@ -71,6 +94,7 @@ async function start() {
     try { execSync("npx prisma db push --accept-data-loss", { cwd: __dirname, stdio: "inherit" }); } catch(e) { console.warn("[DB] Migration warning:", e.message); }
   }
   await authRoutes.ensureAdminAccount().catch(e => console.warn("[Admin] Setup warning:", e.message));
+  startBackupSchedule();
   app.listen(PORT, async () => {
     console.log(`EarnedLab running on port ${PORT} [${isProd?"production":"development"}]`);
     await agentRoutes.resumeAllAutopilots();

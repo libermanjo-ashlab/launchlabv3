@@ -1,8 +1,63 @@
 import { useState } from "react";
-import { useNavigate, Link } from "react-router-dom";
+import { useNavigate, Link, useSearchParams } from "react-router-dom";
 import { api } from "../lib/api";
 import useStore from "../lib/store";
 import { C, FH, FB, btn, inp, Logo } from "../components";
+
+// ── FORGOT PASSWORD MODAL ─────────────────────────────────────────────────
+function ForgotPasswordModal({ onClose }) {
+  const [email,   setEmail]   = useState("");
+  const [status,  setStatus]  = useState("idle"); // idle | loading | sent | error
+  const [errMsg,  setErrMsg]  = useState("");
+
+  const submit = async () => {
+    if (!email.trim()) return setErrMsg("Please enter your email address");
+    setStatus("loading"); setErrMsg("");
+    try {
+      await api.auth.forgotPassword(email.trim());
+      setStatus("sent");
+    } catch (e) {
+      setErrMsg(e.message);
+      setStatus("error");
+    }
+  };
+
+  return (
+    <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.75)", display:"flex", alignItems:"center", justifyContent:"center", zIndex:999, padding:24 }}>
+      <div style={{ background:"#16161F", border:"1px solid rgba(255,255,255,0.1)", borderRadius:20, padding:"32px 28px", width:"100%", maxWidth:420, position:"relative" }}>
+        <button onClick={onClose} style={{ position:"absolute", top:16, right:16, background:"none", border:"none", color:"rgba(255,255,255,0.4)", fontSize:20, cursor:"pointer", lineHeight:1 }}>✕</button>
+
+        {status === "sent" ? (
+          <>
+            <div style={{ fontSize:32, marginBottom:16 }}>📧</div>
+            <div style={{ fontFamily:FH, fontWeight:700, fontSize:20, color:"#fff", marginBottom:12, letterSpacing:"-0.03em" }}>Check your email</div>
+            <p style={{ fontSize:14, color:"rgba(255,255,255,0.6)", lineHeight:1.7, marginBottom:20 }}>
+              If an account exists for <strong style={{ color:"#fff" }}>{email}</strong>, we've sent a password reset link. It expires in 1 hour.
+            </p>
+            <button onClick={onClose} style={{ ...btn(C.grad,"#fff",14), padding:"12px 24px", borderRadius:10, width:"100%" }}>Done</button>
+          </>
+        ) : (
+          <>
+            <div style={{ fontFamily:FH, fontWeight:700, fontSize:20, color:"#fff", marginBottom:8, letterSpacing:"-0.03em" }}>Forgot your password?</div>
+            <p style={{ fontSize:13, color:"rgba(255,255,255,0.5)", lineHeight:1.6, marginBottom:20 }}>Enter your email and we'll send you a reset link.</p>
+
+            {errMsg && <div style={{ background:"rgba(220,38,38,0.15)", border:"1px solid rgba(220,38,38,0.3)", borderRadius:8, padding:"10px 14px", fontSize:13, color:"#FCA5A5", marginBottom:16 }}>{errMsg}</div>}
+
+            <input
+              type="email" value={email} onChange={e => setEmail(e.target.value)}
+              onKeyDown={e => e.key === "Enter" && submit()}
+              placeholder="Email address"
+              style={{ ...inp(), background:"rgba(255,255,255,0.07)", border:"1.5px solid rgba(255,255,255,0.12)", color:"#fff", padding:"13px 16px", width:"100%", boxSizing:"border-box", marginBottom:14 }}
+            />
+            <button onClick={submit} disabled={status === "loading"} style={{ ...btn(C.grad,"#fff",14), padding:"13px", borderRadius:10, width:"100%", opacity:status==="loading"?0.7:1 }}>
+              {status === "loading" ? "Sending…" : "Send reset link"}
+            </button>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
 
 // ── AGENT DEMO SCROLL SECTION ──────────────────────────────────────────────
 function AgentDemoSection() {
@@ -48,19 +103,16 @@ function AgentDemoSection() {
         <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
           {steps.map((s,i) => (
             <div key={i} style={{ display:"flex", gap:24, alignItems:"flex-start", position:"relative" }}>
-              {/* Timeline */}
               <div style={{ display:"flex", flexDirection:"column", alignItems:"center", flexShrink:0, width:32 }}>
                 <div style={{ width:32, height:32, borderRadius:"50%", background:s.tagColor, color:"#fff", display:"flex", alignItems:"center", justifyContent:"center", fontFamily:FH, fontWeight:700, fontSize:13, flexShrink:0 }}>{i+1}</div>
                 {i<steps.length-1 && <div style={{ width:2, flex:1, background:"#ffffff15", minHeight:48, marginTop:4 }} />}
               </div>
 
-              {/* Content */}
               <div style={{ flex:1, paddingBottom:i<steps.length-1?40:0 }}>
                 <span style={{ background:s.tagColor+"20", color:s.tagColor, fontSize:10, fontWeight:700, padding:"3px 10px", borderRadius:20, textTransform:"uppercase", letterSpacing:"0.06em", fontFamily:FB }}>{s.tag}</span>
                 <div style={{ fontFamily:FH, fontWeight:600, fontSize:18, color:"#fff", marginTop:10, marginBottom:6 }}>{s.title}</div>
                 <p style={{ fontSize:13, color:"#ffffff60", lineHeight:1.65, marginBottom:16, maxWidth:480 }}>{s.body}</p>
 
-                {/* Mock card */}
                 <div style={{ background:"rgba(255,255,255,0.04)", border:`1px solid ${s.tagColor}25`, borderRadius:10, padding:"12px 16px", maxWidth:480 }}>
                   <div style={{ fontSize:10, color:s.tagColor, fontWeight:600, textTransform:"uppercase", letterSpacing:"0.06em", marginBottom:6, fontFamily:FB }}>{s.mock.label}</div>
                   <div style={{ fontSize:13, color:"#ffffffdd", lineHeight:1.6, fontFamily:FB, display:"flex", alignItems:"center", gap:8 }}>
@@ -80,9 +132,9 @@ function AgentDemoSection() {
 // ── PRICING TEASER ────────────────────────────────────────────────────────
 function PricingTeaser({ onSelect }) {
   const tiers = [
-    { id:"starter",   name:"Starter",   price:29,  desc:"Insights & reports, manual tracking", color:C.primary },
-    { id:"active",    name:"Active",    price:65,  desc:"Agents act on your request", color:C.accent, popular:true },
-    { id:"autopilot", name:"Autopilot", price:102, desc:"Fully autonomous — just watch it run", color:"#DB2777" },
+    { id:"starter",       name:"Starter",       price:39,  desc:"Insights & reports, manual tracking", color:C.primary },
+    { id:"pro",           name:"Pro",           price:89,  desc:"Agents act on your request", color:C.accent, popular:true },
+    { id:"pro_autopilot", name:"Pro Autopilot", price:199, desc:"Fully autonomous — just watch it run", color:"#DB2777" },
   ];
   return (
     <div style={{ padding:"72px 24px", background:C.dark }}>
@@ -112,15 +164,17 @@ function PricingTeaser({ onSelect }) {
   );
 }
 
+// ── MAIN WELCOME PAGE ─────────────────────────────────────────────────────
 export default function Welcome() {
-  const [mode,    setMode]    = useState("register");
-  const [form,    setForm]    = useState({ name:"", email:"", password:"", age:"" });
-  const [agreed,  setAgreed]  = useState(false);
-  const [error,   setError]   = useState("");
-  const [loading, setLoading] = useState(false);
+  const [mode,       setMode]       = useState("register");
+  const [form,       setForm]       = useState({ name:"", email:"", password:"", age:"" });
+  const [agreed,     setAgreed]     = useState(false);
+  const [error,      setError]      = useState("");
+  const [loading,    setLoading]    = useState(false);
+  const [showForgot, setShowForgot] = useState(false);
   const { setAuth, setIntake } = useStore();
   const navigate = useNavigate();
-  const up = (k,v) => setForm(p=>({...p,[k]:v}));
+  const up = (k,v) => setForm(p => ({ ...p, [k]:v }));
 
   const scrollToForm = () => document.getElementById("signup-form")?.scrollIntoView({ behavior:"smooth", block:"center" });
 
@@ -133,16 +187,19 @@ export default function Welcome() {
     setError(""); setLoading(true);
     try {
       const fn = mode==="login" ? api.auth.login : api.auth.register;
-      const { token, user } = await fn({ ...form, age: ageNum||null });
+      const ageNum = form.age ? parseInt(form.age) : null;
+      const { token, user } = await fn({ ...form, age: ageNum || null });
       setAuth(token, user);
       if (user.age) setIntake({ age: user.age });
       navigate("/dashboard");
-    } catch(e) { setError(e.message); }
+    } catch (e) { setError(e.message); }
     finally { setLoading(false); }
   };
 
   return (
     <div style={{ fontFamily:FB, background:C.dark }}>
+      {showForgot && <ForgotPasswordModal onClose={() => setShowForgot(false)} />}
+
       {/* ── HERO ─────────────────────────────────────────────────────────── */}
       <div style={{ minHeight:"100vh", display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", padding:"64px 24px 80px", position:"relative", overflow:"hidden" }}>
         <div style={{ position:"absolute", inset:0, background:"radial-gradient(ellipse at 50% 0%, #7C3AED18, transparent 60%)", pointerEvents:"none" }} />
@@ -208,12 +265,19 @@ export default function Welcome() {
               {loading?"Please wait...":(mode==="login"?"Sign in":"Start free trial — 7 days")}
             </button>
 
-            <p style={{ textAlign:"center", fontSize:13, color:"#ffffff40", marginTop:16, fontFamily:FB }}>
-              {mode==="login"?"No account? ":"Already have an account? "}
-              <span onClick={()=>{setMode(m=>m==="login"?"register":"login");setError("");}} style={{ color:"#A78BFA", cursor:"pointer", fontWeight:600 }}>
-                {mode==="login"?"Create one":"Sign in"}
-              </span>
-            </p>
+            <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginTop:16 }}>
+              <p style={{ fontSize:13, color:"#ffffff40", fontFamily:FB, margin:0 }}>
+                {mode==="login"?"No account? ":"Already have an account? "}
+                <span onClick={()=>{setMode(m=>m==="login"?"register":"login");setError("");}} style={{ color:"#A78BFA", cursor:"pointer", fontWeight:600 }}>
+                  {mode==="login"?"Create one":"Sign in"}
+                </span>
+              </p>
+              {mode==="login" && (
+                <span onClick={()=>setShowForgot(true)} style={{ fontSize:13, color:"#A78BFA", cursor:"pointer", fontWeight:500, fontFamily:FB }}>
+                  Forgot password?
+                </span>
+              )}
+            </div>
           </div>
         </div>
       </div>

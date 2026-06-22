@@ -18,7 +18,7 @@ export default function Pricing() {
   }, [token]);
 
   const choose = async planId => {
-    if (!token) return navigate("/");
+    if (!token) return navigate("/signup");
     setLoading(planId); setError("");
     try {
       const { url } = await api.subscriptions.checkout(planId);
@@ -26,7 +26,8 @@ export default function Pricing() {
     } catch(e) { setError(e.message); setLoading(null); }
   };
 
-  const tierColor = { starter:C.primary, active:C.accent, autopilot:"#DB2777" };
+  const tierColor = { starter:"#6366F1", pro:C.primary, pro_autopilot:"#DB2777" };
+  const popularId = "pro";
 
   return (
     <div style={{ minHeight:"100vh", background:C.dark, fontFamily:FB, padding:"56px 24px 80px" }}>
@@ -52,8 +53,8 @@ export default function Pricing() {
           <div style={{ display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:20 }}>
             {plans.plans.map(p => {
               const isCurrent = current?.plan === p.id;
-              const color = tierColor[p.id];
-              const popular = p.id === "active";
+              const color = tierColor[p.id] || C.primary;
+              const popular = p.id === popularId;
               return (
                 <div key={p.id} style={{ background:"rgba(255,255,255,0.04)", border:`1.5px solid ${popular?color:"rgba(255,255,255,0.1)"}`, borderRadius:18, padding:"28px 24px", position:"relative", display:"flex", flexDirection:"column" }}>
                   {popular && <div style={{ position:"absolute", top:-12, left:"50%", transform:"translateX(-50%)", background:color, color:"#fff", fontSize:10, fontWeight:700, padding:"4px 14px", borderRadius:20, textTransform:"uppercase", letterSpacing:"0.06em" }}>Most popular</div>}
@@ -82,9 +83,14 @@ export default function Pricing() {
         )}
 
         {plans && (
-          <p style={{ textAlign:"center", fontSize:12, color:"#ffffff30", marginTop:32 }}>
-            Free trial includes {plans.trial.marketingRuns} marketing analyses and {plans.trial.managementImplements} live implementation, for {plans.trial.days} days.
-          </p>
+          <div style={{ textAlign:"center", marginTop:32 }}>
+            <p style={{ fontSize:12, color:"#ffffff30" }}>
+              Free trial includes {plans.trial.marketingRuns} marketing analyses and {plans.trial.managementImplements} live implementation, for {plans.trial.days} days.
+            </p>
+            <p style={{ fontSize:12, color:"#ffffff30", marginTop:8 }}>
+              Questions? Email <a href="mailto:support@earnedlab.com" style={{ color:"#ffffff50", textDecoration:"underline" }}>support@earnedlab.com</a>
+            </p>
+          </div>
         )}
       </div>
     </div>
