@@ -20,14 +20,14 @@ function EmailVerificationBanner({ user, token, setAuth }) {
   };
 
   return (
-    <div style={{ background:"rgba(234,179,8,0.1)", border:"1px solid rgba(234,179,8,0.25)", borderRadius:12, padding:"12px 18px", marginBottom:20, display:"flex", justifyContent:"space-between", alignItems:"center", gap:12, flexWrap:"wrap" }}>
-      <span style={{ fontSize:13, color:"#FDE68A", fontFamily:FB, lineHeight:1.5 }}>
+    <div style={{ background:C.warnBg, border:`1px solid ${C.warn}30`, borderRadius:12, padding:"12px 18px", marginBottom:20, display:"flex", justifyContent:"space-between", alignItems:"center", gap:12, flexWrap:"wrap" }}>
+      <span style={{ fontSize:13, color:C.warn, fontFamily:FB, lineHeight:1.5, fontWeight:500 }}>
         📧 Please verify your email address to keep your account secure.
       </span>
       {sent ? (
-        <span style={{ fontSize:12, color:"#86EFAC", fontFamily:FB }}>Verification email sent!</span>
+        <span style={{ fontSize:12, color:C.ok, fontFamily:FB, fontWeight:600 }}>✓ Verification email sent!</span>
       ) : (
-        <button onClick={resend} disabled={sending} style={{ background:"rgba(234,179,8,0.2)", border:"1px solid rgba(234,179,8,0.35)", color:"#FDE68A", borderRadius:8, padding:"5px 14px", fontSize:12, fontWeight:600, cursor:"pointer", fontFamily:FB, flexShrink:0 }}>
+        <button onClick={resend} disabled={sending} style={{ background:C.warn, border:"none", color:"#fff", borderRadius:8, padding:"6px 14px", fontSize:12, fontWeight:600, cursor:"pointer", fontFamily:FB, flexShrink:0, opacity:sending?0.7:1 }}>
           {sending ? "Sending…" : "Resend email"}
         </button>
       )}
