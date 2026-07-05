@@ -11,7 +11,7 @@ function LegalPage({ title, sections }) {
       </div>
       <div style={{ maxWidth: 720, margin: "0 auto", padding: "48px 24px 80px" }}>
         <h1 style={{ fontFamily: FH, fontWeight: 700, fontSize: 28, color: C.text, marginBottom: 8, letterSpacing: "-0.04em" }}>{title}</h1>
-        <p style={{ fontSize: 13, color: C.muted, marginBottom: 40 }}>Last updated: [EFFECTIVE DATE] &mdash; Contact us at [CONTACT EMAIL] with questions.</p>
+        <p style={{ fontSize: 13, color: C.muted, marginBottom: 40 }}>Last updated: 07 July 2026 &mdash; Contact us at info@earnedlab.com with questions.</p>
         {sections.map((s, i) => (
           <div key={i} style={{ marginBottom: 32 }}>
             {s.heading && <h2 style={{ fontFamily: FH, fontWeight: 700, fontSize: 17, color: C.text, marginBottom: 10, letterSpacing: "-0.02em" }}>{s.heading}</h2>}
@@ -29,13 +29,13 @@ export function TermsPage() {
   return (
     <LegalPage title="Terms of Service" sections={[
       { paragraphs: [
-        `These Terms of Service ("Terms") are a legal agreement between you and [LEGAL ENTITY NAME] ("we," "us") governing your use of EarnedLab (the "Service"). By creating an account or using the Service, you agree to these Terms, our Privacy Policy, and our Disclaimer. If you do not agree, do not use the Service.`,
+        `These Terms of Service ("Terms") are a legal agreement between you and EarnedLab ("we," "us") governing your use of EarnedLab (the "Service"). By creating an account or using the Service, you agree to these Terms, our Privacy Policy, and our Disclaimer. If you do not agree, do not use the Service.`,
       ]},
       { heading: "1. Eligibility", paragraphs: [
         `You must be at least 18 years old and able to form a binding contract to use the Service. By using EarnedLab you represent that you meet these requirements.`,
       ]},
       { heading: "2. Your account", paragraphs: [
-        `You are responsible for the activity under your account and for keeping your password secure. Notify us promptly at [CONTACT EMAIL] if you suspect unauthorized use. You agree to provide accurate information and to keep it current.`,
+        `You are responsible for the activity under your account and for keeping your password secure. Notify us promptly at support@earnedlab.com if you suspect unauthorized use. You agree to provide accurate information and to keep it current.`,
       ]},
       { heading: "3. Acceptable use", paragraphs: [
         `You agree not to use the Service to break the law; to infringe others' rights; to create deceptive, harmful, or abusive content; to interfere with or attempt to gain unauthorized access to the Service; or to use it in any way that violates the terms of the third-party platforms you connect.`,
@@ -70,7 +70,7 @@ export function TermsPage() {
         `We may update these Terms. If we make material changes, we will update the date above and, where appropriate, notify you. Continued use after changes means you accept them.`,
       ]},
       { heading: "12. Governing law", paragraphs: [
-        `These Terms are governed by the laws of the State of [GOVERNING-LAW STATE], without regard to its conflict-of-laws rules.`,
+        `These Terms are governed by the laws of the State of Pennsylvania, without regard to its conflict-of-laws rules.`,
       ]},
     ]} />
   );
@@ -80,10 +80,10 @@ export function PrivacyPage() {
   return (
     <LegalPage title="Privacy Policy" sections={[
       { paragraphs: [
-        `This Privacy Policy explains how [LEGAL ENTITY NAME] ("we," "us") collects, uses, and shares information when you use EarnedLab (the "Service"). By using the Service, you agree to this policy.`,
+        `This Privacy Policy explains how EarnedLab ("we," "us") collects, uses, and shares information when you use EarnedLab (the "Service"). By using the Service, you agree to this policy.`,
       ]},
       { heading: "Who can use EarnedLab", paragraphs: [
-        `EarnedLab is intended only for users who are 18 years of age or older. We do not knowingly collect personal information from anyone under 18. If you believe a minor has provided us information, contact us at [CONTACT EMAIL] and we will delete it.`,
+        `EarnedLab is intended only for users who are 18 years of age or older. We do not knowingly collect personal information from anyone under 18. If you believe a minor has provided us information, contact us at support@earnedlab.com and we will delete it.`,
       ]},
       { heading: "Information we collect", paragraphs: [
         `You provide: account information — name, email address, and a securely hashed password; business profile — the intake details you enter, such as location, available hours, capital, skills, assets, risk tolerance, and goals; content and configuration — businesses, websites, posts, and settings you create or generate in the Service; communications — messages you send us.`,
@@ -106,7 +106,7 @@ export function PrivacyPage() {
         `We protect your information using measures such as encrypted connections and hashed passwords. No system is perfectly secure, but we work to safeguard your data and limit access to it.`,
       ]},
       { heading: "Your choices and rights", paragraphs: [
-        `You can access and update your account information, disconnect integrations, and request deletion of your account and associated data by contacting [CONTACT EMAIL]. Depending on where you live (for example, under the GDPR or California privacy laws), you may have additional rights, such as the right to access, correct, delete, or port your data, or to object to certain processing.`,
+        `You can access and update your account information, disconnect integrations, and request deletion of your account and associated data by contacting support@earnedlab.com. Depending on where you live (for example, under the GDPR or California privacy laws), you may have additional rights, such as the right to access, correct, delete, or port your data, or to object to certain processing.`,
       ]},
       { heading: "Changes", paragraphs: [
         `We may update this policy. If we make material changes, we will update the date above and, where appropriate, notify you.`,
@@ -119,7 +119,7 @@ export function DisclaimerPage() {
   return (
     <LegalPage title="Disclaimer" sections={[
       { paragraphs: [
-        `Please read this disclaimer carefully before using EarnedLab (the "Service"), operated by [LEGAL ENTITY NAME] ("we," "us").`,
+        `Please read this disclaimer carefully before using EarnedLab (the "Service"), operated by EarnedLab ("we," "us").`,
       ]},
       { heading: "Not professional advice", paragraphs: [
         `EarnedLab uses artificial intelligence to generate business ideas, plans, content, and recommendations. This output is provided for general informational purposes only. It is not financial, investment, legal, tax, accounting, or other professional advice, and it is not a substitute for advice from a qualified professional. You should consult appropriate licensed professionals before making business, financial, or legal decisions. Decisions about your business, your money, and your legal and regulatory obligations (including any licenses, permits, registrations, insurance, and taxes) are yours alone.`,
