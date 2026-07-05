@@ -595,18 +595,43 @@ function TasksPanel({ businessId, businessOutputs }) {
 
 // ── HUB / INTEGRATIONS ────────────────────────────────────────────────────────
 
-function IntegrationCard({ provider, label, desc, fields, savedMeta, onSave, isConn }) {
+function AutopilotToggle({ on, onToggle, label, disabled }) {
+  return (
+    <div style={{ display:"flex", alignItems:"center", gap:8, padding:"10px 14px", borderRadius:10, background:on?"#F0FDF4":"#F9F9F9", border:`1px solid ${on?C.ok+"40":C.border}`, cursor:disabled?"default":"pointer" }} onClick={disabled?undefined:onToggle}>
+      <div style={{ width:32, height:18, borderRadius:9, background:on?C.ok:"#D1D5DB", position:"relative", flexShrink:0, transition:"background 0.2s" }}>
+        <div style={{ position:"absolute", top:2, left:on?14:2, width:14, height:14, borderRadius:"50%", background:"#fff", transition:"left 0.2s", boxShadow:"0 1px 3px rgba(0,0,0,0.2)" }} />
+      </div>
+      <div>
+        <div style={{ fontSize:12, fontWeight:600, fontFamily:FB, color:on?C.ok:C.muted }}>Autopilot {on?"ON":"OFF"}</div>
+        {label && <div style={{ fontSize:11, color:C.muted, fontFamily:FB, marginTop:1 }}>{label}</div>}
+      </div>
+      {disabled && <span style={{ fontSize:10, color:C.muted, background:C.border, padding:"2px 8px", borderRadius:20, fontFamily:FB, marginLeft:"auto" }}>Coming soon</span>}
+    </div>
+  );
+}
+
+function IntegrationCard({ provider, label, desc, fields, savedMeta, onSave, isConn, autopilotLabel, autopilotDisabled }) {
   const [open,   setOpen]   = useState(false);
   const [vals,   setVals]   = useState(savedMeta||{});
   const [saving, setSaving] = useState(false);
   const [saved,  setSaved]  = useState(false);
   const fileRef = useRef();
 
-  const save = async () => {
+  const autopilotOn = !!(vals.autopilot || savedMeta?.autopilot);
+
+  const save = async (overrideVals) => {
+    const v = overrideVals || vals;
     setSaving(true);
-    try { await onSave(vals); setSaved(true); setTimeout(()=>setSaved(false),2500); }
+    try { await onSave(v); setSaved(true); setTimeout(()=>setSaved(false),2500); }
     catch(e) { console.error(e); }
     setSaving(false);
+  };
+
+  const toggleAutopilot = async () => {
+    if (autopilotDisabled) return;
+    const next = { ...vals, autopilot: !autopilotOn };
+    setVals(next);
+    await onSave(next);
   };
 
   const handleFile = (fieldKey, file) => {
@@ -615,24 +640,32 @@ function IntegrationCard({ provider, label, desc, fields, savedMeta, onSave, isC
     reader.readAsDataURL(file);
   };
 
+  const hasSavedData = Object.entries(savedMeta||{}).some(([k,v])=>k!=="autopilot"&&!!v);
+
   return (
     <div style={{ borderBottom:`1px solid ${C.border}` }}>
-      <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", padding:"16px 0", cursor:"pointer" }} onClick={()=>setOpen(p=>!p)}>
-        <div style={{ display:"flex", gap:10, alignItems:"center" }}>
-          {isConn && <div style={{ width:7, height:7, borderRadius:"50%", background:C.ok, flexShrink:0 }} />}
-          <div>
+      <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", padding:"16px 0" }}>
+        <div style={{ display:"flex", gap:10, alignItems:"center", flex:1, cursor:"pointer", minWidth:0 }} onClick={()=>setOpen(p=>!p)}>
+          {(isConn||autopilotOn) && <div style={{ width:7, height:7, borderRadius:"50%", background:autopilotOn?C.ok:"#94A3B8", flexShrink:0 }} />}
+          <div style={{ minWidth:0 }}>
             <div style={{ fontSize:14, fontWeight:600, fontFamily:FB }}>{label}</div>
-            <div style={{ fontSize:12, color:isConn?C.ok:C.muted, fontFamily:FB }}>{isConn?"Connected — tap to view details":desc}</div>
+            <div style={{ fontSize:12, color:hasSavedData?C.primary:C.muted, fontFamily:FB }}>{hasSavedData?"Details saved — tap to edit":desc}</div>
           </div>
         </div>
-        <div style={{ display:"flex", gap:8, alignItems:"center" }}>
-          {Object.values(savedMeta||{}).some(v=>!!v) && !isConn && <span style={{ fontSize:10, color:C.primary, fontWeight:600, fontFamily:FB }}>Saved</span>}
-          <span style={{ color:C.muted, fontSize:14, transform:open?"rotate(180deg)":"none", transition:"transform 0.15s", display:"inline-block" }}>▾</span>
+        <div style={{ display:"flex", gap:8, alignItems:"center", flexShrink:0, marginLeft:12 }}>
+          <div onClick={toggleAutopilot} style={{ cursor:autopilotDisabled?"default":"pointer", display:"flex", alignItems:"center", gap:5, padding:"4px 10px", borderRadius:20, background:autopilotOn?"#DCFCE7":C.bg, border:`1px solid ${autopilotOn?C.ok+"50":C.border}` }}>
+            <div style={{ width:6, height:6, borderRadius:"50%", background:autopilotOn?C.ok:"#D1D5DB" }} />
+            <span style={{ fontSize:10, fontWeight:700, color:autopilotOn?C.ok:C.muted, fontFamily:FB, whiteSpace:"nowrap" }}>
+              {autopilotDisabled ? "Soon" : autopilotOn ? "Auto ON" : "Auto OFF"}
+            </span>
+          </div>
+          <span style={{ color:C.muted, fontSize:14, transform:open?"rotate(180deg)":"none", transition:"transform 0.15s", display:"inline-block", cursor:"pointer" }} onClick={()=>setOpen(p=>!p)}>▾</span>
         </div>
       </div>
 
       {open && (
         <div style={{ paddingBottom:18, display:"flex", flexDirection:"column", gap:12 }}>
+          <AutopilotToggle on={autopilotOn} onToggle={toggleAutopilot} label={autopilotLabel} disabled={autopilotDisabled} />
           {fields.map(f => (
             <div key={f.key}>
               <label style={lbl}>{f.label}</label>
@@ -641,12 +674,17 @@ function IntegrationCard({ provider, label, desc, fields, savedMeta, onSave, isC
                   <input ref={fileRef} type="file" style={{ display:"none" }} onChange={e=>e.target.files[0]&&handleFile(f.key,e.target.files[0])} />
                   <div style={{ display:"flex", gap:8, alignItems:"center" }}>
                     <button onClick={()=>fileRef.current?.click()} style={{ ...btnO(C.primary,12), padding:"8px 14px" }}>Upload {f.label.toLowerCase()}</button>
-                    {vals[f.key] && <span style={{ fontSize:11, color:C.ok, fontFamily:FB }}>File uploaded</span>}
+                    {vals[f.key] && <span style={{ fontSize:11, color:C.ok, fontFamily:FB }}>Uploaded</span>}
                   </div>
                 </div>
+              ) : f.type === "select" ? (
+                <select style={{ ...inp(), appearance:"none" }} value={vals[f.key]||""} onChange={e=>setVals(p=>({...p,[f.key]:e.target.value}))}>
+                  <option value="">Select…</option>
+                  {f.options.map(o=><option key={o} value={o}>{o}</option>)}
+                </select>
               ) : (
                 <input
-                  style={inp()}
+                  style={inp({ fontFamily:f.mono?"monospace":FB, fontSize:f.mono?12:14 })}
                   value={vals[f.key]||""}
                   onChange={e=>setVals(p=>({...p,[f.key]:e.target.value}))}
                   placeholder={f.placeholder||""}
@@ -656,7 +694,7 @@ function IntegrationCard({ provider, label, desc, fields, savedMeta, onSave, isC
               {f.hint && <div style={{ fontSize:11, color:C.muted, marginTop:5, fontFamily:FB, lineHeight:1.55 }}>{f.hint}</div>}
             </div>
           ))}
-          <button onClick={save} disabled={saving} style={{ ...btn(saved?C.ok:C.primary,"#fff",12), alignSelf:"flex-start", padding:"8px 18px" }}>
+          <button onClick={()=>save()} disabled={saving} style={{ ...btn(saved?C.ok:C.primary,"#fff",12), alignSelf:"flex-start", padding:"8px 18px" }}>
             {saved ? "Saved!" : saving ? "Saving…" : "Save"}
           </button>
         </div>
@@ -720,49 +758,82 @@ function HubPanel({ businessId, integs, onSaveFields, tasks, outputs, isMinor })
   const isConn = provider => integs.find(i=>i.provider===provider)?.status==="connected";
 
   const integrationDefs = isMinor ? [
-    { provider:"paypal",   label:"PayPal.me",              desc:"Accept payments — free for any age", fields:[
+    { provider:"paypal",   label:"PayPal.me",              desc:"Accept payments — free for any age",
+      autopilotLabel:"Agent includes payment links in outreach", fields:[
       { key:"link", label:"Your PayPal.me link", placeholder:"paypal.me/yourusername", hint:"Create at paypal.me and paste your personal link here." },
     ]},
-    { provider:"venmo",    label:"Venmo",                  desc:"Fast peer-to-peer payments", fields:[
+    { provider:"venmo",    label:"Venmo",                  desc:"Fast peer-to-peer payments",
+      autopilotLabel:"Agent references Venmo in client communications", fields:[
       { key:"handle", label:"@Venmo handle", placeholder:"@yourhandle" },
     ]},
-    { provider:"google",   label:"Google Business Profile", desc:"Appear in local search", fields:[
+    { provider:"google",   label:"Google Business Profile", desc:"Appear in local search",
+      autopilotLabel:"Agent monitors and responds to reviews", fields:[
       { key:"profileUrl", label:"Profile URL", placeholder:"maps.app.goo.gl/...", hint:"Find at business.google.com after verifying your listing." },
       { key:"status",     label:"Verification status", placeholder:"Pending / Verified" },
     ]},
-    { provider:"netlify",  label:"Live Website",            desc:"Your AI-generated website, deployed live", fields:[
-      { key:"siteUrl", label:"Live site URL", placeholder:"yoursite.netlify.app", hint:"Populated automatically when you run the Management Agent to deploy." },
+    { provider:"website",  label:"Your Website",           desc:"Your website — any host",
+      autopilotLabel:"Agent includes your site in reports and marketing plans", fields:[
+      { key:"siteUrl",     label:"Live site URL", placeholder:"yourbusiness.com" },
+      { key:"host",        label:"Hosting platform", placeholder:"GoDaddy / Namecheap / Squarespace / other", hint:"No login needed — the agent uses this for reporting only, not for editing your site." },
+      { key:"analyticsId", label:"Google Analytics ID (optional)", placeholder:"G-XXXXXXXXXX", hint:"Paste your Measurement ID from analytics.google.com to pull traffic stats." },
     ]},
-    { provider:"calendly", label:"Calendly",               desc:"Let clients book without back-and-forth", fields:[
+    { provider:"calendly", label:"Calendly",               desc:"Let clients book without back-and-forth",
+      autopilotLabel:"Agent promotes booking link in posts and emails", fields:[
       { key:"bookingUrl", label:"Booking link", placeholder:"calendly.com/yourname", hint:"Create a free account at calendly.com, then paste your link here." },
     ]},
-    { provider:"instagram",label:"Instagram Business",     desc:"Grow your local audience", fields:[
-      { key:"handle", label:"@Instagram handle", placeholder:"@yourbusiness" },
-      { key:"profileUrl", label:"Profile URL", placeholder:"instagram.com/yourbusiness" },
+    { provider:"instagram",label:"Instagram",              desc:"Agent analyzes insights, creates posts, and plans ads",
+      autopilotLabel:"Agent analyzes insights, suggests and creates posts, and plans ads", fields:[
+      { key:"handle",          label:"@Instagram handle", placeholder:"@yourbusiness" },
+      { key:"accessToken",     label:"Access Token", placeholder:"EAAxxxxxxx...", inputType:"password", mono:true, hint:"From Meta Business Suite → Settings → API → Generate token. Required for autopilot." },
+      { key:"businessAccountId", label:"Business Account ID", placeholder:"17841400000000000", mono:true, hint:"Found in Instagram app: Settings → Account → About this account → Account ID." },
+    ]},
+    { provider:"email",    label:"Email / Newsletter",     desc:"Agent manages outreach and follow-ups",
+      autopilotLabel:"Agent sends follow-ups, newsletters, and re-engagement emails", fields:[
+      { key:"address",    label:"Business email address", placeholder:"hello@yourbusiness.com" },
+      { key:"provider",   label:"Email provider", type:"select", options:["Gmail","Outlook","Mailchimp","Klaviyo","ConvertKit","Other"] },
+      { key:"apiKey",     label:"API key (optional)", placeholder:"Mailchimp / Klaviyo key", inputType:"password", mono:true, hint:"Only needed for bulk sending via Mailchimp, Klaviyo, or ConvertKit. Leave blank if using Gmail." },
+    ]},
+    { provider:"twitter",  label:"X / Twitter",            desc:"Post and grow your audience — coming soon",
+      autopilotDisabled:true, fields:[
+      { key:"handle", label:"@X handle", placeholder:"@yourbusiness" },
     ]},
   ] : [
-    { provider:"stripe",   label:"Stripe",                 desc:"Accept card payments", fields:[
+    { provider:"stripe",   label:"Stripe",                 desc:"Accept card payments",
+      autopilotLabel:"Agent monitors revenue and flags payment issues", fields:[
       { key:"dashboardUrl", label:"Stripe dashboard URL", placeholder:"dashboard.stripe.com", hint:"Connect via the billing portal. Your payment processing is handled automatically once you upgrade." },
-      { key:"publicKey",    label:"Publishable key (optional)", placeholder:"pk_live_...", hint:"Only needed for custom integrations. Never paste your secret key here." },
+      { key:"publicKey",    label:"Publishable key (optional)", placeholder:"pk_live_...", mono:true, hint:"Only needed for custom integrations. Never paste your secret key here." },
     ]},
-    { provider:"google",   label:"Google Business Profile", desc:"Appear in local search and on Google Maps", fields:[
+    { provider:"google",   label:"Google Business Profile", desc:"Appear in local search and on Google Maps",
+      autopilotLabel:"Agent monitors reviews and updates your listing", fields:[
       { key:"profileUrl", label:"Profile URL", placeholder:"maps.app.goo.gl/...", hint:"Find at business.google.com after postcard verification (5-7 days)." },
       { key:"status",     label:"Verification status", placeholder:"Pending / Verified" },
     ]},
-    { provider:"netlify",  label:"Live Website",            desc:"Your AI-generated website", fields:[
-      { key:"siteUrl",  label:"Live site URL", placeholder:"yoursite.netlify.app", hint:"Populated automatically when you run the Management Agent." },
-      { key:"domain",   label:"Custom domain (optional)", placeholder:"yourbusiness.com" },
+    { provider:"website",  label:"Your Website",           desc:"Your website — any host, no editing required",
+      autopilotLabel:"Agent includes your site in reports and marketing plans", fields:[
+      { key:"siteUrl",     label:"Live site URL", placeholder:"yourbusiness.com" },
+      { key:"host",        label:"Hosting platform", placeholder:"GoDaddy / Namecheap / Netlify / Squarespace / other", hint:"No login needed — the agent uses this for reporting and analytics only, not for editing your site." },
+      { key:"analyticsId", label:"Google Analytics ID (optional)", placeholder:"G-XXXXXXXXXX", hint:"Paste your Measurement ID from analytics.google.com to pull traffic data into reports." },
     ]},
-    { provider:"calendly", label:"Calendly",               desc:"Let clients book without back-and-forth", fields:[
+    { provider:"calendly", label:"Calendly",               desc:"Let clients book without back-and-forth",
+      autopilotLabel:"Agent promotes booking link in posts and emails", fields:[
       { key:"bookingUrl", label:"Booking link", placeholder:"calendly.com/yourname", hint:"Create your schedule at calendly.com and paste the link here." },
     ]},
-    { provider:"instagram",label:"Instagram Business",     desc:"Post content and run ads", fields:[
-      { key:"handle",     label:"@Instagram handle", placeholder:"@yourbusiness" },
-      { key:"profileUrl", label:"Profile URL", placeholder:"instagram.com/yourbusiness" },
+    { provider:"instagram",label:"Instagram",              desc:"Agent analyzes insights, creates posts, and plans ads",
+      autopilotLabel:"Agent analyzes insights, suggests and creates posts, and plans ads", fields:[
+      { key:"handle",            label:"@Instagram handle", placeholder:"@yourbusiness" },
+      { key:"accessToken",       label:"Access Token", placeholder:"EAAxxxxxxx...", inputType:"password", mono:true, hint:"From Meta Business Suite → Settings → API → Generate token. Required for autopilot." },
+      { key:"businessAccountId", label:"Business Account ID", placeholder:"17841400000000000", mono:true, hint:"Found in Instagram app: Settings → Account → About this account → Account ID." },
+      { key:"pageId",            label:"Facebook Page ID (optional)", placeholder:"123456789", mono:true, hint:"Required if you run Facebook Ads. Found in your Page settings." },
     ]},
-    { provider:"domain",   label:"Business Domain",        desc:"Your website domain", fields:[
-      { key:"domain",   label:"Domain name", placeholder:"yourbusiness.com" },
-      { key:"host",     label:"Registrar", placeholder:"Namecheap / GoDaddy / Google Domains" },
+    { provider:"email",    label:"Email / Newsletter",     desc:"Agent manages outreach and follow-ups",
+      autopilotLabel:"Agent sends follow-ups, newsletters, and re-engagement emails", fields:[
+      { key:"address",    label:"Business email address", placeholder:"hello@yourbusiness.com" },
+      { key:"provider",   label:"Email provider", type:"select", options:["Gmail","Outlook","Mailchimp","Klaviyo","ConvertKit","Other"] },
+      { key:"apiKey",     label:"API key (optional)", placeholder:"Mailchimp / Klaviyo key", inputType:"password", mono:true, hint:"Only needed for bulk sending via Mailchimp, Klaviyo, or ConvertKit. Leave blank if using Gmail." },
+    ]},
+    { provider:"twitter",  label:"X / Twitter",            desc:"Post and grow your audience — coming soon",
+      autopilotDisabled:true, fields:[
+      { key:"handle", label:"@X handle", placeholder:"@yourbusiness" },
     ]},
   ];
 
@@ -784,6 +855,8 @@ function HubPanel({ businessId, integs, onSaveFields, tasks, outputs, isMinor })
             savedMeta={getMeta(def.provider)}
             isConn={isConn(def.provider)}
             onSave={vals => onSaveFields(def.provider, vals)}
+            autopilotLabel={def.autopilotLabel}
+            autopilotDisabled={def.autopilotDisabled}
           />
         ))}
       </div>

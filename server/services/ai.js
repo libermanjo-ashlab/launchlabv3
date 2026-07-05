@@ -262,7 +262,7 @@ Use $ for all dollar amounts.
       },
     },
     required: ["posts","bio"],
-  }, "submit_social_content", 4000);
+  }, "submit_social_content", 10000);
   return result;
 }
 
