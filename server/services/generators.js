@@ -44,7 +44,7 @@ async function generateTaskOutput(task, business, idea, intake) {
   }
 
   // ── SOCIAL CONTENT ────────────────────────────────────────────────────────────
-  if (/social media|instagram|facebook|content calendar/i.test(name)) {
+  if (/social media|instagram|facebook|content calendar|marketing calendar|social calendar/i.test(name)) {
     const data = await generateSocialContent(business, idea, intake);
     return {
       fields: [

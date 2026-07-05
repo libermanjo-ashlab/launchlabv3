@@ -189,6 +189,142 @@ function AddTaskModal({ businessId, onAdd, onClose }) {
   );
 }
 
+// ── OUTPUT VIEWER ─────────────────────────────────────────────────────────────
+
+function extractOutput(outputData) {
+  if (!outputData) return null;
+  const content = outputData.content;
+  const fields  = Array.isArray(outputData.fields) && outputData.fields.length > 0 ? outputData.fields : null;
+  if (!content && !fields) return null;
+
+  if (content) {
+    const trimmed = content.trim();
+    const isHtml = trimmed.startsWith("<") || /<!doctype|<html|<div|<body/i.test(trimmed.slice(0, 200));
+    if (isHtml) return { type:"html", content, fields };
+    try {
+      const parsed = JSON.parse(content);
+      return { type:"json", content, parsed, fields };
+    } catch {}
+    return { type:"text", content, fields };
+  }
+  return { type:"fields", fields };
+}
+
+function OutputViewer({ outputData, taskName }) {
+  const [showSource, setShowSource] = useState(false);
+  const extracted = extractOutput(outputData);
+
+  if (!extracted) return (
+    <div style={{ background:C.surface, borderRadius:8, border:`1px solid ${C.border}`, padding:"16px", fontSize:13, color:C.muted, fontFamily:FB, textAlign:"center" }}>
+      No content generated. Use "Generate with AI" or upload your own output.
+    </div>
+  );
+
+  const { type, content, parsed, fields } = extracted;
+
+  return (
+    <div style={{ borderRadius:10, overflow:"hidden", border:`1px solid ${C.border}` }}>
+      {/* HTML: sandboxed iframe */}
+      {type === "html" && !showSource && (
+        <div>
+          <div style={{ background:"#F4F4F5", padding:"8px 12px", display:"flex", justifyContent:"space-between", alignItems:"center" }}>
+            <span style={{ fontSize:11, color:C.muted, fontFamily:FB, fontWeight:600 }}>Preview</span>
+            <button onClick={()=>setShowSource(true)} style={{ ...btnO(C.muted,10), padding:"3px 10px" }}>View source</button>
+          </div>
+          <iframe
+            srcDoc={content}
+            sandbox="allow-same-origin allow-scripts"
+            style={{ width:"100%", height:420, border:"none", display:"block", background:"#fff" }}
+            title={taskName}
+          />
+        </div>
+      )}
+
+      {/* HTML source toggle */}
+      {type === "html" && showSource && (
+        <div>
+          <div style={{ background:"#F4F4F5", padding:"8px 12px", display:"flex", justifyContent:"space-between", alignItems:"center" }}>
+            <span style={{ fontSize:11, color:C.muted, fontFamily:FB, fontWeight:600 }}>Source</span>
+            <button onClick={()=>setShowSource(false)} style={{ ...btnO(C.primary,10), padding:"3px 10px" }}>Show preview</button>
+          </div>
+          <pre style={{ margin:0, padding:"12px 14px", fontSize:11, fontFamily:"monospace", color:C.text, lineHeight:1.6, maxHeight:300, overflowY:"auto", background:C.surface, whiteSpace:"pre-wrap", wordBreak:"break-word" }}>
+            {content.slice(0, 5000)}{content.length > 5000 ? "\n…(truncated)" : ""}
+          </pre>
+        </div>
+      )}
+
+      {/* JSON: structured view */}
+      {type === "json" && (
+        <div style={{ padding:"14px 16px", background:C.surface, maxHeight:400, overflowY:"auto" }}>
+          {parsed && typeof parsed === "object" && !Array.isArray(parsed) && (
+            Object.entries(parsed).map(([key, val]) => {
+              const label = key.replace(/_/g," ").replace(/\b\w/g,c=>c.toUpperCase());
+              if (Array.isArray(val) && val.length > 0 && typeof val[0] === "object") {
+                return (
+                  <div key={key} style={{ marginBottom:16 }}>
+                    <div style={{ fontSize:11, fontWeight:700, color:C.muted, textTransform:"uppercase", letterSpacing:"0.07em", marginBottom:8, fontFamily:FB }}>{label} ({val.length})</div>
+                    {val.slice(0,5).map((item,i)=>(
+                      <div key={i} style={{ background:C.bg, borderRadius:8, padding:"10px 12px", marginBottom:6, border:`1px solid ${C.border}` }}>
+                        {Object.entries(item).filter(([,v])=>typeof v === "string" && v.length < 400).map(([k,v])=>(
+                          <div key={k} style={{ marginBottom:4 }}>
+                            <span style={{ fontSize:10, fontWeight:700, color:C.muted, textTransform:"uppercase", letterSpacing:"0.05em", fontFamily:FB }}>{k.replace(/_/g," ")}: </span>
+                            <span style={{ fontSize:12, color:C.text, fontFamily:FB }}>{v}</span>
+                          </div>
+                        ))}
+                      </div>
+                    ))}
+                    {val.length > 5 && <div style={{ fontSize:11, color:C.muted, fontFamily:FB }}>+{val.length-5} more items in download</div>}
+                  </div>
+                );
+              }
+              if (typeof val === "string" || typeof val === "number") {
+                return (
+                  <div key={key} style={{ display:"flex", gap:8, padding:"7px 0", borderBottom:`1px solid ${C.border}` }}>
+                    <span style={{ fontSize:11, fontWeight:600, color:C.muted, minWidth:140, fontFamily:FB }}>{label}</span>
+                    <span style={{ fontSize:12, color:C.text, fontFamily:FB, lineHeight:1.6 }}>{String(val)}</span>
+                  </div>
+                );
+              }
+              return null;
+            })
+          )}
+        </div>
+      )}
+
+      {/* Plain text */}
+      {type === "text" && (
+        <pre style={{ margin:0, padding:"14px 16px", fontSize:12, fontFamily:"monospace", color:C.text, lineHeight:1.7, maxHeight:320, overflowY:"auto", background:C.surface, whiteSpace:"pre-wrap", wordBreak:"break-word" }}>
+          {content.slice(0, 5000)}{content.length > 5000 ? "\n…(truncated)" : ""}
+        </pre>
+      )}
+
+      {/* Fields-only (server-side generateTaskOutput result) */}
+      {type === "fields" && (
+        <div style={{ background:C.surface, padding:"14px 16px" }}>
+          {fields.map((f,i) => (
+            <div key={i} style={{ display:"flex", gap:8, padding:"8px 0", borderBottom:i<fields.length-1?`1px solid ${C.border}`:"none" }}>
+              <span style={{ fontSize:11, fontWeight:600, color:C.muted, minWidth:160, flexShrink:0, fontFamily:FB }}>{f.label}</span>
+              <span style={{ fontSize:12, color:C.text, fontFamily:FB, lineHeight:1.6, wordBreak:"break-word" }}>{f.value}</span>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Supplemental fields for html/json/text outputs (server adds these) */}
+      {type !== "fields" && fields && (
+        <div style={{ borderTop:`1px solid ${C.border}`, background:C.bg, padding:"10px 14px" }}>
+          {fields.map((f,i) => (
+            <div key={i} style={{ display:"flex", gap:8, padding:"5px 0" }}>
+              <span style={{ fontSize:10, fontWeight:600, color:C.muted, minWidth:140, flexShrink:0, fontFamily:FB }}>{f.label}</span>
+              <span style={{ fontSize:11, color:C.text, fontFamily:FB }}>{f.value}</span>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function TaskCard({ task, businessId, outputs, onUpdate, onDelete }) {
   const [expanded,  setExpanded]  = useState(false);
   const [running,   setRunning]   = useState(false);
@@ -198,8 +334,8 @@ function TaskCard({ task, businessId, outputs, onUpdate, onDelete }) {
   const [error,     setError]     = useState("");
   const fileRef = useRef();
 
-  const outputData = task.outputData;
-  const hasOutput  = !!outputData;
+  const outputData    = task.outputData;
+  const hasOutput     = !!extractOutput(outputData);
 
   const generate = async () => {
     setRunning(true); setError("");
@@ -255,7 +391,7 @@ function TaskCard({ task, businessId, outputs, onUpdate, onDelete }) {
   };
 
   const markDone = async () => {
-    if (!hasOutput) return;
+    if (!extractOutput(outputData)) return;
     await api.tasks.update(task.id, { status:"done" }).catch(()=>{});
     onUpdate({ ...task, status:"done" });
   };
@@ -266,15 +402,28 @@ function TaskCard({ task, businessId, outputs, onUpdate, onDelete }) {
   };
 
   const downloadOutput = () => {
-    if (!outputData) return;
-    const isHtml = outputData.type === "website";
-    const mime = isHtml ? "text/html" : "text/plain";
-    const ext  = isHtml ? "html" : (outputData.filename ? outputData.filename.split(".").pop() : "txt");
-    const blob = new Blob([outputData.content], { type:mime });
-    const url  = URL.createObjectURL(blob);
-    const a    = document.createElement("a");
-    a.href = url; a.download = `${task.name.toLowerCase().replace(/\s+/g,"-")}.${ext}`; a.click();
-    URL.revokeObjectURL(url);
+    const ex = extractOutput(outputData);
+    if (!ex) return;
+    const slug = task.name.toLowerCase().replace(/\s+/g,"-");
+    if (ex.type === "html") {
+      const blob = new Blob([ex.content], { type:"text/html" });
+      const url  = URL.createObjectURL(blob);
+      const a    = document.createElement("a"); a.href=url; a.download=`${slug}.html`; a.click(); URL.revokeObjectURL(url);
+    } else if (ex.type === "json") {
+      const blob = new Blob([ex.content], { type:"application/json" });
+      const url  = URL.createObjectURL(blob);
+      const a    = document.createElement("a"); a.href=url; a.download=`${slug}.json`; a.click(); URL.revokeObjectURL(url);
+    } else if (ex.type === "fields") {
+      const txt = ex.fields.map(f=>`${f.label}: ${f.value}`).join("\n");
+      const blob = new Blob([txt], { type:"text/plain" });
+      const url  = URL.createObjectURL(blob);
+      const a    = document.createElement("a"); a.href=url; a.download=`${slug}.txt`; a.click(); URL.revokeObjectURL(url);
+    } else {
+      const fname = outputData.filename || `${slug}.txt`;
+      const blob  = new Blob([ex.content], { type:"text/plain" });
+      const url   = URL.createObjectURL(blob);
+      const a     = document.createElement("a"); a.href=url; a.download=fname; a.click(); URL.revokeObjectURL(url);
+    }
   };
 
   const statusColor = { done:C.ok, running:C.primary, "in-progress":C.warn, pending:C.muted };
@@ -333,19 +482,14 @@ function TaskCard({ task, businessId, outputs, onUpdate, onDelete }) {
           {/* View existing output */}
           {hasOutput && (
             <div style={{ marginBottom:12 }}>
-              <div style={{ display:"flex", gap:8, marginBottom:10 }}>
+              <div style={{ display:"flex", gap:8, marginBottom:12 }}>
                 <button onClick={()=>setViewOutput(p=>!p)} style={{ ...btnO(C.primary,12), padding:"7px 12px" }}>{viewOutput?"Hide output":"View output"}</button>
                 <button onClick={downloadOutput} style={{ ...btnO(C.ok,12), padding:"7px 12px" }}>Download</button>
                 {status === "done" && (
                   <button onClick={()=>fileRef.current?.click()} disabled={uploading} style={{ ...btnO(C.muted,12), padding:"7px 12px" }}>Reupload</button>
                 )}
               </div>
-              {viewOutput && (
-                <div style={{ background:C.surface, borderRadius:8, border:`1px solid ${C.border}`, padding:"12px 14px", fontSize:12, fontFamily:"monospace", color:C.text, lineHeight:1.7, maxHeight:300, overflowY:"auto", whiteSpace:"pre-wrap", wordBreak:"break-word" }}>
-                  {outputData.filename && <div style={{ fontFamily:FB, fontWeight:600, fontSize:11, color:C.muted, marginBottom:8 }}>File: {outputData.filename}</div>}
-                  {outputData.content?.slice(0, 3000)}{outputData.content?.length > 3000 ? "\n…(truncated for preview)" : ""}
-                </div>
-              )}
+              {viewOutput && <OutputViewer outputData={outputData} taskName={task.name} />}
             </div>
           )}
 
@@ -526,7 +670,7 @@ function FilesArchive({ businessId, outputs, tasks }) {
 
   const files = [
     ...outputs.filter(o=>o.content).map(o=>({ name:o.title||o.type, type:o.type, content:o.content, source:"generated" })),
-    ...tasks.filter(t=>t.status==="done"&&t.outputData).map(t=>({ name:t.name, type:t.outputData?.type||"text", content:t.outputData?.content||"", filename:t.outputData?.filename, source:"task" })),
+    ...tasks.filter(t=>t.status==="done"&&extractOutput(t.outputData)).map(t=>{ const ex=extractOutput(t.outputData); return { name:t.name, type:ex.type, content:ex.content||ex.fields?.map(f=>`${f.label}: ${f.value}`).join("\n")||"", filename:t.outputData?.filename, source:"task" }; }),
   ];
 
   if (!files.length) return (
@@ -536,10 +680,12 @@ function FilesArchive({ businessId, outputs, tasks }) {
   );
 
   const download = f => {
-    const isHtml = f.type==="website";
-    const blob = new Blob([f.content],{type:isHtml?"text/html":"text/plain"});
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a"); a.href=url; a.download=f.filename||(f.name.toLowerCase().replace(/\s+/g,"-")+(isHtml?".html":".txt")); a.click(); URL.revokeObjectURL(url);
+    const isHtml = f.type==="website"||f.type==="html"||f.type==="business_plan"||f.type==="pitch_deck"||(f.content&&f.content.trim().startsWith("<"));
+    const ext  = isHtml?".html":f.type==="json"?".json":".txt";
+    const mime = isHtml?"text/html":f.type==="json"?"application/json":"text/plain";
+    const blob = new Blob([f.content],{type:mime});
+    const url  = URL.createObjectURL(blob);
+    const a    = document.createElement("a"); a.href=url; a.download=f.filename||(f.name.toLowerCase().replace(/\s+/g,"-")+ext); a.click(); URL.revokeObjectURL(url);
   };
 
   return (
