@@ -1,12 +1,12 @@
 # EarnedLab — Privacy Policy
 
-_Last updated: [EFFECTIVE DATE]_
+_Last updated: 07 July 2026_
 
-This Privacy Policy explains how [LEGAL ENTITY NAME] ("we," "us") collects, uses, and shares information when you use EarnedLab (the "Service"). By using the Service, you agree to this policy.
+This Privacy Policy explains how EarnedLab collects, uses, and shares information when you use EarnedLab. By using EarnedLab you agree to this policy.
 
 ## Who can use EarnedLab
 
-EarnedLab is intended only for users who are 18 years of age or older. We do not knowingly collect personal information from anyone under 18. If you believe a minor has provided us information, contact us at [CONTACT EMAIL] and we will delete it.
+EarnedLab is intended only for users who are 18 years of age or older. We do not knowingly collect personal information from anyone under 18. If you believe a minor has provided us information, contact us at support@earnedlab.com and we will delete it.
 
 ## Information we collect
 
@@ -38,7 +38,7 @@ We do not sell your personal information. We share it with service providers ("s
 - **Netlify** — hosting and deployment of websites you create.
 - **Google** — authentication and any Google integrations you enable.
 - **Railway** — application and database hosting.
-- **[Email provider]** — transactional email (sign-up, password reset, receipts).
+- **Resend** — transactional email (sign-up, password reset, receipts).
 - **Advertising and channel platforms** — only those you choose to connect, to run the actions you enable.
 
 We may also disclose information if required by law, to protect our rights, or in connection with a merger or sale of our business.
@@ -53,7 +53,7 @@ We protect your information using measures such as encrypted connections and has
 
 ## Your choices and rights
 
-You can access and update your account information, disconnect integrations, and request deletion of your account and associated data by contacting [CONTACT EMAIL]. Depending on where you live (for example, under the GDPR or California privacy laws), you may have additional rights, such as the right to access, correct, delete, or port your data, or to object to certain processing. We will honor these rights as required by applicable law.
+You can access and update your account information, disconnect integrations, and request deletion of your account and associated data by contacting support@earnedlab.com. Depending on where you live (for example, under the GDPR or California privacy laws), you may have additional rights, such as the right to access, correct, delete, or port your data, or to object to certain processing. We will honor these rights as required by applicable law.
 
 ## Changes
 
@@ -61,4 +61,4 @@ We may update this policy. If we make material changes, we will update the date 
 
 ## Contact
 
-Questions about this policy? Contact us at [CONTACT EMAIL].
+Questions about this policy? Contact us at info@earnedlab.com.

@@ -1,8 +1,8 @@
 # EarnedLab — Disclaimer
 
-_Last updated: [EFFECTIVE DATE]_
+_Last updated: 07 July 2026_
 
-Please read this disclaimer carefully before using EarnedLab (the "Service"), operated by [LEGAL ENTITY NAME] ("we," "us").
+Please read this disclaimer carefully before using EarnedLab, operated by EarnedLab.
 
 ## Not professional advice
 
@@ -28,4 +28,4 @@ The Service integrates with third-party platforms. Your use of those platforms i
 
 To the fullest extent permitted by law, we are not liable for any loss or damage arising from your reliance on the Service's output or from automated actions taken through the Service. Your use of the Service is at your own risk.
 
-Questions? Contact us at [CONTACT EMAIL].
+Questions? Contact us at info@earnedlab.com.

@@ -1,8 +1,8 @@
 # EarnedLab — Terms of Service
 
-_Last updated: [EFFECTIVE DATE]_
+_Last updated: 07 July 2026_
 
-These Terms of Service ("Terms") are a legal agreement between you and [LEGAL ENTITY NAME] ("we," "us") governing your use of EarnedLab (the "Service"). By creating an account or using the Service, you agree to these Terms, our [Privacy Policy] and our [Disclaimer]. If you do not agree, do not use the Service.
+These Terms of Service ("Terms") are a legal agreement between you and EarnedLab governing your use of EarnedLab (the "Service"). By creating an account or using the Service, you agree to these Terms, our [Privacy Policy] and our [Disclaimer]. If you do not agree, do not use the Service.
 
 ## 1. Eligibility
 
@@ -10,7 +10,7 @@ You must be at least 18 years old and able to form a binding contract to use the
 
 ## 2. Your account
 
-You are responsible for the activity under your account and for keeping your password secure. Notify us promptly at [CONTACT EMAIL] if you suspect unauthorized use. You agree to provide accurate information and to keep it current.
+You are responsible for the activity under your account and for keeping your password secure. Notify us promptly at support@earnedlab.com if you suspect unauthorized use. You agree to provide accurate information and to keep it current.
 
 ## 3. Acceptable use
 
@@ -56,8 +56,8 @@ We may update these Terms. If we make material changes, we will update the date 
 
 ## 12. Governing law
 
-These Terms are governed by the laws of the State of [GOVERNING-LAW STATE], without regard to its conflict-of-laws rules.
+These Terms are governed by the laws of the State of Pennsylvania, without regard to its conflict-of-laws rules.
 
 ## 13. Contact
 
-Questions about these Terms? Contact us at [CONTACT EMAIL].
+Questions about these Terms? Contact us at info@earnedlab.com.
