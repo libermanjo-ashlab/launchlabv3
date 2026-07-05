@@ -51,10 +51,11 @@ export const api = {
     chat:           (msg,bizId) => req("POST", "/generate/chat",   { message:msg, businessId:bizId }),
   },
   integrations: {
-    list:       bizId    => req("GET",  `/integrations/${bizId}`),
-    stripe:     bizId    => req("POST", `/integrations/${bizId}/stripe`),
-    googleAuth: bizId    => req("GET",  `/integrations/google/auth?businessId=${bizId}`),
-    disconnect: (bizId,p)=> req("POST", `/integrations/${bizId}/${p}/disconnect`),
+    list:       bizId        => req("GET",  `/integrations/${bizId}`),
+    stripe:     bizId        => req("POST", `/integrations/${bizId}/stripe`),
+    googleAuth: bizId        => req("GET",  `/integrations/google/auth?businessId=${bizId}`),
+    disconnect: (bizId,p)    => req("POST", `/integrations/${bizId}/${p}/disconnect`),
+    saveFields: (bizId,p,fields) => req("PUT", `/integrations/${bizId}/${p}`, { fields }),
   },
 
   subscriptions: {

@@ -44,6 +44,23 @@ router.post("/:businessId/stripe", requireAuth, async (req, res, next) => {
   } catch (e) { next(e); }
 });
 
+// PUT /api/integrations/:businessId/:provider — save user-provided metadata fields
+router.put("/:businessId/:provider", requireAuth, async (req, res, next) => {
+  try {
+    const business = await prisma.business.findFirst({ where: { id: req.params.businessId, userId: req.userId } });
+    if (!business) return res.status(404).json({ error: "Business not found" });
+    const { fields } = req.body;
+    const existing = await prisma.integration.findFirst({ where: { businessId: req.params.businessId, provider: req.params.provider } });
+    const meta = { ...(existing?.metadata ? JSON.parse(existing.metadata) : {}), ...fields };
+    const intg = await prisma.integration.upsert({
+      where: { businessId_provider: { businessId: req.params.businessId, provider: req.params.provider } },
+      update: { metadata: JSON.stringify(meta) },
+      create: { businessId: req.params.businessId, provider: req.params.provider, status: "manual", metadata: JSON.stringify(meta) },
+    });
+    res.json({ integration: intg });
+  } catch (e) { next(e); }
+});
+
 // POST /api/integrations/:businessId/:provider/disconnect
 router.post("/:businessId/:provider/disconnect", requireAuth, async (req, res, next) => {
   try {

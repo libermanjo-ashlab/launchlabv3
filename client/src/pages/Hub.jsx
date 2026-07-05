@@ -1,10 +1,653 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import useStore from "../lib/store";
 import { api } from "../lib/api";
-import { C, FH, FB, btn, btnO, card, inp, lbl, GuidePanel, DownloadBtn, Logo } from "../components";
+import { C, FH, FB, btn, btnO, card, inp, lbl, GuidePanel, Logo } from "../components";
 
-const MODE_CYCLE = ["Manual","Guided","Full auto"];
+// ── GUIDED TOUR ───────────────────────────────────────────────────────────────
+
+function GuidedTour({ business, user, onDone }) {
+  const [step, setStep] = useState(0);
+  const firstName = (user?.name||"").split(" ")[0] || "there";
+  const bizName = business?.name || "your business";
+  const idea = (() => { try { return JSON.parse(business?.ideaData||"{}"); } catch { return {}; } })();
+
+  const steps = [
+    {
+      emoji: "👋",
+      title: `Welcome to ${bizName}`,
+      body: `Hey ${firstName} — this is your business command center. Everything runs from here. Let me walk you through it in about a minute.`,
+    },
+    {
+      emoji: "✅",
+      title: "Your Tasks",
+      body: `Tasks are your business to-do list that actually does things. Some — like writing a business plan, 30-day content calendar, or website — can be generated instantly by your AI. Others, like registering your business name or getting a license, need your action. Either way, every completed task stores its output here permanently. You can add, remove, or customize any task.`,
+      cta: "Open the Tasks tab to see yours →",
+    },
+    {
+      emoji: "📊",
+      title: "Marketing Agent",
+      body: `Your Marketing Agent reads your real numbers — revenue, clients, social following${idea.name ? ` — all specific to ${idea.name}` : ""} — and surfaces the top opportunities ranked by impact. Run an analysis any time you want to know what to do next.`,
+      cta: "Marketing Agent → Run analysis",
+    },
+    {
+      emoji: "⚙️",
+      title: "Management Agent",
+      body: `The Management Agent makes those opportunities happen. It can update your live website, produce new content, and adjust your strategy — all based on the metrics you log. The more you track, the smarter it gets.`,
+      cta: "Management Agent → Log your numbers",
+    },
+    {
+      emoji: "🔗",
+      title: "Your Hub",
+      body: `The Hub is where you connect your tools and store your files. Add your Calendly booking link, Instagram handle, business domain, and more — the agents use this context to give better output. All generated files (website, business plan, content calendar) live in the Files Archive and are always accessible.`,
+      cta: "Hub → Connect your first tool",
+    },
+    {
+      emoji: "🤖",
+      title: "Autopilot (Pro Autopilot plan)",
+      body: `On the Pro Autopilot plan your agents run on their own schedule — no input needed. They check performance, find opportunities, and push improvements automatically. You stay in control but stop doing the daily work.`,
+    },
+    {
+      emoji: "🚀",
+      title: `You're ready, ${firstName}.`,
+      body: `That's the full picture. Start by checking your tasks — several can be done right now with one click. Your agents are standing by whenever you're ready.`,
+    },
+  ];
+
+  const s = steps[step];
+  const isLast = step === steps.length - 1;
+
+  return (
+    <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.6)", zIndex:1000, display:"flex", alignItems:"center", justifyContent:"center", padding:24 }}>
+      <div style={{ background:C.surface, borderRadius:20, padding:"32px 36px", maxWidth:500, width:"100%", boxShadow:"0 24px 80px rgba(0,0,0,0.35)" }}>
+        <div style={{ display:"flex", gap:4, marginBottom:28 }}>
+          {steps.map((_,i) => (
+            <div key={i} style={{ height:3, flex:1, borderRadius:2, background:i<=step?C.primary:"#E5E7EB", transition:"background 0.25s" }} />
+          ))}
+        </div>
+        <div style={{ fontSize:38, marginBottom:14, lineHeight:1 }}>{s.emoji}</div>
+        <div style={{ fontFamily:FH, fontWeight:700, fontSize:22, letterSpacing:"-0.04em", marginBottom:10 }}>{s.title}</div>
+        <p style={{ fontSize:14, color:C.muted, lineHeight:1.8, fontFamily:FB, marginBottom:s.cta?16:28 }}>{s.body}</p>
+        {s.cta && <div style={{ background:C.primaryBg, borderRadius:10, padding:"10px 14px", fontSize:12, color:C.primary, fontFamily:FB, fontWeight:600, marginBottom:28 }}>{s.cta}</div>}
+        <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center" }}>
+          <button onClick={() => step > 0 && setStep(p => p - 1)} style={{ ...btnO(C.muted, 13), opacity:step===0?0.3:1, cursor:step===0?"default":"pointer" }} disabled={step===0}>Back</button>
+          <div style={{ display:"flex", gap:8 }}>
+            <button onClick={onDone} style={{ ...btnO(C.muted, 12) }}>Skip</button>
+            <button onClick={() => isLast ? onDone() : setStep(p => p + 1)} style={{ ...btn(C.primary, "#fff", 13) }}>
+              {isLast ? "Let's go" : "Next"}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── TASKS ─────────────────────────────────────────────────────────────────────
+
+const AUTO_TASK_TEMPLATES = [
+  { name:"Business Plan",              category:"Strategy",  description:"Full business plan with financial projections and market analysis", canAutomate:true },
+  { name:"30-Day Marketing Calendar",  category:"Marketing", description:"Content ideas, captions, and hashtags for a full month",           canAutomate:true },
+  { name:"Business Website",           category:"Marketing", description:"Deploy-ready website with your business info and services",         canAutomate:true },
+  { name:"Email Templates",            category:"Marketing", description:"8 email templates for client outreach, follow-up, and receipts",    canAutomate:true },
+  { name:"Investor Pitch Deck",        category:"Strategy",  description:"Slide-ready pitch covering market, product, traction, and financials", canAutomate:true },
+  { name:"Competitor Analysis Report", category:"Strategy",  description:"AI review of your top 3 competitors: gaps, pricing, positioning",  canAutomate:true },
+  { name:"Pricing Strategy Document",  category:"Strategy",  description:"AI-recommended pricing tiers and positioning based on your market", canAutomate:true },
+  { name:"Marketing Budget Plan",      category:"Marketing", description:"Monthly budget allocation across channels with ROI targets",        canAutomate:true },
+];
+const MANUAL_TASK_TEMPLATES = [
+  { name:"Register Business Name",     category:"Legal",     description:"File a DBA or register your LLC/sole proprietorship",              canAutomate:false },
+  { name:"Get Business License",       category:"Legal",     description:"Apply for required local or state operating licenses",             canAutomate:false },
+  { name:"Open Business Bank Account", category:"Finance",   description:"Separate personal and business finances",                          canAutomate:false },
+  { name:"Purchase Domain Name",       category:"Marketing", description:"Buy your domain through Namecheap, GoDaddy, or Google Domains",    canAutomate:false },
+  { name:"Set Up Business Email",      category:"Operations",description:"Create a professional email address (e.g. yourname@yourdomain.com)",canAutomate:false },
+  { name:"Take Product/Service Photos",category:"Marketing", description:"High-quality photos for your website and social media",            canAutomate:false },
+  { name:"Create Social Media Accounts",category:"Marketing",description:"Set up Instagram, TikTok, and Facebook business profiles",        canAutomate:false },
+];
+
+function AddTaskModal({ businessId, onAdd, onClose }) {
+  const [tab, setTab]       = useState("templates");
+  const [custom, setCustom] = useState({ name:"", description:"", category:"Operations", canAutomate:false });
+  const [saving, setSaving] = useState(false);
+
+  const add = async (template) => {
+    setSaving(true);
+    try {
+      const { task } = await api.tasks.create(businessId, template);
+      onAdd(task);
+    } catch(e) { console.error(e); }
+    setSaving(false);
+  };
+
+  return (
+    <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.5)", zIndex:500, display:"flex", alignItems:"center", justifyContent:"center", padding:24 }} onClick={e=>e.target===e.currentTarget&&onClose()}>
+      <div style={{ background:C.surface, borderRadius:16, padding:"28px 32px", maxWidth:580, width:"100%", maxHeight:"80vh", overflow:"auto" }}>
+        <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:20 }}>
+          <div style={{ fontFamily:FH, fontWeight:700, fontSize:18, letterSpacing:"-0.03em" }}>Add a task</div>
+          <button onClick={onClose} style={{ background:"none", border:"none", cursor:"pointer", fontSize:20, color:C.muted, lineHeight:1, padding:4 }}>×</button>
+        </div>
+        <div style={{ display:"flex", gap:6, marginBottom:20 }}>
+          {[["templates","From templates"],["custom","Custom task"]].map(([id,label]) => (
+            <button key={id} onClick={()=>setTab(id)} style={{ ...btn(tab===id?C.primary:"#F4F4F5", tab===id?"#fff":C.muted, 12), padding:"7px 14px" }}>{label}</button>
+          ))}
+        </div>
+
+        {tab === "templates" && (
+          <div>
+            <div style={{ fontSize:11, fontWeight:700, color:C.muted, textTransform:"uppercase", letterSpacing:"0.08em", marginBottom:10 }}>AI can generate these instantly</div>
+            <div style={{ display:"flex", flexDirection:"column", gap:8, marginBottom:20 }}>
+              {AUTO_TASK_TEMPLATES.map(t => (
+                <div key={t.name} style={{ display:"flex", justifyContent:"space-between", alignItems:"center", padding:"12px 14px", borderRadius:10, border:`1px solid ${C.border}`, background:C.bg }}>
+                  <div>
+                    <div style={{ fontFamily:FB, fontWeight:600, fontSize:13 }}>{t.name}</div>
+                    <div style={{ fontSize:11, color:C.muted, marginTop:2 }}>{t.description}</div>
+                  </div>
+                  <button onClick={()=>add(t)} disabled={saving} style={{ ...btn(C.primary,"#fff",11), padding:"6px 12px", flexShrink:0, marginLeft:12 }}>Add</button>
+                </div>
+              ))}
+            </div>
+            <div style={{ fontSize:11, fontWeight:700, color:C.muted, textTransform:"uppercase", letterSpacing:"0.08em", marginBottom:10 }}>Manual — requires your action</div>
+            <div style={{ display:"flex", flexDirection:"column", gap:8 }}>
+              {MANUAL_TASK_TEMPLATES.map(t => (
+                <div key={t.name} style={{ display:"flex", justifyContent:"space-between", alignItems:"center", padding:"12px 14px", borderRadius:10, border:`1px solid ${C.border}`, background:C.bg }}>
+                  <div>
+                    <div style={{ fontFamily:FB, fontWeight:600, fontSize:13 }}>{t.name}</div>
+                    <div style={{ fontSize:11, color:C.muted, marginTop:2 }}>{t.description}</div>
+                  </div>
+                  <button onClick={()=>add(t)} disabled={saving} style={{ ...btn("#6B7280","#fff",11), padding:"6px 12px", flexShrink:0, marginLeft:12 }}>Add</button>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {tab === "custom" && (
+          <div style={{ display:"flex", flexDirection:"column", gap:14 }}>
+            <div>
+              <label style={lbl}>Task name *</label>
+              <input style={inp()} value={custom.name} onChange={e=>setCustom(p=>({...p,name:e.target.value}))} placeholder="e.g. Create a referral program" />
+            </div>
+            <div>
+              <label style={lbl}>Description</label>
+              <input style={inp()} value={custom.description} onChange={e=>setCustom(p=>({...p,description:e.target.value}))} placeholder="What needs to happen?" />
+            </div>
+            <div>
+              <label style={lbl}>Category</label>
+              <select style={{ ...inp(), appearance:"none" }} value={custom.category} onChange={e=>setCustom(p=>({...p,category:e.target.value}))}>
+                {["Strategy","Marketing","Legal","Finance","Operations","Other"].map(c=><option key={c}>{c}</option>)}
+              </select>
+            </div>
+            <div style={{ display:"flex", alignItems:"center", gap:10, padding:"12px 14px", borderRadius:10, border:`1px solid ${C.border}`, background:C.bg }}>
+              <input type="checkbox" id="canAutomate" checked={custom.canAutomate} onChange={e=>setCustom(p=>({...p,canAutomate:e.target.checked}))} style={{ width:16, height:16, cursor:"pointer" }} />
+              <label htmlFor="canAutomate" style={{ fontFamily:FB, fontSize:13, cursor:"pointer" }}>AI can generate a digital output for this task</label>
+            </div>
+            <button onClick={()=>custom.name.trim()&&add(custom)} disabled={!custom.name.trim()||saving} style={{ ...btn(C.primary,"#fff",13) }}>Add task</button>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function TaskCard({ task, businessId, outputs, onUpdate, onDelete }) {
+  const [expanded,  setExpanded]  = useState(false);
+  const [running,   setRunning]   = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const [textInput, setTextInput] = useState("");
+  const [viewOutput,setViewOutput]= useState(false);
+  const [error,     setError]     = useState("");
+  const fileRef = useRef();
+
+  const outputData = task.outputData;
+  const hasOutput  = !!outputData;
+
+  const generate = async () => {
+    setRunning(true); setError("");
+    try {
+      let result;
+      if (task.name.toLowerCase().includes("website") || task.name.toLowerCase().includes("web page")) {
+        result = await api.generate.website(businessId);
+        await api.tasks.update(task.id, { status:"done", outputData:{ type:"website", content:result.output?.content||"", title:result.output?.title||task.name, generatedAt:new Date().toISOString() } });
+        onUpdate({ ...task, status:"done", outputData:{ type:"website", content:result.output?.content||"", title:result.output?.title||task.name, generatedAt:new Date().toISOString() } });
+      } else if (task.name.toLowerCase().includes("business plan")) {
+        result = await api.generate.businessPlan(businessId);
+        await api.tasks.update(task.id, { status:"done", outputData:{ type:"document", content:result.output?.content||"", title:result.output?.title||task.name, generatedAt:new Date().toISOString() } });
+        onUpdate({ ...task, status:"done", outputData:{ type:"document", content:result.output?.content||"", title:result.output?.title||task.name, generatedAt:new Date().toISOString() } });
+      } else if (task.name.toLowerCase().includes("social") || task.name.toLowerCase().includes("marketing calendar") || task.name.toLowerCase().includes("content")) {
+        result = await api.generate.socialContent(businessId);
+        await api.tasks.update(task.id, { status:"done", outputData:{ type:"document", content:result.output?.content||"", title:result.output?.title||task.name, generatedAt:new Date().toISOString() } });
+        onUpdate({ ...task, status:"done", outputData:{ type:"document", content:result.output?.content||"", title:result.output?.title||task.name, generatedAt:new Date().toISOString() } });
+      } else if (task.name.toLowerCase().includes("email template")) {
+        result = await api.generate.emailTemplates(businessId);
+        await api.tasks.update(task.id, { status:"done", outputData:{ type:"document", content:result.output?.content||"", title:result.output?.title||task.name, generatedAt:new Date().toISOString() } });
+        onUpdate({ ...task, status:"done", outputData:{ type:"document", content:result.output?.content||"", title:result.output?.title||task.name, generatedAt:new Date().toISOString() } });
+      } else {
+        const { task:updated } = await api.tasks.run(task.id);
+        onUpdate(updated);
+      }
+    } catch(e) { setError(e.message); }
+    setRunning(false);
+  };
+
+  const saveTextOutput = async () => {
+    if (!textInput.trim()) return;
+    setUploading(true);
+    try {
+      const od = { type:"text", content:textInput.trim(), uploadedAt:new Date().toISOString() };
+      await api.tasks.update(task.id, { outputData:od });
+      onUpdate({ ...task, outputData:od });
+      setTextInput("");
+    } catch(e) { setError(e.message); }
+    setUploading(false);
+  };
+
+  const saveFileOutput = async (file) => {
+    setUploading(true);
+    try {
+      const content = await new Promise((res,rej)=>{ const r=new FileReader(); r.onload=e=>res(e.target.result); r.onerror=rej; r.readAsText(file); }).catch(()=>
+        new Promise((res,rej)=>{ const r=new FileReader(); r.onload=e=>res(e.target.result); r.onerror=rej; r.readAsDataURL(file); })
+      );
+      const od = { type:"file", content, filename:file.name, uploadedAt:new Date().toISOString() };
+      await api.tasks.update(task.id, { outputData:od });
+      onUpdate({ ...task, outputData:od });
+    } catch(e) { setError(e.message); }
+    setUploading(false);
+  };
+
+  const markDone = async () => {
+    if (!hasOutput) return;
+    await api.tasks.update(task.id, { status:"done" }).catch(()=>{});
+    onUpdate({ ...task, status:"done" });
+  };
+
+  const markTodo = async () => {
+    await api.tasks.update(task.id, { status:"pending" }).catch(()=>{});
+    onUpdate({ ...task, status:"pending" });
+  };
+
+  const downloadOutput = () => {
+    if (!outputData) return;
+    const isHtml = outputData.type === "website";
+    const mime = isHtml ? "text/html" : "text/plain";
+    const ext  = isHtml ? "html" : (outputData.filename ? outputData.filename.split(".").pop() : "txt");
+    const blob = new Blob([outputData.content], { type:mime });
+    const url  = URL.createObjectURL(blob);
+    const a    = document.createElement("a");
+    a.href = url; a.download = `${task.name.toLowerCase().replace(/\s+/g,"-")}.${ext}`; a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const statusColor = { done:C.ok, running:C.primary, "in-progress":C.warn, pending:C.muted };
+  const statusLabel = { done:"Done", running:"Generating…", "in-progress":"In progress", pending:"To do" };
+  const status = task.status === "running" ? "running" : task.status;
+
+  return (
+    <div style={{ ...card("0"), overflow:"hidden", marginBottom:8 }}>
+      <div style={{ padding:"14px 16px", display:"flex", gap:12, alignItems:"flex-start", cursor:"pointer" }} onClick={()=>setExpanded(p=>!p)}>
+        <div style={{ width:18, height:18, borderRadius:"50%", border:`2px solid ${statusColor[status]||C.muted}`, background:status==="done"?statusColor[status]:"transparent", display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0, marginTop:2 }}>
+          {status==="done"&&<span style={{ color:"#fff", fontSize:10, fontWeight:700 }}>✓</span>}
+        </div>
+        <div style={{ flex:1, minWidth:0 }}>
+          <div style={{ display:"flex", alignItems:"center", gap:8, flexWrap:"wrap" }}>
+            <span style={{ fontFamily:FB, fontWeight:600, fontSize:13, textDecoration:status==="done"?"line-through":"none", color:status==="done"?C.muted:C.text }}>{task.name}</span>
+            <span style={{ background:(statusColor[status]||C.muted)+"18", color:statusColor[status]||C.muted, fontSize:9, fontWeight:700, padding:"2px 7px", borderRadius:20, textTransform:"uppercase", letterSpacing:"0.06em", fontFamily:FB }}>{statusLabel[status]||status}</span>
+            {task.canAutomate && status!=="done" && <span style={{ background:C.primaryBg, color:C.primary, fontSize:9, fontWeight:700, padding:"2px 7px", borderRadius:20, textTransform:"uppercase", letterSpacing:"0.04em", fontFamily:FB }}>Auto</span>}
+            <span style={{ fontSize:9, fontWeight:600, color:C.subtle, textTransform:"uppercase", letterSpacing:"0.06em", fontFamily:FB, background:C.bg, padding:"2px 7px", borderRadius:20 }}>{task.category}</span>
+          </div>
+          {task.description && <div style={{ fontSize:12, color:C.muted, marginTop:3, fontFamily:FB }}>{task.description}</div>}
+        </div>
+        <div style={{ display:"flex", gap:6, alignItems:"center", flexShrink:0 }}>
+          {hasOutput && <span style={{ fontSize:10, color:C.ok, fontWeight:600, fontFamily:FB }}>Has output</span>}
+          <span style={{ color:C.muted, fontSize:14, transform:expanded?"rotate(180deg)":"none", transition:"transform 0.15s", display:"inline-block" }}>▾</span>
+        </div>
+      </div>
+
+      {expanded && (
+        <div style={{ borderTop:`1px solid ${C.border}`, padding:"14px 16px", background:C.bg }}>
+          {error && <div style={{ background:C.errBg, border:`1px solid ${C.err}25`, borderRadius:8, padding:"8px 12px", fontSize:12, color:C.err, fontFamily:FB, marginBottom:12 }}>{error}</div>}
+
+          {/* Auto generate */}
+          {task.canAutomate && status !== "done" && (
+            <div style={{ marginBottom:14 }}>
+              <button onClick={generate} disabled={running||status==="running"} style={{ ...btn(running||status==="running"?"#9CA3AF":C.grad,"#fff",12), display:"flex", alignItems:"center", gap:8, marginBottom:4 }}>
+                {(running||status==="running")&&<span style={{ width:11,height:11,borderRadius:"50%",border:"2px solid rgba(255,255,255,0.4)",borderTopColor:"#fff",animation:"spin 0.7s linear infinite" }}/>}
+                {running||status==="running" ? "Generating…" : "Generate with AI"}
+              </button>
+              <div style={{ fontSize:11, color:C.muted, fontFamily:FB }}>or upload your own output below</div>
+            </div>
+          )}
+
+          {/* Upload output */}
+          {status !== "done" && (
+            <div style={{ marginBottom:14 }}>
+              <label style={{ ...lbl, marginBottom:6 }}>Upload output (file or paste text)</label>
+              <div style={{ display:"flex", gap:8, marginBottom:8 }}>
+                <input ref={fileRef} type="file" style={{ display:"none" }} onChange={e=>e.target.files[0]&&saveFileOutput(e.target.files[0])} />
+                <button onClick={()=>fileRef.current?.click()} disabled={uploading} style={{ ...btnO(C.primary,12), padding:"8px 14px" }}>Upload file</button>
+              </div>
+              <textarea value={textInput} onChange={e=>setTextInput(e.target.value)} placeholder="Or paste text, notes, a link, or any output…" style={{ ...inp({ height:80, resize:"vertical" }) }} />
+              {textInput.trim() && <button onClick={saveTextOutput} disabled={uploading} style={{ ...btn(C.primary,"#fff",12), marginTop:6 }}>Save text output</button>}
+            </div>
+          )}
+
+          {/* View existing output */}
+          {hasOutput && (
+            <div style={{ marginBottom:12 }}>
+              <div style={{ display:"flex", gap:8, marginBottom:10 }}>
+                <button onClick={()=>setViewOutput(p=>!p)} style={{ ...btnO(C.primary,12), padding:"7px 12px" }}>{viewOutput?"Hide output":"View output"}</button>
+                <button onClick={downloadOutput} style={{ ...btnO(C.ok,12), padding:"7px 12px" }}>Download</button>
+                {status === "done" && (
+                  <button onClick={()=>fileRef.current?.click()} disabled={uploading} style={{ ...btnO(C.muted,12), padding:"7px 12px" }}>Reupload</button>
+                )}
+              </div>
+              {viewOutput && (
+                <div style={{ background:C.surface, borderRadius:8, border:`1px solid ${C.border}`, padding:"12px 14px", fontSize:12, fontFamily:"monospace", color:C.text, lineHeight:1.7, maxHeight:300, overflowY:"auto", whiteSpace:"pre-wrap", wordBreak:"break-word" }}>
+                  {outputData.filename && <div style={{ fontFamily:FB, fontWeight:600, fontSize:11, color:C.muted, marginBottom:8 }}>File: {outputData.filename}</div>}
+                  {outputData.content?.slice(0, 3000)}{outputData.content?.length > 3000 ? "\n…(truncated for preview)" : ""}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Re-upload if done */}
+          {status === "done" && (
+            <div style={{ display:"flex", gap:8 }}>
+              <textarea value={textInput} onChange={e=>setTextInput(e.target.value)} placeholder="Replace output with new text…" style={{ ...inp({ height:60, resize:"vertical", flex:1 }) }} />
+              {textInput.trim() && <button onClick={saveTextOutput} disabled={uploading} style={{ ...btn(C.primary,"#fff",12), alignSelf:"flex-end" }}>Save</button>}
+            </div>
+          )}
+
+          {/* Actions */}
+          <div style={{ display:"flex", gap:8, marginTop:4, flexWrap:"wrap" }}>
+            {status !== "done" && hasOutput && (
+              <button onClick={markDone} style={{ ...btn(C.ok,"#fff",12), padding:"7px 14px" }}>Mark complete</button>
+            )}
+            {status === "done" && (
+              <button onClick={markTodo} style={{ ...btnO(C.muted,12), padding:"7px 12px" }}>Reopen</button>
+            )}
+            <button onClick={()=>onDelete(task.id)} style={{ ...btnO(C.err,12), padding:"7px 12px" }}>Remove task</button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function TasksPanel({ businessId, businessOutputs }) {
+  const [tasks,    setTasks]    = useState([]);
+  const [loading,  setLoading]  = useState(true);
+  const [showAdd,  setShowAdd]  = useState(false);
+  const [filter,   setFilter]   = useState("all");
+
+  useEffect(() => {
+    api.tasks.list(businessId).then(d => setTasks(d.tasks||[])).catch(()=>{}).finally(()=>setLoading(false));
+  }, [businessId]);
+
+  const onAdd    = task  => setTasks(p => [...p, task]);
+  const onUpdate = task  => setTasks(p => p.map(t => t.id===task.id ? task : t));
+  const onDelete = async id => {
+    await api.tasks.delete(id).catch(()=>{});
+    setTasks(p => p.filter(t => t.id !== id));
+  };
+
+  const categories = ["all", ...new Set(tasks.map(t => t.category))];
+  const visible = filter === "all" ? tasks : tasks.filter(t => t.category === filter);
+  const done  = tasks.filter(t => t.status === "done").length;
+  const total = tasks.length;
+
+  if (loading) return <div style={{ padding:"40px 0", textAlign:"center", color:C.muted }}>Loading tasks…</div>;
+
+  return (
+    <div>
+      <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", marginBottom:4 }}>
+        <div>
+          <div style={{ fontFamily:FH, fontWeight:700, fontSize:24, letterSpacing:"-0.04em" }}>Tasks</div>
+          <p style={{ color:C.muted, fontSize:13, marginTop:4, fontFamily:FB }}>{done} of {total} complete</p>
+        </div>
+        <button onClick={()=>setShowAdd(true)} style={{ ...btn(C.primary,"#fff",13) }}>+ Add task</button>
+      </div>
+
+      {total > 0 && (
+        <div style={{ marginBottom:10, height:4, borderRadius:2, background:C.border }}>
+          <div style={{ height:"100%", width:`${total ? (done/total*100) : 0}%`, background:C.primary, borderRadius:2, transition:"width 0.3s" }} />
+        </div>
+      )}
+
+      {categories.length > 2 && (
+        <div style={{ display:"flex", gap:6, flexWrap:"wrap", marginBottom:16 }}>
+          {categories.map(c => (
+            <button key={c} onClick={()=>setFilter(c)} style={{ ...btn(filter===c?C.primary:"#F4F4F5", filter===c?"#fff":C.muted, 11), padding:"5px 12px", textTransform:"capitalize" }}>{c}</button>
+          ))}
+        </div>
+      )}
+
+      {visible.length === 0 && (
+        <div style={{ ...card("28px"), textAlign:"center", color:C.muted }}>
+          <div style={{ fontSize:28, marginBottom:10 }}>📋</div>
+          <div style={{ fontFamily:FH, fontWeight:600, fontSize:15, marginBottom:6 }}>No tasks yet</div>
+          <p style={{ fontSize:13, lineHeight:1.65, marginBottom:16 }}>Add tasks to track your progress and generate business assets with AI.</p>
+          <button onClick={()=>setShowAdd(true)} style={{ ...btn(C.primary,"#fff",13) }}>Add your first task</button>
+        </div>
+      )}
+
+      <div>
+        {visible.filter(t=>t.status!=="done").map(t => (
+          <TaskCard key={t.id} task={t} businessId={businessId} outputs={businessOutputs} onUpdate={onUpdate} onDelete={onDelete} />
+        ))}
+        {visible.some(t=>t.status==="done") && (
+          <>
+            <div style={{ fontSize:11, fontWeight:700, color:C.muted, textTransform:"uppercase", letterSpacing:"0.08em", padding:"12px 0 8px", fontFamily:FB }}>Completed</div>
+            {visible.filter(t=>t.status==="done").map(t => (
+              <TaskCard key={t.id} task={t} businessId={businessId} outputs={businessOutputs} onUpdate={onUpdate} onDelete={onDelete} />
+            ))}
+          </>
+        )}
+      </div>
+
+      {showAdd && <AddTaskModal businessId={businessId} onAdd={onAdd} onClose={()=>setShowAdd(false)} />}
+    </div>
+  );
+}
+
+// ── HUB / INTEGRATIONS ────────────────────────────────────────────────────────
+
+function IntegrationCard({ provider, label, desc, fields, savedMeta, onSave, isConn }) {
+  const [open,   setOpen]   = useState(false);
+  const [vals,   setVals]   = useState(savedMeta||{});
+  const [saving, setSaving] = useState(false);
+  const [saved,  setSaved]  = useState(false);
+  const fileRef = useRef();
+
+  const save = async () => {
+    setSaving(true);
+    try { await onSave(vals); setSaved(true); setTimeout(()=>setSaved(false),2500); }
+    catch(e) { console.error(e); }
+    setSaving(false);
+  };
+
+  const handleFile = (fieldKey, file) => {
+    const reader = new FileReader();
+    reader.onload = e => setVals(p=>({...p,[fieldKey]:e.target.result}));
+    reader.readAsDataURL(file);
+  };
+
+  return (
+    <div style={{ borderBottom:`1px solid ${C.border}` }}>
+      <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", padding:"16px 0", cursor:"pointer" }} onClick={()=>setOpen(p=>!p)}>
+        <div style={{ display:"flex", gap:10, alignItems:"center" }}>
+          {isConn && <div style={{ width:7, height:7, borderRadius:"50%", background:C.ok, flexShrink:0 }} />}
+          <div>
+            <div style={{ fontSize:14, fontWeight:600, fontFamily:FB }}>{label}</div>
+            <div style={{ fontSize:12, color:isConn?C.ok:C.muted, fontFamily:FB }}>{isConn?"Connected — tap to view details":desc}</div>
+          </div>
+        </div>
+        <div style={{ display:"flex", gap:8, alignItems:"center" }}>
+          {Object.values(savedMeta||{}).some(v=>!!v) && !isConn && <span style={{ fontSize:10, color:C.primary, fontWeight:600, fontFamily:FB }}>Saved</span>}
+          <span style={{ color:C.muted, fontSize:14, transform:open?"rotate(180deg)":"none", transition:"transform 0.15s", display:"inline-block" }}>▾</span>
+        </div>
+      </div>
+
+      {open && (
+        <div style={{ paddingBottom:18, display:"flex", flexDirection:"column", gap:12 }}>
+          {fields.map(f => (
+            <div key={f.key}>
+              <label style={lbl}>{f.label}</label>
+              {f.type === "file" ? (
+                <div>
+                  <input ref={fileRef} type="file" style={{ display:"none" }} onChange={e=>e.target.files[0]&&handleFile(f.key,e.target.files[0])} />
+                  <div style={{ display:"flex", gap:8, alignItems:"center" }}>
+                    <button onClick={()=>fileRef.current?.click()} style={{ ...btnO(C.primary,12), padding:"8px 14px" }}>Upload {f.label.toLowerCase()}</button>
+                    {vals[f.key] && <span style={{ fontSize:11, color:C.ok, fontFamily:FB }}>File uploaded</span>}
+                  </div>
+                </div>
+              ) : (
+                <input
+                  style={inp()}
+                  value={vals[f.key]||""}
+                  onChange={e=>setVals(p=>({...p,[f.key]:e.target.value}))}
+                  placeholder={f.placeholder||""}
+                  type={f.inputType||"text"}
+                />
+              )}
+              {f.hint && <div style={{ fontSize:11, color:C.muted, marginTop:5, fontFamily:FB, lineHeight:1.55 }}>{f.hint}</div>}
+            </div>
+          ))}
+          <button onClick={save} disabled={saving} style={{ ...btn(saved?C.ok:C.primary,"#fff",12), alignSelf:"flex-start", padding:"8px 18px" }}>
+            {saved ? "Saved!" : saving ? "Saving…" : "Save"}
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function FilesArchive({ businessId, outputs, tasks }) {
+  const [open, setOpen] = useState(false);
+
+  const files = [
+    ...outputs.filter(o=>o.content).map(o=>({ name:o.title||o.type, type:o.type, content:o.content, source:"generated" })),
+    ...tasks.filter(t=>t.status==="done"&&t.outputData).map(t=>({ name:t.name, type:t.outputData?.type||"text", content:t.outputData?.content||"", filename:t.outputData?.filename, source:"task" })),
+  ];
+
+  if (!files.length) return (
+    <div style={{ ...card("16px 18px"), marginTop:20, textAlign:"center" }}>
+      <div style={{ fontSize:12, color:C.muted, fontFamily:FB }}>Generated files and completed task output will appear here.</div>
+    </div>
+  );
+
+  const download = f => {
+    const isHtml = f.type==="website";
+    const blob = new Blob([f.content],{type:isHtml?"text/html":"text/plain"});
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a"); a.href=url; a.download=f.filename||(f.name.toLowerCase().replace(/\s+/g,"-")+(isHtml?".html":".txt")); a.click(); URL.revokeObjectURL(url);
+  };
+
+  return (
+    <div style={{ ...card("0"), overflow:"hidden", marginTop:20 }}>
+      <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", padding:"14px 18px", cursor:"pointer" }} onClick={()=>setOpen(p=>!p)}>
+        <div style={{ fontFamily:FH, fontWeight:600, fontSize:14 }}>Files Archive <span style={{ background:C.primaryBg, color:C.primary, fontSize:10, fontWeight:700, padding:"2px 8px", borderRadius:20, marginLeft:6 }}>{files.length}</span></div>
+        <span style={{ color:C.muted, fontSize:14, transform:open?"rotate(180deg)":"none", transition:"transform 0.15s", display:"inline-block" }}>▾</span>
+      </div>
+      {open && (
+        <div style={{ borderTop:`1px solid ${C.border}` }}>
+          {files.map((f,i) => (
+            <div key={i} style={{ display:"flex", justifyContent:"space-between", alignItems:"center", padding:"12px 18px", borderBottom:i<files.length-1?`1px solid ${C.border}`:"none" }}>
+              <div>
+                <div style={{ fontSize:13, fontWeight:500, fontFamily:FB }}>{f.name}</div>
+                <div style={{ fontSize:11, color:C.muted, fontFamily:FB }}>{f.source==="generated"?"AI generated":"Task output"} &middot; {f.type}</div>
+              </div>
+              <button onClick={()=>download(f)} style={{ ...btnO(C.primary,11), padding:"5px 12px" }}>Download</button>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function HubPanel({ businessId, integs, onSaveFields, tasks, outputs, isMinor }) {
+  const navigate = useNavigate();
+  const getMeta = provider => {
+    const intg = integs.find(i=>i.provider===provider);
+    try { return intg?.metadata ? JSON.parse(intg.metadata) : {}; } catch { return {}; }
+  };
+  const isConn = provider => integs.find(i=>i.provider===provider)?.status==="connected";
+
+  const integrationDefs = isMinor ? [
+    { provider:"paypal",   label:"PayPal.me",              desc:"Accept payments — free for any age", fields:[
+      { key:"link", label:"Your PayPal.me link", placeholder:"paypal.me/yourusername", hint:"Create at paypal.me and paste your personal link here." },
+    ]},
+    { provider:"venmo",    label:"Venmo",                  desc:"Fast peer-to-peer payments", fields:[
+      { key:"handle", label:"@Venmo handle", placeholder:"@yourhandle" },
+    ]},
+    { provider:"google",   label:"Google Business Profile", desc:"Appear in local search", fields:[
+      { key:"profileUrl", label:"Profile URL", placeholder:"maps.app.goo.gl/...", hint:"Find at business.google.com after verifying your listing." },
+      { key:"status",     label:"Verification status", placeholder:"Pending / Verified" },
+    ]},
+    { provider:"netlify",  label:"Live Website",            desc:"Your AI-generated website, deployed live", fields:[
+      { key:"siteUrl", label:"Live site URL", placeholder:"yoursite.netlify.app", hint:"Populated automatically when you run the Management Agent to deploy." },
+    ]},
+    { provider:"calendly", label:"Calendly",               desc:"Let clients book without back-and-forth", fields:[
+      { key:"bookingUrl", label:"Booking link", placeholder:"calendly.com/yourname", hint:"Create a free account at calendly.com, then paste your link here." },
+    ]},
+    { provider:"instagram",label:"Instagram Business",     desc:"Grow your local audience", fields:[
+      { key:"handle", label:"@Instagram handle", placeholder:"@yourbusiness" },
+      { key:"profileUrl", label:"Profile URL", placeholder:"instagram.com/yourbusiness" },
+    ]},
+  ] : [
+    { provider:"stripe",   label:"Stripe",                 desc:"Accept card payments", fields:[
+      { key:"dashboardUrl", label:"Stripe dashboard URL", placeholder:"dashboard.stripe.com", hint:"Connect via the billing portal. Your payment processing is handled automatically once you upgrade." },
+      { key:"publicKey",    label:"Publishable key (optional)", placeholder:"pk_live_...", hint:"Only needed for custom integrations. Never paste your secret key here." },
+    ]},
+    { provider:"google",   label:"Google Business Profile", desc:"Appear in local search and on Google Maps", fields:[
+      { key:"profileUrl", label:"Profile URL", placeholder:"maps.app.goo.gl/...", hint:"Find at business.google.com after postcard verification (5-7 days)." },
+      { key:"status",     label:"Verification status", placeholder:"Pending / Verified" },
+    ]},
+    { provider:"netlify",  label:"Live Website",            desc:"Your AI-generated website", fields:[
+      { key:"siteUrl",  label:"Live site URL", placeholder:"yoursite.netlify.app", hint:"Populated automatically when you run the Management Agent." },
+      { key:"domain",   label:"Custom domain (optional)", placeholder:"yourbusiness.com" },
+    ]},
+    { provider:"calendly", label:"Calendly",               desc:"Let clients book without back-and-forth", fields:[
+      { key:"bookingUrl", label:"Booking link", placeholder:"calendly.com/yourname", hint:"Create your schedule at calendly.com and paste the link here." },
+    ]},
+    { provider:"instagram",label:"Instagram Business",     desc:"Post content and run ads", fields:[
+      { key:"handle",     label:"@Instagram handle", placeholder:"@yourbusiness" },
+      { key:"profileUrl", label:"Profile URL", placeholder:"instagram.com/yourbusiness" },
+    ]},
+    { provider:"domain",   label:"Business Domain",        desc:"Your website domain", fields:[
+      { key:"domain",   label:"Domain name", placeholder:"yourbusiness.com" },
+      { key:"host",     label:"Registrar", placeholder:"Namecheap / GoDaddy / Google Domains" },
+    ]},
+  ];
+
+  return (
+    <div>
+      <div style={{ fontFamily:FH, fontWeight:700, fontSize:24, letterSpacing:"-0.04em", marginBottom:4 }}>Hub</div>
+      <p style={{ color:C.muted, fontSize:14, marginBottom:24, fontFamily:FB }}>Connect your tools and store your information. Everything saved here is used by your agents to give better results.</p>
+
+      <div style={{ ...card(), marginBottom:0 }}>
+        <div style={{ fontFamily:FH, fontWeight:600, fontSize:15, marginBottom:4 }}>Integrations</div>
+        <p style={{ fontSize:12, color:C.muted, marginBottom:4, fontFamily:FB }}>Expand each card to enter your details. Nothing is required — add what you have.</p>
+        {integrationDefs.map(def => (
+          <IntegrationCard
+            key={def.provider}
+            provider={def.provider}
+            label={def.label}
+            desc={def.desc}
+            fields={def.fields}
+            savedMeta={getMeta(def.provider)}
+            isConn={isConn(def.provider)}
+            onSave={vals => onSaveFields(def.provider, vals)}
+          />
+        ))}
+      </div>
+
+      <FilesArchive businessId={businessId} outputs={outputs} tasks={tasks} />
+    </div>
+  );
+}
+
+// ── AGENTS (marketing + management) ──────────────────────────────────────────
 
 function StatCard({ label, value, onChange, prefix="", suffix="" }) {
   const [editing, setEditing] = useState(false);
@@ -38,7 +681,7 @@ function UpgradeCard({ reason, navigate }) {
   );
 }
 
-function AgentPanel({ businessId, metrics, age, planInfo }) {
+function AgentPanel({ businessId, metrics, planInfo }) {
   const [insights,     setInsights]     = useState([]);
   const [running,      setRunning]      = useState(false);
   const [implementing, setImplementing] = useState(null);
@@ -86,34 +729,32 @@ function AgentPanel({ businessId, metrics, age, planInfo }) {
       {error && (
         <div style={{ ...card("12px 16px"), background:C.errBg, border:`1px solid #DC262625`, marginBottom:16, fontSize:13, color:C.err, fontFamily:FB }}>
           {error}
-          {error.includes("NETLIFY_TOKEN") && <div style={{ marginTop:8, lineHeight:1.7 }}>Add <code style={{ background:"#fee2e2", padding:"1px 5px", borderRadius:4 }}>NETLIFY_TOKEN</code> to Railway environment variables. Get it at <a href="https://app.netlify.com/user/applications" target="_blank" rel="noopener noreferrer" style={{ color:C.err }}>app.netlify.com/user/applications</a>.</div>}
+          {error.includes("NETLIFY_TOKEN") && <div style={{ marginTop:8, lineHeight:1.7 }}>Add <code style={{ background:"#fee2e2", padding:"1px 5px", borderRadius:4 }}>NETLIFY_TOKEN</code> to your Railway environment variables. Get it at app.netlify.com/user/applications.</div>}
           {error.includes("Generate your website") && <div style={{ marginTop:6 }}>Generate your website in the Marketing Agent tab first.</div>}
         </div>
       )}
 
       <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:16, alignItems:"start" }}>
-        {/* Marketing Agent */}
         <div>
           <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:12 }}>
             <div style={{ width:8, height:8, borderRadius:"50%", background:C.primary }} />
             <span style={{ fontFamily:FH, fontWeight:700, fontSize:15 }}>Marketing Agent</span>
-            <span style={{ marginLeft:"auto", background:C.primaryBg, color:C.primary, fontSize:10, fontWeight:600, padding:"2px 8px", borderRadius:20, textTransform:"uppercase", letterSpacing:"0.04em" }}>Full auto</span>
           </div>
           <p style={{ fontSize:13, color:C.muted, lineHeight:1.65, marginBottom:14, fontFamily:FB }}>
             Analyzes your business data and finds the highest-impact changes. Each insight is specific to your numbers.
           </p>
-          {access?.effective?.isTrial && !access.effective.trialExpired && !access.effective.locked && (
+          {access?.effective?.isTrial && !access.effective.locked && (
             <div style={{ fontSize:11, color:C.muted, marginBottom:10, fontFamily:FB, display:"flex", alignItems:"center", gap:10 }}>
               <span>Free trial: {Math.max(0,3-(access.usage?.marketingRuns||0))} marketing analyses left</span>
               {planInfo?.isAdmin && (
-                <button onClick={async()=>{ await api.agents.resetUsage(businessId).catch(()=>{}); refreshAccess(); }} style={{ ...btnO("#9333EA",10), padding:"2px 8px" }}>Reset usage (admin)</button>
+                <button onClick={async()=>{ await api.agents.resetUsage(businessId).catch(()=>{}); refreshAccess(); }} style={{ ...btnO("#9333EA",10), padding:"2px 8px" }}>Reset (admin)</button>
               )}
             </div>
           )}
           {access && !access.marketing.allowed && <UpgradeCard reason={access.marketing.reason} navigate={navigate} />}
-          <button onClick={runAnalysis} disabled={running || (access && !access.marketing.allowed)} style={{ ...btn(running?"#9CA3AF":(access&&!access.marketing.allowed)?"#D1D5DB":C.grad), width:"100%", marginBottom:14, display:"flex", alignItems:"center", justifyContent:"center", gap:10, cursor:(access&&!access.marketing.allowed)?"not-allowed":"pointer" }}>
-            {running && <span style={{ width:14, height:14, borderRadius:"50%", border:"2px solid rgba(255,255,255,0.4)", borderTopColor:"#fff", animation:"spin 0.7s linear infinite", flexShrink:0 }}/>}
-            {running?"Analyzing your business...":(access&&!access.marketing.allowed)?"Upgrade to run analysis":"Run marketing analysis"}
+          <button onClick={runAnalysis} disabled={running||(access&&!access.marketing.allowed)} style={{ ...btn(running?"#9CA3AF":(access&&!access.marketing.allowed)?"#D1D5DB":C.grad), width:"100%", marginBottom:14, display:"flex", alignItems:"center", justifyContent:"center", gap:10, cursor:(access&&!access.marketing.allowed)?"not-allowed":"pointer" }}>
+            {running && <span style={{ width:14,height:14,borderRadius:"50%",border:"2px solid rgba(255,255,255,0.4)",borderTopColor:"#fff",animation:"spin 0.7s linear infinite",flexShrink:0 }}/>}
+            {running?"Analyzing your business…":(access&&!access.marketing.allowed)?"Upgrade to run analysis":"Run marketing analysis"}
           </button>
 
           {running && (
@@ -142,33 +783,29 @@ function AgentPanel({ businessId, metrics, age, planInfo }) {
                 <button onClick={()=>navigate("/pricing")} style={{ ...btn("#D97706","#fff",12), width:"100%" }}>Upgrade to implement this</button>
               ) : (
                 <button onClick={()=>implement(insight)} disabled={!!implementing} style={{ ...btn(implementing===insight.id?"#9CA3AF":C.dark,"#fff",12), width:"100%", display:"flex", alignItems:"center", justifyContent:"center", gap:8, opacity:implementing&&implementing!==insight.id?0.5:1 }}>
-                  {implementing===insight.id&&<span style={{ width:12, height:12, borderRadius:"50%", border:"2px solid rgba(255,255,255,0.4)", borderTopColor:"#fff", animation:"spin 0.7s linear infinite" }}/>}
-                  {implementing===insight.id?"Management agent implementing...":"Hand off to management agent"}
+                  {implementing===insight.id&&<span style={{ width:12,height:12,borderRadius:"50%",border:"2px solid rgba(255,255,255,0.4)",borderTopColor:"#fff",animation:"spin 0.7s linear infinite" }}/>}
+                  {implementing===insight.id?"Management agent implementing…":"Hand off to management agent"}
                 </button>
               )}
             </div>
           ))}
         </div>
 
-        {/* Management Agent panel */}
         <div>
           <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:12 }}>
             <div style={{ width:8, height:8, borderRadius:"50%", background:C.ok }} />
             <span style={{ fontFamily:FH, fontWeight:700, fontSize:15 }}>Management Agent</span>
           </div>
-
-          {/* Live site */}
           <div style={{ ...card("16px 18px"), marginBottom:12, background:C.dark, border:`1px solid ${liveUrl?"#4ADE8030":"rgba(255,255,255,0.06)"}` }}>
             <div style={{ fontSize:10, color:"rgba(255,255,255,0.4)", textTransform:"uppercase", letterSpacing:"0.08em", fontFamily:FB, marginBottom:6 }}>Live website</div>
             <div style={{ display:"flex", alignItems:"center", gap:8 }}>
               <div style={{ width:6, height:6, borderRadius:"50%", background:liveUrl?"#4ADE80":"rgba(255,255,255,0.2)", boxShadow:liveUrl?"0 0 6px #4ADE8088":undefined }} />
               <span style={{ fontSize:14, fontFamily:FH, fontWeight:600, color:liveUrl?"#4ADE80":"rgba(255,255,255,0.4)" }}>{liveUrl?"Live":"Not deployed yet"}</span>
             </div>
-            {liveUrl&&<a href={liveUrl} target="_blank" rel="noopener noreferrer" style={{ display:"block", fontSize:12, color:"rgba(255,255,255,0.5)", marginTop:6, fontFamily:FB, wordBreak:"break-all", textDecoration:"none" }}>{liveUrl} &#8599;</a>}
-            {!liveUrl&&<p style={{ fontSize:11, color:"rgba(255,255,255,0.25)", marginTop:4, fontFamily:FB }}>Created automatically when you implement your first insight</p>}
+            {liveUrl && <a href={liveUrl} target="_blank" rel="noopener noreferrer" style={{ display:"block", fontSize:12, color:"rgba(255,255,255,0.5)", marginTop:6, fontFamily:FB, wordBreak:"break-all", textDecoration:"none" }}>{liveUrl} ↗</a>}
+            {!liveUrl && <p style={{ fontSize:11, color:"rgba(255,255,255,0.25)", marginTop:4, fontFamily:FB }}>Created automatically when you implement your first insight</p>}
           </div>
 
-          {/* Other channels note */}
           <div style={{ ...card("14px 16px"), marginBottom:12 }}>
             <p style={{ fontSize:11, fontWeight:600, color:C.muted, textTransform:"uppercase", letterSpacing:"0.06em", marginBottom:10, fontFamily:FB }}>Other implementation channels</p>
             {[["Social Media","Post updated content"],["Email campaign","Reach your contact list"],["Booking availability","Adjust your schedule"],["Google Business","Update your listing"]].map(([n,d],i,a)=>(
@@ -182,8 +819,7 @@ function AgentPanel({ businessId, metrics, age, planInfo }) {
             ))}
           </div>
 
-          {/* Activity log */}
-          {activity.length>0&&(
+          {activity.length>0 && (
             <div style={{ ...card("14px 16px"), background:C.dark }}>
               <p style={{ fontSize:11, fontWeight:600, color:"rgba(255,255,255,0.3)", textTransform:"uppercase", letterSpacing:"0.08em", marginBottom:10, fontFamily:FB }}>Agent log</p>
               {activity.slice(0,6).map((e,i)=>(
@@ -216,10 +852,8 @@ function AutopilotCard({ businessId, planInfo, navigate }) {
   const toggle = async () => {
     if (!isAutopilotPlan) return navigate("/pricing");
     setBusy(true);
-    try {
-      const { autopilotEnabled } = await api.agents.setAutopilot(businessId, !enabled);
-      setEnabled(autopilotEnabled);
-    } catch(e) { /* silently fail, access already gated by plan check above */ }
+    try { const { autopilotEnabled } = await api.agents.setAutopilot(businessId, !enabled); setEnabled(autopilotEnabled); }
+    catch {}
     setBusy(false);
   };
 
@@ -229,52 +863,57 @@ function AutopilotCard({ businessId, planInfo, navigate }) {
         <div style={{ flex:1 }}>
           <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:6 }}>
             <div style={{ fontFamily:FH, fontWeight:600, fontSize:14 }}>Autopilot mode</div>
-            {!isAutopilotPlan && <span style={{ background:"#F4F4F5", color:C.muted, fontSize:9, fontWeight:700, padding:"2px 8px", borderRadius:20, textTransform:"uppercase", letterSpacing:"0.04em" }}>Autopilot plan only</span>}
+            {!isAutopilotPlan && <span style={{ background:"#F4F4F5", color:C.muted, fontSize:9, fontWeight:700, padding:"2px 8px", borderRadius:20, textTransform:"uppercase", letterSpacing:"0.04em" }}>Pro Autopilot only</span>}
             {isAutopilotPlan && enabled && <span style={{ background:C.ok, color:"#fff", fontSize:9, fontWeight:700, padding:"2px 8px", borderRadius:20, textTransform:"uppercase", letterSpacing:"0.04em" }}>Running</span>}
           </div>
           <p style={{ fontSize:13, color:C.muted, lineHeight:1.6, fontFamily:FB }}>
             {isAutopilotPlan
-              ? "When enabled, your agents run on their own schedule — analyzing performance and implementing changes automatically, with no input from you."
-              : "Let your business run itself — agents check in automatically and implement improvements without you doing anything. Available on the Pro Autopilot plan ($199/mo)."}
+              ? "When enabled, your agents run on their own schedule — analyzing and implementing automatically."
+              : "Let your business run itself — agents check in and implement improvements without you. Available on the Pro Autopilot plan ($199/mo)."}
           </p>
         </div>
         <button onClick={toggle} disabled={busy||enabled===null} style={{ ...btn(isAutopilotPlan?(enabled?C.err:C.ok):"#D97706","#fff",12), flexShrink:0, marginLeft:16 }}>
-          {!isAutopilotPlan ? "Upgrade" : busy ? "..." : enabled ? "Turn off" : "Turn on"}
+          {!isAutopilotPlan ? "Upgrade" : busy ? "…" : enabled ? "Turn off" : "Turn on"}
         </button>
       </div>
     </div>
   );
 }
 
+// ── MAIN HUB ─────────────────────────────────────────────────────────────────
+
 export default function Hub() {
   const { id: businessId } = useParams();
-  const { user, hubModes, setHubMode } = useStore();
-  const [business,    setBusiness]   = useState(null);
-  const [outputs,     setOutputs]    = useState([]);
-  const [integs,      setIntegs]     = useState([]);
-  const [metrics,     setMetrics]    = useState({ revenue:{this_month:0,last_month:0,total:0}, clients:{active:0,total:0}, leads:{this_month:0,total:0}, social:{instagram:0,tiktok:0,facebook:0,google_reviews:0,google_rating:0}, bookings:{this_week:0,this_month:0} });
-  const [loading,     setLoading]    = useState(true);
-  const [tab,         setTab]        = useState("overview");
-  const [genLoading,  setGenLoading] = useState({});
-  const [genError,    setGenError]   = useState("");
-  const [hubQ,        setHubQ]       = useState("");
-  const [hubAns,      setHubAns]     = useState("");
-  const [hubLoading,  setHubLoading] = useState(false);
-  const [mgmtQ,       setMgmtQ]     = useState("");
-  const [mgmtAns,     setMgmtAns]   = useState("");
-  const [chatOpen,    setChatOpen]   = useState(false);
-  const [chatMsgs,    setChatMsgs]   = useState([{ role:"ai", text:"I am here to help. Ask me about your business, setup steps, or growth strategy." }]);
-  const [planInfo,    setPlanInfo]   = useState(null);
+  const { user } = useStore();
+  const [business,   setBusiness]   = useState(null);
+  const [outputs,    setOutputs]    = useState([]);
+  const [integs,     setIntegs]     = useState([]);
+  const [tasks,      setTasks]      = useState([]);
+  const [metrics,    setMetrics]    = useState({ revenue:{this_month:0,last_month:0,total:0}, clients:{active:0,total:0}, leads:{this_month:0,total:0}, social:{instagram:0,tiktok:0,facebook:0,google_reviews:0,google_rating:0}, bookings:{this_week:0,this_month:0} });
+  const [loading,    setLoading]    = useState(true);
+  const [tab,        setTab]        = useState("overview");
+  const [planInfo,   setPlanInfo]   = useState(null);
+  const [showTour,   setShowTour]   = useState(false);
+  const [genLoading, setGenLoading] = useState({});
+  const [genError,   setGenError]   = useState("");
+  const [hubQ,       setHubQ]       = useState("");
+  const [hubAns,     setHubAns]     = useState("");
+  const [hubLoading, setHubLoading] = useState(false);
+  const [mgmtQ,      setMgmtQ]     = useState("");
+  const [mgmtAns,    setMgmtAns]   = useState("");
+  const [chatOpen,   setChatOpen]   = useState(false);
+  const [chatMsgs,   setChatMsgs]   = useState([{ role:"ai", text:"I'm here to help. Ask about setup steps, strategy, or anything about your business." }]);
   const navigate = useNavigate();
 
-  const modes   = hubModes[businessId]||{ marketing:"Full auto", management:"Manual" };
   const age     = user?.age;
   const isMinor = age && age < 18;
-  const isYoung = age && age >= 18 && age < 25;
 
   useEffect(()=>{
-    api.subscriptions.me().then(setPlanInfo).catch(()=>{});
-  },[]);
+    const toured = localStorage.getItem(`earnedlab_toured_${businessId}`);
+    if (!toured) setShowTour(true);
+  },[businessId]);
+
+  useEffect(()=>{ api.subscriptions.me().then(setPlanInfo).catch(()=>{}); },[]);
 
   useEffect(()=>{
     Promise.all([
@@ -282,21 +921,48 @@ export default function Hub() {
       api.businesses.outputs(businessId),
       api.integrations.list(businessId),
       api.metrics.get(businessId),
-    ]).then(([{business:b},{outputs:o},{integrations:ig},{metrics:m}])=>{
-      setBusiness(b); setOutputs(o); setIntegs(ig);
+      api.tasks.list(businessId),
+    ]).then(([{business:b},{outputs:o},{integrations:ig},{metrics:m},{tasks:t}])=>{
+      setBusiness(b); setOutputs(o); setIntegs(ig); setTasks(t||[]);
       if(m) setMetrics(m);
     }).catch(console.error).finally(()=>setLoading(false));
   },[businessId]);
 
-  const idea     = (()=>{try{return JSON.parse(business?.ideaData||"{}");}catch{return {};}})();
-  const getOutput= type=>outputs.find(o=>o.type===type);
-  const isConn   = p=>integs.find(i=>i.provider===p)?.status==="connected";
-  const cycleMode= stage=>{const cur=modes[stage]||"Manual";setHubMode(businessId,stage,MODE_CYCLE[(MODE_CYCLE.indexOf(cur)+1)%MODE_CYCLE.length]);};
-  const saveM    = async(path,v)=>{const parts=path.split(".");const u=JSON.parse(JSON.stringify(metrics));let o=u;for(let i=0;i<parts.length-1;i++)o=o[parts[i]];o[parts[parts.length-1]]=v;setMetrics(u);await api.metrics.save(businessId,u).catch(()=>{});};
-  const generate = async(type,apiCall)=>{setGenLoading(p=>({...p,[type]:true}));setGenError("");try{const{output}=await apiCall(businessId);setOutputs(p=>{const ex=p.find(o=>o.type===type);return ex?p.map(o=>o.type===type?output:o):[...p,output];});}catch(e){setGenError(e.message);}finally{setGenLoading(p=>({...p,[type]:false}));}};
-  const askHub   = async()=>{if(!hubQ.trim())return;setHubLoading(true);setHubAns("");try{const{suggestion}=await api.metrics.suggest(businessId,hubQ);setHubAns(suggestion);}catch(e){setHubAns("Error: "+e.message);}setHubLoading(false);};
-  const askMgmt  = async()=>{if(!mgmtQ.trim())return;setHubLoading(true);try{const{suggestion}=await api.metrics.suggest(businessId,mgmtQ);setMgmtAns(suggestion);}catch(e){setMgmtAns("Error: "+e.message);}setHubLoading(false);setMgmtQ("");};
-  const sendChat = async msg=>{setChatMsgs(p=>[...p,{role:"user",text:msg}]);try{const{reply}=await api.generate.chat(msg,businessId);setChatMsgs(p=>[...p,{role:"ai",text:reply}]);}catch{setChatMsgs(p=>[...p,{role:"ai",text:"Sorry, could not process that."}]);}};
+  const dismissTour = () => {
+    localStorage.setItem(`earnedlab_toured_${businessId}`, "1");
+    setShowTour(false);
+  };
+
+  const idea     = (()=>{ try{return JSON.parse(business?.ideaData||"{}");}catch{return {};} })();
+  const getOutput= type => outputs.find(o=>o.type===type);
+  const isConn   = p => integs.find(i=>i.provider===p)?.status==="connected";
+
+  const saveM = async(path,v)=>{
+    const parts=path.split("."); const u=JSON.parse(JSON.stringify(metrics)); let o=u;
+    for(let i=0;i<parts.length-1;i++) o=o[parts[i]]; o[parts[parts.length-1]]=v;
+    setMetrics(u); await api.metrics.save(businessId,u).catch(()=>{});
+  };
+
+  const generate = async(type,apiCall)=>{
+    setGenLoading(p=>({...p,[type]:true})); setGenError("");
+    try {
+      const{output}=await apiCall(businessId);
+      setOutputs(p=>{ const ex=p.find(o=>o.type===type); return ex?p.map(o=>o.type===type?output:o):[...p,output]; });
+    } catch(e){ setGenError(e.message); }
+    finally{ setGenLoading(p=>({...p,[type]:false})); }
+  };
+
+  const askHub  = async()=>{ if(!hubQ.trim())return; setHubLoading(true); setHubAns(""); try{const{suggestion}=await api.metrics.suggest(businessId,hubQ);setHubAns(suggestion);}catch(e){setHubAns("Error: "+e.message);} setHubLoading(false); };
+  const askMgmt = async()=>{ if(!mgmtQ.trim())return; setHubLoading(true); try{const{suggestion}=await api.metrics.suggest(businessId,mgmtQ);setMgmtAns(suggestion);}catch(e){setMgmtAns("Error: "+e.message);} setHubLoading(false); setMgmtQ(""); };
+  const sendChat = async msg=>{ setChatMsgs(p=>[...p,{role:"user",text:msg}]); try{const{reply}=await api.generate.chat(msg,businessId);setChatMsgs(p=>[...p,{role:"ai",text:reply}]);}catch{setChatMsgs(p=>[...p,{role:"ai",text:"Sorry, couldn't process that."}]);} };
+
+  const saveIntegFields = async (provider, vals) => {
+    const intg = await api.integrations.saveFields(businessId, provider, vals);
+    setIntegs(p => {
+      const existing = p.find(i=>i.provider===provider);
+      return existing ? p.map(i=>i.provider===provider?intg.integration:i) : [...p, intg.integration];
+    });
+  };
 
   if(loading) return (
     <div style={{ display:"flex", minHeight:"100vh", alignItems:"center", justifyContent:"center", background:C.bg }}>
@@ -305,15 +971,21 @@ export default function Hub() {
   );
 
   const navItems = [
-    { id:"overview",   label:"Overview"        },
-    { id:"hub",        label:"Hub"             },
-    { id:"marketing",  label:"Marketing Agent" },
-    { id:"management", label:"Management Agent"},
+    { id:"overview",   label:"Overview"         },
+    { id:"tasks",      label:"Tasks"            },
+    { id:"hub",        label:"Hub"              },
+    { id:"marketing",  label:"Marketing Agent"  },
+    { id:"management", label:"Management Agent" },
   ];
+
+  const tasksDone  = tasks.filter(t=>t.status==="done").length;
+  const tasksTotal = tasks.length;
 
   return (
     <div style={{ display:"flex", minHeight:"100vh", fontFamily:FB }}>
       <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
+
+      {showTour && <GuidedTour business={business} user={user} onDone={dismissTour} />}
 
       {/* Sidebar */}
       <div style={{ width:220, background:C.dark, display:"flex", flexDirection:"column", flexShrink:0, position:"relative", overflow:"hidden" }}>
@@ -331,64 +1003,67 @@ export default function Hub() {
           {planInfo && (
             <div onClick={()=>navigate("/pricing")} style={{ cursor:"pointer", display:"inline-flex", alignItems:"center", gap:5, background:planInfo.locked?"rgba(220,38,38,0.15)":`${C.primary}20`, border:`1px solid ${planInfo.locked?"#DC262640":C.primary+"40"}`, borderRadius:6, padding:"3px 8px" }}>
               <span style={{ fontSize:10, color:planInfo.locked?"#FCA5A5":"#A78BFA", fontWeight:600, textTransform:"uppercase", letterSpacing:"0.04em", fontFamily:FB }}>
-                {planInfo.isAdmin
-                  ? `Admin — ${planInfo.simulating ? "previewing "+planInfo.simulating.replace("_"," ") : "full access"}`
-                  : planInfo.locked ? "Trial expired" : planInfo.isTrial ? `Trial — ${planInfo.trialDaysLeft}d left` : planInfo.plan}
+                {planInfo.isAdmin ? `Admin${planInfo.simulating?" — "+planInfo.simulating.replace("_"," "):""}` : planInfo.locked?"Trial expired":planInfo.isTrial?`Trial — ${planInfo.trialDaysLeft}d left`:planInfo.plan}
               </span>
             </div>
           )}
         </div>
+
         <nav style={{ padding:"12px 8px", flex:1 }}>
           {navItems.map(({id,label})=>(
-            <div key={id} onClick={()=>setTab(id)} style={{ padding:"10px 14px", borderRadius:10, marginBottom:3, background:tab===id?`${C.primary}25`:"transparent", color:tab===id?"#fff":"rgba(255,255,255,0.45)", cursor:"pointer", fontSize:13, fontWeight:tab===id?600:400, fontFamily:FB, borderLeft:tab===id?`3px solid ${C.primary}`:"3px solid transparent", transition:"all 0.12s" }}>
-              {label}
+            <div key={id} onClick={()=>setTab(id)} style={{ padding:"10px 14px", borderRadius:10, marginBottom:3, background:tab===id?`${C.primary}25`:"transparent", color:tab===id?"#fff":"rgba(255,255,255,0.45)", cursor:"pointer", fontSize:13, fontWeight:tab===id?600:400, fontFamily:FB, borderLeft:tab===id?`3px solid ${C.primary}`:"3px solid transparent", transition:"all 0.12s", display:"flex", justifyContent:"space-between", alignItems:"center" }}>
+              <span>{label}</span>
+              {id==="tasks" && tasksTotal > 0 && (
+                <span style={{ fontSize:10, background:tasksDone===tasksTotal?"#4ADE8030":"rgba(255,255,255,0.08)", color:tasksDone===tasksTotal?"#4ADE80":"rgba(255,255,255,0.4)", padding:"1px 7px", borderRadius:20, fontWeight:700 }}>{tasksDone}/{tasksTotal}</span>
+              )}
             </div>
           ))}
         </nav>
+
         <div style={{ padding:"10px 8px", borderTop:"1px solid rgba(255,255,255,0.06)" }}>
-          <div onClick={()=>navigate(`/creation/${businessId}`)} style={{ padding:"8px 12px", borderRadius:8, color:"rgba(255,255,255,0.25)", cursor:"pointer", fontSize:12, fontFamily:FB }}>Edit setup tasks</div>
+          <div onClick={()=>setShowTour(true)} style={{ padding:"8px 12px", borderRadius:8, color:"rgba(255,255,255,0.3)", cursor:"pointer", fontSize:12, fontFamily:FB }}>Replay tour</div>
           <div onClick={()=>navigate("/dashboard")} style={{ padding:"8px 12px", borderRadius:8, color:"rgba(255,255,255,0.2)", cursor:"pointer", fontSize:12, fontFamily:FB }}>All businesses</div>
         </div>
       </div>
 
-      {/* Main */}
+      {/* Main content */}
       <div style={{ flex:1, overflowY:"auto", background:C.bg }}>
         <div style={{ padding:"28px 32px 80px", maxWidth:1100 }}>
 
-          {/* ── OVERVIEW ─────────────────────────────────────────────────── */}
+          {/* OVERVIEW */}
           {tab==="overview" && (
             <div>
               <div style={{ fontFamily:FH, fontWeight:700, fontSize:24, letterSpacing:"-0.04em", marginBottom:4 }}>{business?.name}</div>
               <p style={{ color:C.muted, fontSize:14, marginBottom:24, fontFamily:FB }}>{idea.name} &middot; {business?.location}</p>
 
-              {/* Quick wins checklist */}
-              <div style={{ ...card("16px 20px"), marginBottom:20, border:`1px solid ${C.primary}15`, background:C.primaryBg }}>
-                <div style={{ fontFamily:FH, fontWeight:700, fontSize:14, marginBottom:12 }}>Getting started</div>
-                <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:8 }}>
-                  {[
-                    { done:!!getOutput("website"),           label:"Generate your website",          tab:"marketing" },
-                    { done:isConn("stripe"),                 label:`Connect ${isMinor?"PayPal/Venmo":"Stripe"}`, tab:"hub" },
-                    { done:isConn("google"),                 label:"Set up Google Business",         tab:"hub" },
-                    { done:metrics.clients.active>0,         label:"Log your first client",          tab:"management" },
-                    { done:metrics.revenue.this_month>0,     label:"Log your first revenue",         tab:"management" },
-                    { done:isConn("netlify"),                label:"Deploy your live website",       tab:"marketing" },
-                  ].filter(item=>!(isMinor&&item.label.includes("Stripe"))).map((item,i)=>(
-                    <div key={i} onClick={()=>setTab(item.tab)} style={{ display:"flex", alignItems:"center", gap:8, padding:"8px 12px", borderRadius:8, cursor:"pointer", background:item.done?"#F0FDF4":"rgba(124,58,237,0.04)", border:`1px solid ${item.done?C.ok+"25":C.primary+"15"}`, transition:"all 0.12s" }}>
-                      <div style={{ width:16, height:16, borderRadius:"50%", background:item.done?C.ok:"transparent", border:`2px solid ${item.done?C.ok:C.primary}`, display:"flex", alignItems:"center", justifyContent:"center", fontSize:9, color:"#fff", fontWeight:700, flexShrink:0 }}>{item.done?"+":" "}</div>
-                      <span style={{ fontSize:12, fontFamily:FB, color:item.done?C.ok:C.primary, fontWeight:500, textDecoration:item.done?"line-through":"none" }}>{item.label}</span>
-                      {!item.done&&<span style={{ marginLeft:"auto", fontSize:11, color:C.primary }}>&#8594;</span>}
-                    </div>
-                  ))}
+              {/* Tasks progress card */}
+              {tasksTotal > 0 && (
+                <div onClick={()=>setTab("tasks")} style={{ ...card("16px 20px"), marginBottom:20, border:`1px solid ${C.primary}15`, background:C.primaryBg, cursor:"pointer" }}>
+                  <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:10 }}>
+                    <div style={{ fontFamily:FH, fontWeight:700, fontSize:14 }}>Tasks — {tasksDone} of {tasksTotal} done</div>
+                    <span style={{ fontSize:12, color:C.primary, fontFamily:FB }}>View all →</span>
+                  </div>
+                  <div style={{ height:5, borderRadius:3, background:"rgba(124,58,237,0.15)", marginBottom:12 }}>
+                    <div style={{ height:"100%", width:`${tasksTotal?(tasksDone/tasksTotal*100):0}%`, background:C.primary, borderRadius:3, transition:"width 0.3s" }} />
+                  </div>
+                  <div style={{ display:"flex", gap:8, flexWrap:"wrap" }}>
+                    {tasks.filter(t=>t.status!=="done").slice(0,4).map(t=>(
+                      <span key={t.id} style={{ fontSize:11, background:"rgba(124,58,237,0.08)", color:C.primary, padding:"3px 10px", borderRadius:20, fontFamily:FB }}>
+                        {t.canAutomate && "⚡ "}{t.name}
+                      </span>
+                    ))}
+                    {tasks.filter(t=>t.status!=="done").length > 4 && <span style={{ fontSize:11, color:C.muted, fontFamily:FB, padding:"3px 6px" }}>+{tasks.filter(t=>t.status!=="done").length-4} more</span>}
+                  </div>
                 </div>
-              </div>
+              )}
 
               {/* KPI row */}
               <div style={{ display:"grid", gridTemplateColumns:"repeat(4,1fr)", gap:12, marginBottom:20 }}>
                 {[
-                  { label:"Revenue / month", value:`$${Number(metrics.revenue.this_month).toLocaleString()}`,  sub:metrics.revenue.last_month>0?`$${Number(metrics.revenue.last_month).toLocaleString()} last month`:"Track in Management Agent" },
-                  { label:"Active clients",  value:String(metrics.clients.active),                             sub:`${metrics.clients.total} total served` },
-                  { label:"Leads / month",   value:String(metrics.leads.this_month),                           sub:`${metrics.leads.total} all time` },
-                  { label:"Followers",       value:Number(metrics.social.instagram).toLocaleString(),           sub:metrics.social.google_rating>0?`${metrics.social.google_rating} Google rating`:"Track in Management Agent" },
+                  { label:"Revenue / month", value:`$${Number(metrics.revenue.this_month).toLocaleString()}`, sub:metrics.revenue.last_month>0?`$${Number(metrics.revenue.last_month).toLocaleString()} last month`:"Track in Management" },
+                  { label:"Active clients",  value:String(metrics.clients.active),                            sub:`${metrics.clients.total} total` },
+                  { label:"Leads / month",   value:String(metrics.leads.this_month),                          sub:`${metrics.leads.total} all time` },
+                  { label:"Followers",       value:Number(metrics.social.instagram).toLocaleString(),          sub:metrics.social.google_rating>0?`${metrics.social.google_rating} Google rating`:"Track in Management" },
                 ].map(({label,value,sub})=>(
                   <div key={label} style={card("14px 16px")}>
                     <div style={{ fontSize:10, color:C.muted, textTransform:"uppercase", letterSpacing:"0.06em", marginBottom:6, fontFamily:FB }}>{label}</div>
@@ -419,8 +1094,8 @@ export default function Hub() {
                     ["Bookings this month", metrics.bookings.this_month],
                     ["Google reviews",      metrics.social.google_reviews],
                     ["Google rating",       metrics.social.google_rating>0?metrics.social.google_rating+"":"—"],
-                    ["TikTok followers",    Number(metrics.social.tiktok).toLocaleString()||"0"],
-                    ["Facebook followers",  Number(metrics.social.facebook).toLocaleString()||"0"],
+                    ["TikTok",              Number(metrics.social.tiktok).toLocaleString()||"0"],
+                    ["Facebook",            Number(metrics.social.facebook).toLocaleString()||"0"],
                   ].map(([l,v])=>(
                     <div key={l} style={{ display:"flex", justifyContent:"space-between", padding:"6px 0", borderBottom:`1px solid ${C.border}` }}>
                       <span style={{ fontSize:12, color:C.muted, fontFamily:FB }}>{l}</span>
@@ -433,80 +1108,35 @@ export default function Hub() {
             </div>
           )}
 
-          {/* ── HUB ──────────────────────────────────────────────────────── */}
+          {/* TASKS */}
+          {tab==="tasks" && <TasksPanel businessId={businessId} businessOutputs={outputs} />}
+
+          {/* HUB */}
           {tab==="hub" && (
-            <div>
-              <div style={{ fontFamily:FH, fontWeight:700, fontSize:24, letterSpacing:"-0.04em", marginBottom:4 }}>Hub</div>
-              <p style={{ color:C.muted, fontSize:14, marginBottom:24, fontFamily:FB }}>Connect your tools and get advice from your AI assistant.</p>
-
-              {/* AI assistant */}
-              <div style={{ ...card("18px 20px"), marginBottom:20, border:`1px solid ${C.primary}15`, background:C.primaryBg }}>
-                <div style={{ fontFamily:FH, fontWeight:600, fontSize:15, marginBottom:6 }}>Ask your AI assistant</div>
-                <p style={{ fontSize:13, color:C.muted, marginBottom:14, lineHeight:1.65, fontFamily:FB }}>Ask how to set up an integration, what to do next, or how to handle a specific challenge with your business.</p>
-                <div style={{ display:"flex", gap:8, marginBottom:hubAns?12:0 }}>
-                  <input value={hubQ} onChange={e=>setHubQ(e.target.value)} onKeyDown={e=>e.key==="Enter"&&askHub()} placeholder={isMinor?"How do I get my first customer?":"How should I set up Stripe for my business?"} style={{ ...inp(), flex:1 }} />
-                  <button onClick={askHub} disabled={hubLoading} style={{ ...btn(C.primary,"#fff",13), padding:"10px 18px", flexShrink:0 }}>{hubLoading?"...":"Ask"}</button>
-                </div>
-                {hubAns && <div style={{ background:C.surface, borderRadius:10, padding:"12px 14px", fontSize:13, color:C.text, lineHeight:1.7, fontFamily:FB, border:`1px solid ${C.border}` }}>{hubAns}</div>}
-              </div>
-
-              {/* Integrations */}
-              <div style={card()}>
-                <div style={{ fontFamily:FH, fontWeight:600, fontSize:15, marginBottom:18 }}>Integrations</div>
-                {[
-                  ...(isMinor ? [
-                    { provider:"paypal",  label:"PayPal.me",             desc:"Accept payments online — free to set up, works for any age",        url:"https://paypal.me",                    guide:"Go to paypal.me → create a link → share it with customers to get paid instantly" },
-                    { provider:"venmo",   label:"Venmo",                  desc:"Fast, simple payments — popular with customers your age",            url:"https://venmo.com",                    guide:"Download Venmo → create a business profile → share your handle with customers" },
-                    { provider:"google",  label:"Google Business Profile", desc:"Show up when people search locally",                                url:"https://business.google.com",          guide:"Go to business.google.com → claim your business → verify to appear in Maps" },
-                    { provider:"netlify", label:"Live Website",            desc:"Your AI-generated website goes live here",                          url:"https://app.netlify.com",              guide:"Add NETLIFY_TOKEN to Railway environment variables — then run the marketing agent" },
-                    { provider:"calendly",label:"Calendly",               desc:"Let people book you without back-and-forth",                        url:"https://calendly.com/signup",          guide:"Create a free Calendly account → set your availability → share your booking link" },
-                    { provider:"instagram",label:"Instagram Business",    desc:"Grow your audience and attract customers",                          url:"https://business.instagram.com",       guide:"Switch your Instagram to a Business account → connect it to a Facebook Page" },
-                  ] : [
-                    { provider:"stripe",  label:"Stripe",                 desc:"Accept card payments — required before you can charge customers",    url:"https://stripe.com/register",          guide:"Go to stripe.com/register → create your account → add your bank details → you can start charging immediately" },
-                    { provider:"google",  label:"Google Business Profile", desc:"Appear in local search and on Google Maps",                         url:"https://business.google.com",          guide:"Go to business.google.com → claim your business → verify by postcard (5-7 days) → you appear in Maps" },
-                    { provider:"netlify", label:"Live Website",            desc:"Your AI-generated website, deployed and live",                      url:"https://app.netlify.com",              guide:"Add NETLIFY_TOKEN to Railway environment variables (from app.netlify.com/user/applications) — then run the marketing agent" },
-                    { provider:"calendly",label:"Calendly",               desc:"Let clients book appointments without back-and-forth",               url:"https://calendly.com/signup",          guide:"Sign up at calendly.com → set your availability → share your link on your website and in your bio" },
-                    { provider:"instagram",label:"Instagram Business",    desc:"Post content, run ads, and grow your local audience",               url:"https://business.instagram.com",       guide:"Switch your Instagram to a Business account → connect to Facebook Page → you can now run ads and see analytics" },
-                  ]),
-                ].map(({provider,label,desc,url,guide},i,arr)=>{
-                  const connected = isConn(provider);
-                  return (
-                    <div key={provider} style={{ padding:"16px 0", borderBottom:i<arr.length-1?`1px solid ${C.border}`:"none" }}>
-                      <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:connected?0:10 }}>
-                        <div style={{ display:"flex", gap:10, alignItems:"center" }}>
-                          {connected&&<div style={{ width:7, height:7, borderRadius:"50%", background:C.ok }}/>}
-                          <div>
-                            <div style={{ fontSize:14, fontWeight:600, fontFamily:FB }}>{label}</div>
-                            <div style={{ fontSize:12, color:connected?C.ok:C.muted, fontFamily:FB }}>{connected?"Connected":desc}</div>
-                          </div>
-                        </div>
-                        <a href={url} target="_blank" rel="noopener noreferrer" style={{ ...btn(connected?"#F4F4F5":C.dark,connected?C.text:"#fff",12), padding:"7px 14px", textDecoration:"none" }}>
-                          {connected?"Manage &#8599;":"Set up &#8599;"}
-                        </a>
-                      </div>
-                      {!connected && <div style={{ background:"#FAFAF9", borderRadius:10, padding:"10px 14px", fontSize:12, color:C.muted, lineHeight:1.65, fontFamily:FB, border:`1px solid ${C.border}` }}>{guide}</div>}
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
+            <HubPanel
+              businessId={businessId}
+              integs={integs}
+              onSaveFields={saveIntegFields}
+              tasks={tasks}
+              outputs={outputs}
+              isMinor={!!isMinor}
+            />
           )}
 
-          {/* ── MARKETING AGENT ───────────────────────────────────────────── */}
+          {/* MARKETING AGENT */}
           {tab==="marketing" && (
             <div>
               <div style={{ fontFamily:FH, fontWeight:700, fontSize:24, letterSpacing:"-0.04em", marginBottom:4 }}>Marketing Agent</div>
               <p style={{ color:C.muted, fontSize:14, marginBottom:24, fontFamily:FB }}>The marketing agent analyzes your metrics and finds the best opportunities. The management agent implements them — including updating your live website.</p>
 
-              {/* Generate assets */}
               <div style={{ ...card("18px 20px"), marginBottom:24 }}>
-                <div style={{ fontFamily:FH, fontWeight:700, fontSize:15, marginBottom:14 }}>Generate your content</div>
+                <div style={{ fontFamily:FH, fontWeight:700, fontSize:15, marginBottom:14 }}>Generate content</div>
                 <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10 }}>
                   {[
-                    { type:"website",        label:"Business Website",       apiCall:api.generate.website,        desc:"Deploy-ready, mobile-friendly" },
-                    { type:"business_plan",  label:"Business Plan",          apiCall:api.generate.businessPlan,   desc:"With financial projections" },
-                    { type:"social_content", label:"30-Day Social Calendar", apiCall:api.generate.socialContent,  desc:"Captions and hashtags included" },
-                    { type:"email_templates",label:"Email Templates",        apiCall:api.generate.emailTemplates, desc:"8 ready-to-use templates" },
+                    { type:"website",         label:"Business Website",       apiCall:api.generate.website,        desc:"Deploy-ready, mobile-friendly" },
+                    { type:"business_plan",   label:"Business Plan",          apiCall:api.generate.businessPlan,   desc:"With financial projections" },
+                    { type:"social_content",  label:"30-Day Social Calendar", apiCall:api.generate.socialContent,  desc:"Captions and hashtags included" },
+                    { type:"email_templates", label:"Email Templates",        apiCall:api.generate.emailTemplates, desc:"8 ready-to-use templates" },
                   ].map(({type,label,apiCall,desc})=>{
                     const out=getOutput(type); const loading=!!genLoading[type];
                     return (
@@ -521,8 +1151,8 @@ export default function Hub() {
                         <div style={{ display:"flex", gap:6 }}>
                           {out&&<button onClick={()=>{const b=new Blob([out.content],{type:"text/html"});const u=URL.createObjectURL(b);const a=document.createElement("a");a.href=u;a.download=`${type}.html`;a.click();URL.revokeObjectURL(u);}} style={{ ...btnO(C.primary,11), flex:1, textAlign:"center" }}>Download</button>}
                           <button onClick={()=>generate(type,apiCall)} disabled={loading} style={{ ...btn(loading?"#9CA3AF":out?C.muted:C.primary,"#fff",12), flex:1, display:"flex", alignItems:"center", justifyContent:"center", gap:6 }}>
-                            {loading&&<span style={{ width:11, height:11, borderRadius:"50%", border:"2px solid rgba(255,255,255,0.4)", borderTopColor:"#fff", animation:"spin 0.7s linear infinite" }}/>}
-                            {loading?"Generating...":(out?"Regenerate":"Generate")}
+                            {loading&&<span style={{ width:11,height:11,borderRadius:"50%",border:"2px solid rgba(255,255,255,0.4)",borderTopColor:"#fff",animation:"spin 0.7s linear infinite" }}/>}
+                            {loading?"Generating…":(out?"Regenerate":"Generate")}
                           </button>
                         </div>
                       </div>
@@ -532,39 +1162,27 @@ export default function Hub() {
                 {genError&&<div style={{ marginTop:12, background:C.errBg, borderRadius:8, padding:"10px 14px", fontSize:13, color:C.err, fontFamily:FB }}>{genError}</div>}
               </div>
 
-              <AgentPanel businessId={businessId} metrics={metrics} age={age} planInfo={planInfo}/>
+              <AgentPanel businessId={businessId} metrics={metrics} planInfo={planInfo}/>
             </div>
           )}
 
-          {/* ── MANAGEMENT AGENT ──────────────────────────────────────────── */}
+          {/* MANAGEMENT AGENT */}
           {tab==="management" && (
             <div>
-              <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", marginBottom:4 }}>
-                <div style={{ fontFamily:FH, fontWeight:700, fontSize:24, letterSpacing:"-0.04em" }}>Management Agent</div>
-                <button onClick={()=>cycleMode("management")} style={{ background:modes.management==="Full auto"?C.okBg:modes.management==="Guided"?C.primaryBg:"#F4F4F5", color:modes.management==="Full auto"?C.ok:modes.management==="Guided"?C.primary:C.muted, border:"none", borderRadius:20, padding:"6px 14px", fontSize:11, fontWeight:700, cursor:"pointer", textTransform:"uppercase", letterSpacing:"0.06em", fontFamily:FB }}>
-                  {modes.management||"Manual"} &mdash; tap to change
-                </button>
-              </div>
-              <p style={{ color:C.muted, fontSize:14, marginBottom:6, fontFamily:FB }}>Track your business numbers here. The management agent uses this data to give better recommendations.</p>
-              <div style={{ fontSize:12, color:C.muted, fontFamily:FB, marginBottom:28, background:C.primaryBg, borderRadius:10, padding:"10px 14px", lineHeight:1.65, border:`1px solid ${C.primary}15` }}>
-                {modes.management==="Manual"&&"Manual mode — tap any number to update it yourself."}
-                {modes.management==="Guided"&&"Guided mode — your AI will prompt you with questions to keep your numbers current."}
-                {modes.management==="Full auto"&&"Full auto mode — connect integrations and the agent tracks everything automatically."}
-              </div>
+              <div style={{ fontFamily:FH, fontWeight:700, fontSize:24, letterSpacing:"-0.04em", marginBottom:4 }}>Management Agent</div>
+              <p style={{ color:C.muted, fontSize:14, marginBottom:24, fontFamily:FB }}>Track your business numbers here. The management agent uses this data to give better recommendations.</p>
 
               <AutopilotCard businessId={businessId} planInfo={planInfo} navigate={navigate} />
 
-              {/* AI question box */}
               <div style={{ ...card("16px 18px"), marginBottom:24, background:C.primaryBg, border:`1px solid ${C.primary}15` }}>
                 <div style={{ fontFamily:FH, fontWeight:600, fontSize:14, marginBottom:8 }}>Ask your management agent</div>
                 <div style={{ display:"flex", gap:8, marginBottom:mgmtAns?12:0 }}>
                   <input value={mgmtQ} onChange={e=>setMgmtQ(e.target.value)} onKeyDown={e=>e.key==="Enter"&&askMgmt()} placeholder="What should I focus on this week? How do I get my next client?" style={{ ...inp(), flex:1 }} />
-                  <button onClick={askMgmt} disabled={hubLoading} style={{ ...btn(C.primary,"#fff",13), padding:"10px 16px", flexShrink:0 }}>{hubLoading?"...":"Ask"}</button>
+                  <button onClick={askMgmt} disabled={hubLoading} style={{ ...btn(C.primary,"#fff",13), padding:"10px 16px", flexShrink:0 }}>{hubLoading?"…":"Ask"}</button>
                 </div>
                 {mgmtAns&&<div style={{ background:C.surface, borderRadius:10, padding:"12px 14px", fontSize:13, color:C.text, lineHeight:1.7, fontFamily:FB, border:`1px solid ${C.border}` }}>{mgmtAns}</div>}
               </div>
 
-              {/* Metric cards */}
               <div style={{ fontFamily:FH, fontWeight:700, fontSize:15, marginBottom:12 }}>Revenue</div>
               <div style={{ display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:12, marginBottom:24 }}>
                 <StatCard label="This month"  value={metrics.revenue.this_month}  prefix="$" onChange={v=>saveM("revenue.this_month",v)}/>
@@ -572,33 +1190,33 @@ export default function Hub() {
                 <StatCard label="All time"    value={metrics.revenue.total}       prefix="$" onChange={v=>saveM("revenue.total",v)}/>
               </div>
 
-              <div style={{ fontFamily:FH, fontWeight:700, fontSize:15, marginBottom:12 }}>Clients & Leads</div>
+              <div style={{ fontFamily:FH, fontWeight:700, fontSize:15, marginBottom:12 }}>Clients &amp; Leads</div>
               <div style={{ display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:12, marginBottom:24 }}>
-                <StatCard label="Active clients"   value={metrics.clients.active}      onChange={v=>saveM("clients.active",v)}/>
-                <StatCard label="Total clients"    value={metrics.clients.total}       onChange={v=>saveM("clients.total",v)}/>
-                <StatCard label="Leads this month" value={metrics.leads.this_month}    onChange={v=>saveM("leads.this_month",v)}/>
+                <StatCard label="Active clients"   value={metrics.clients.active}   onChange={v=>saveM("clients.active",v)}/>
+                <StatCard label="Total clients"    value={metrics.clients.total}    onChange={v=>saveM("clients.total",v)}/>
+                <StatCard label="Leads this month" value={metrics.leads.this_month} onChange={v=>saveM("leads.this_month",v)}/>
               </div>
 
               <div style={{ fontFamily:FH, fontWeight:700, fontSize:15, marginBottom:12 }}>Social Media</div>
               <div style={{ display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:12, marginBottom:24 }}>
-                <StatCard label="Instagram"      value={metrics.social.instagram}      onChange={v=>saveM("social.instagram",v)}/>
-                <StatCard label="TikTok"         value={metrics.social.tiktok}         onChange={v=>saveM("social.tiktok",v)}/>
-                <StatCard label="Facebook"       value={metrics.social.facebook}       onChange={v=>saveM("social.facebook",v)}/>
+                <StatCard label="Instagram" value={metrics.social.instagram} onChange={v=>saveM("social.instagram",v)}/>
+                <StatCard label="TikTok"    value={metrics.social.tiktok}    onChange={v=>saveM("social.tiktok",v)}/>
+                <StatCard label="Facebook"  value={metrics.social.facebook}  onChange={v=>saveM("social.facebook",v)}/>
               </div>
 
-              <div style={{ fontFamily:FH, fontWeight:700, fontSize:15, marginBottom:12 }}>Bookings & Reviews</div>
+              <div style={{ fontFamily:FH, fontWeight:700, fontSize:15, marginBottom:12 }}>Bookings &amp; Reviews</div>
               <div style={{ display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:12 }}>
                 <StatCard label="Bookings this week"  value={metrics.bookings.this_week}    onChange={v=>saveM("bookings.this_week",v)}/>
                 <StatCard label="Bookings this month" value={metrics.bookings.this_month}   onChange={v=>saveM("bookings.this_month",v)}/>
                 <StatCard label="Google reviews"      value={metrics.social.google_reviews} onChange={v=>saveM("social.google_reviews",v)}/>
-                <StatCard label="Google rating"       value={metrics.social.google_rating}  onChange={v=>saveM("social.google_rating",v)} suffix="" />
+                <StatCard label="Google rating"       value={metrics.social.google_rating}  onChange={v=>saveM("social.google_rating",v)}/>
               </div>
             </div>
           )}
         </div>
       </div>
 
-      {chatOpen&&<GuidePanel messages={chatMsgs} onClose={()=>setChatOpen(false)} onSend={sendChat} businessId={businessId}/>}
+      {chatOpen && <GuidePanel messages={chatMsgs} onClose={()=>setChatOpen(false)} onSend={sendChat} businessId={businessId}/>}
       <button onClick={()=>setChatOpen(o=>!o)} style={{ background:C.grad, color:"#fff", border:"none", borderRadius:24, padding:"10px 20px", fontSize:13, fontWeight:500, cursor:"pointer", position:"fixed", bottom:24, right:chatOpen?336:24, boxShadow:`0 4px 20px rgba(124,58,237,0.3)`, zIndex:100, transition:"right 0.25s", fontFamily:FB }}>
         Ask guide
       </button>
