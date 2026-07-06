@@ -212,20 +212,21 @@ async function generateCaption(businessName, businessType, context, tone, prefs)
     model: "claude-sonnet-4-6",
     max_tokens: 350,
     messages: [{ role: "user", content: `
-Write ONE single Instagram caption for a single post for "${businessName}" (${businessType || "service business"}).
-${context ? `Topic / inspiration: ${context}` : ""}
-${tone   ? `Tone: ${tone}`   : "Tone: authentic, conversational, relatable"}
+Write ONE Instagram post caption for "${businessName}"${businessType ? ` — ${businessType}` : ""}.
+${context ? `Post angle: ${context}` : ""}
+${tone   ? `Tone: ${tone}`   : "Tone: direct, confident, real"}
 ${audienceCtx}
 
-CRITICAL rules:
-- Output ONE caption only — do NOT write multiple captions or a plan
-- If the topic mentions multiple post types, choose the FIRST one and write for that
-- 2-4 sentences, punchy opener
-- End with a call to action (question or directive)
-- Hashtags on a new line, 8-12 relevant tags
-- No markdown headers, no "---" dividers, no bold formatting
-- No quotation marks around the caption
-- No location-specific phrases unless the business is explicitly local
+STRICT rules:
+- Write for ${businessName} specifically — mention the business or its actual value prop
+- ONE caption, ONE post — do NOT write a strategy, plan, or multiple versions
+- If the angle mentions multiple content types, write for the FIRST one only
+- 2–3 sentences max: hook first, value second, CTA third
+- No emojis whatsoever
+- No markdown (no **, no --, no headers)
+- No location phrases unless explicitly local
+- No quotation marks wrapping the caption
+- Hashtags on their own line after the caption, 8–10 tags
 ` }],
   });
 

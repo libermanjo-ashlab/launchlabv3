@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { useParams, useNavigate } from "react-router-dom";
+import { useParams, useNavigate, useSearchParams } from "react-router-dom";
 import useStore from "../lib/store";
 import { api } from "../lib/api";
 import { C, FH, FB, btn, btnO, card, inp, lbl, GuidePanel, Logo } from "../components";
@@ -1265,7 +1265,7 @@ const CHANNEL_OPTIONS = ["instagram","email","website","google","calendly","twit
 
 // ── CampaignCard ─────────────────────────────────────────────────────────────
 
-function CampaignCard({ campaign:c, onModeChange, onStart, onProgressUpdate, onDone, onDelete, businessId, navigate, statusClr, typeLabel }) {
+function CampaignCard({ campaign:c, onModeChange, onStart, onTaskComplete, onDone, onDelete, businessId, setTab, statusClr, typeLabel }) {
   const [starting, setStarting] = useState(false);
   const [running,  setRunning]  = useState(null); // taskId being run
 
@@ -1288,12 +1288,7 @@ function CampaignCard({ campaign:c, onModeChange, onStart, onProgressUpdate, onD
     setRunning(task.id);
     try {
       const result = await api.tasks.run(task.id);
-      // Mark task completed in local campaign state + nudge progress
-      if (c.tasks) {
-        const updated = c.tasks.map(t=>t.id===task.id?{...t,status:"completed"}:t);
-        // Parent will re-render via saveCampaigns; update via onProgressUpdate delta
-      }
-      onProgressUpdate(1);
+      onTaskComplete(task.id);
       alert(`Task done: ${task.name}\n\n${result.output?.slice(0,300)||""}`);
     } catch(e){ alert(e.message); }
     setRunning(null);
@@ -1347,7 +1342,7 @@ function CampaignCard({ campaign:c, onModeChange, onStart, onProgressUpdate, onD
                 </button>
               )}
               {mode==="manual" && t.status!=="completed" && (
-                <button onClick={()=>navigate("/tasks")} style={{ ...btnO(C.muted,10), padding:"3px 8px", flexShrink:0 }}>View in Tasks</button>
+                <button onClick={()=>setTab("tasks")} style={{ ...btnO(C.muted,10), padding:"3px 8px", flexShrink:0 }}>View in Tasks</button>
               )}
             </div>
           ))}
@@ -1368,7 +1363,7 @@ function CampaignCard({ campaign:c, onModeChange, onStart, onProgressUpdate, onD
           </button>
         )}
         {c.status==="active" && <button onClick={onDone} style={{ ...btn(C.ok,"#fff",10), padding:"4px 10px" }}>Mark done</button>}
-        {c.status==="active" && <button onClick={()=>navigate("/tasks")} style={{ ...btnO(C.primary,10), padding:"4px 10px" }}>All tasks ↗</button>}
+        {c.status==="active" && <button onClick={()=>setTab("tasks")} style={{ ...btnO(C.primary,10), padding:"4px 10px" }}>All tasks ↗</button>}
         {c.status==="completed" && <span style={{ fontSize:11, color:C.ok, fontFamily:FB }}>Completed {c.completedAt ? new Date(c.completedAt).toLocaleDateString():"" }</span>}
         <button onClick={onDelete} style={{ ...btnO(C.err,10), padding:"4px 10px", marginLeft:"auto" }}>Remove</button>
       </div>
@@ -1545,7 +1540,7 @@ function ImplementResult({ result, businessId }) {
   return null;
 }
 
-function AgentPanel({ businessId, metrics, planInfo, integs }) {
+function AgentPanel({ businessId, metrics, planInfo, integs, setTab }) {
   const [insights,     setInsights]     = useState([]);
   const [ranAt,        setRanAt]        = useState(null);
   const [running,      setRunning]      = useState(false);
@@ -1554,10 +1549,18 @@ function AgentPanel({ businessId, metrics, planInfo, integs }) {
   const [activity,     setActivity]     = useState([]);
   const [error,        setError]        = useState("");
   const [access,       setAccess]       = useState(null);
+  const [agentMode,    setAgentMode]    = useState(() => {
+    try { return localStorage.getItem(`earnedlab_agentmode_${businessId}`) || "guided"; } catch { return "guided"; }
+  });
   const [campaigns,    setCampaigns]    = useState(()=>{
     try { return JSON.parse(localStorage.getItem(`earnedlab_campaigns_${businessId}`)||"[]"); } catch { return []; }
   });
   const navigate = useNavigate();
+
+  const saveAgentMode = (m) => {
+    setAgentMode(m);
+    try { localStorage.setItem(`earnedlab_agentmode_${businessId}`, m); } catch {}
+  };
 
   const refreshAccess = () => api.agents.access(businessId).then(setAccess).catch(()=>{});
 
@@ -1569,6 +1572,8 @@ function AgentPanel({ businessId, metrics, planInfo, integs }) {
   useEffect(()=>{
     api.agents.activity(businessId).then(d=>setActivity(d.activity||[])).catch(()=>{});
     api.agents.savedInsights(businessId).then(d=>{ if(d.insights?.length) { setInsights(d.insights); setRanAt(d.ranAt); } }).catch(()=>{});
+    // If autopilot is on, lock mode to "auto"
+    api.agents.getAutopilot(businessId).then(d=>{ if(d.autopilotEnabled) saveAgentMode("auto"); }).catch(()=>{});
     refreshAccess();
   },[businessId]);
 
@@ -1587,7 +1592,7 @@ function AgentPanel({ businessId, metrics, planInfo, integs }) {
   const implement = async insight => {
     setImplementing(insight.id); setError("");
     try {
-      const result = await api.agents.implement(businessId, insight);
+      const result = await api.agents.implement(businessId, insight, agentMode);
       setImplemented(p=>({...p,[insight.id]:result}));
       api.agents.activity(businessId).then(d=>setActivity(d.activity||[])).catch(()=>{});
       refreshAccess();
@@ -1596,7 +1601,7 @@ function AgentPanel({ businessId, metrics, planInfo, integs }) {
   };
 
   const saveCampaign = (insight) => {
-    const c = { id: Date.now().toString(), title: insight.recommendation, rationale: insight.agentObservation, channel: insight.implementationChannel||insight.type, expectedImpact: insight.expectedImpact, status:"planned", mode:"guided", createdAt: new Date().toISOString() };
+    const c = { id: Date.now().toString(), title: insight.recommendation, rationale: insight.agentObservation, channel: insight.implementationChannel||insight.type, expectedImpact: insight.expectedImpact, status:"planned", mode: agentMode || "guided", createdAt: new Date().toISOString() };
     saveCampaigns([c, ...campaigns]);
   };
 
@@ -1644,6 +1649,14 @@ function AgentPanel({ businessId, metrics, planInfo, integs }) {
           {connectedChannels.length === 0 && (
             <div style={{ ...card("10px 14px"), marginBottom:12, fontSize:12, color:C.muted, fontFamily:FB, borderStyle:"dashed" }}>Add integrations in the Hub tab to get channel-specific insights. Analysis works with any or all channels.</div>
           )}
+
+          {/* Mode selector */}
+          <div style={{ display:"flex", gap:4, marginBottom:10 }}>
+            {MODE_OPTS.map(o=>(
+              <button key={o.value} onClick={()=>saveAgentMode(o.value)} title={o.desc}
+                style={{ ...btn(agentMode===o.value?C.primary:"#F4F4F5", agentMode===o.value?"#fff":C.muted, 11), flex:1, padding:"6px 8px" }}>{o.label}</button>
+            ))}
+          </div>
 
           <button onClick={runAnalysis} disabled={running||(access&&!access.marketing.allowed)} style={{ ...btn(running?"#9CA3AF":(access&&!access.marketing.allowed)?"#D1D5DB":C.grad), width:"100%", marginBottom:ranAt?6:14, display:"flex", alignItems:"center", justifyContent:"center", gap:10, cursor:(access&&!access.marketing.allowed)?"not-allowed":"pointer" }}>
             {running && <span style={{ width:14,height:14,borderRadius:"50%",border:"2px solid rgba(255,255,255,0.4)",borderTopColor:"#fff",animation:"spin 0.7s linear infinite",flexShrink:0 }}/>}
@@ -1723,11 +1736,11 @@ function AgentPanel({ businessId, metrics, planInfo, integs }) {
                   saveCampaigns(prev=>prev.map(x=>x.id===c.id?{...x,status:"active",taskIds:res.taskIds,progressTarget:res.progressTarget,progressUnit:res.progressUnit,tasks:res.tasks}:x));
                 } catch(e){ alert("Could not break down campaign: "+e.message); }
               }}
-              onProgressUpdate={(delta)=>saveCampaigns(campaigns.map(x=>x.id===c.id?{...x,progressCurrent:(x.progressCurrent||0)+delta}:x))}
+              onTaskComplete={(taskId)=>saveCampaigns(campaigns.map(x=>x.id===c.id?{...x,tasks:(x.tasks||[]).map(t=>t.id===taskId?{...t,status:"completed"}:t),progressCurrent:(x.progressCurrent||0)+1}:x))}
               onDone={()=>markCampaignDone(c.id)}
               onDelete={()=>deleteCampaign(c.id)}
               businessId={businessId}
-              navigate={navigate}
+              setTab={setTab}
               statusClr={statusClr}
               typeLabel={typeLabel}
             />
@@ -1807,7 +1820,8 @@ export default function Hub() {
   const [tasks,      setTasks]      = useState([]);
   const [metrics,    setMetrics]    = useState({ revenue:{this_month:0,last_month:0,total:0}, clients:{active:0,total:0}, leads:{this_month:0,total:0}, social:{instagram:0,tiktok:0,facebook:0,google_reviews:0,google_rating:0}, bookings:{this_week:0,this_month:0} });
   const [loading,    setLoading]    = useState(true);
-  const [tab,        setTab]        = useState("overview");
+  const [searchParams] = useSearchParams();
+  const [tab,        setTab]        = useState(searchParams.get("tab") || "overview");
   const [planInfo,   setPlanInfo]   = useState(null);
   const [showTour,   setShowTour]   = useState(false);
   const [genLoading, setGenLoading] = useState({});
@@ -2053,7 +2067,7 @@ export default function Hub() {
               {integs.some(i=>i.provider==="instagram") && (
                 <InstagramPanel businessId={businessId} integs={integs} />
               )}
-              <AgentPanel businessId={businessId} metrics={metrics} planInfo={planInfo} integs={integs}/>
+              <AgentPanel businessId={businessId} metrics={metrics} planInfo={planInfo} integs={integs} setTab={setTab}/>
             </div>
           )}
 

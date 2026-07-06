@@ -93,7 +93,70 @@ router.post("/:id/run", requireAuth, async (req, res, next) => {
     try { intake = JSON.parse(business.intakeData || "{}"); } catch {}
     try { idea   = JSON.parse(business.ideaData   || "{}"); } catch {}
 
-    const outputData = await generateTaskOutput(task, business, idea, intake);
+    // ── Campaign tasks: channel-aware execution ──────────────────────────────────
+    let outputData;
+    if (task.category === "campaign") {
+      const isInstagram = /instagram|ig post|post|social/i.test(task.name + " " + (task.description || ""));
+      console.log(`[Campaign task] id=${task.id} mode=${task.mode} isInstagram=${isInstagram} name="${task.name}"`);
+
+      if (isInstagram) {
+        const ig   = require("../services/instagram");
+        const imgGen = require("../services/imageGen");
+        const intg = await prisma.integration.findFirst({ where:{ businessId:task.businessId, provider:"instagram" } });
+        const meta = intg?.metadata ? JSON.parse(intg.metadata) : {};
+        console.log(`[Campaign task] Instagram creds present: accessToken=${!!meta.accessToken} businessAccountId=${!!meta.businessAccountId}`);
+
+        if (!meta.accessToken || !meta.businessAccountId) {
+          outputData = { fields:[
+            { label:"Status",    value:"Instagram not configured" },
+            { label:"Next step", value:"Add your Access Token and Business Account ID in Hub → Instagram" },
+          ]};
+        } else {
+          let prefs = {}; try { const mm=JSON.parse(business.userMetrics||"{}"); prefs=mm.prefs||{}; } catch {}
+          const context = task.description || task.name;
+          console.log(`[Campaign task] Generating caption + image for "${business.name}" context="${context.slice(0,60)}"`);
+          const [captionResult, imageId] = await Promise.all([
+            ig.generateCaption(business.name, idea.name, context, "authentic", prefs),
+            imgGen.generatePostImage(business.name, context),
+          ]);
+          const appUrl = process.env.APP_URL || process.env.CLIENT_URL || "http://localhost:3000";
+          const imageUrl = `${appUrl}/api/instagram/images/${imageId}`;
+          console.log(`[Campaign task] Caption generated, imageUrl=${imageUrl}`);
+
+          if (task.mode === "auto") {
+            try {
+              const post = await ig.createImagePost(meta.accessToken, meta.businessAccountId, imageUrl, captionResult.caption);
+              console.log(`[Campaign task] Posted to Instagram mediaId=${post.mediaId}`);
+              outputData = { fields:[
+                { label:"Status",   value:"Posted to Instagram" },
+                { label:"Caption",  value:captionResult.body },
+                { label:"Hashtags", value:captionResult.hashtags },
+                { label:"Media ID", value:post.mediaId },
+              ], imageUrl, channel:"instagram", published:true };
+            } catch(postErr) {
+              console.error(`[Campaign task] Instagram post failed:`, postErr.message);
+              outputData = { fields:[
+                { label:"Status",   value:"Instagram post failed" },
+                { label:"Error",    value:postErr.friendlyMessage || postErr.message },
+                { label:"Caption",  value:captionResult.body },
+                { label:"Image",    value:imageUrl },
+                { label:"Next step",value:"Review and post manually from Hub → Marketing → Instagram" },
+              ], imageUrl, channel:"instagram", published:false };
+            }
+          } else {
+            outputData = { fields:[
+              { label:"Status",   value:"Caption + image ready — review and post" },
+              { label:"Caption",  value:captionResult.body },
+              { label:"Hashtags", value:captionResult.hashtags },
+              { label:"Image URL",value:imageUrl },
+              { label:"Next step",value:"Go to Hub → Marketing → Instagram → Create Post to publish" },
+            ], imageUrl, channel:"instagram", published:false };
+          }
+        }
+      }
+    }
+
+    if (!outputData) outputData = await generateTaskOutput(task, business, idea, intake);
 
     // If this is a website generation task, also save to BusinessOutput.
     // Use findFirst → update/create (not a hard-coded ID upsert) so we always

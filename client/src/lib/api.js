@@ -92,7 +92,7 @@ export const api = {
   agents: {
     runMarketing:      bizId           => req("POST", `/agents/${bizId}/marketing/run`),
     savedInsights:     bizId           => req("GET",  `/agents/${bizId}/marketing/insights`),
-    implement:       (bizId,insight)  => req("POST", `/agents/${bizId}/management/implement`, { insight }),
+    implement:       (bizId,insight,mode)  => req("POST", `/agents/${bizId}/management/implement`, { insight, mode }),
     campaignBreakdown:(bizId,campaign) => req("POST", `/agents/${bizId}/campaigns/breakdown`, { campaign }),
     activity:     bizId         => req("GET",  `/agents/${bizId}/activity`),
     access:       bizId         => req("GET",  `/agents/${bizId}/access`),

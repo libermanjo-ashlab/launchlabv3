@@ -35,34 +35,6 @@ function pruneExpired() {
   }
 }
 
-// ── Text helpers ──────────────────────────────────────────────────────────────
-
-function escapeXml(s) {
-  return String(s)
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;");
-}
-
-// Wrap text into lines of at most `maxChars` characters, preserving words.
-function wrapText(text, maxChars) {
-  const words = text.split(/\s+/);
-  const lines = [];
-  let current = "";
-  for (const word of words) {
-    const candidate = current ? `${current} ${word}` : word;
-    if (candidate.length > maxChars) {
-      if (current) lines.push(current);
-      current = word.slice(0, maxChars); // hard-break very long words
-    } else {
-      current = candidate;
-    }
-  }
-  if (current) lines.push(current);
-  return lines;
-}
-
 // ── SVG templates ─────────────────────────────────────────────────────────────
 
 const PALETTE = [
@@ -80,73 +52,55 @@ function pickPalette(seed) {
 }
 
 /**
- * Build the SVG for a social media post card.
+ * Build an SVG post image using pure geometry — no text, no fonts required.
+ * Looks professional and avoids all font-rendering issues across platforms.
  *
  * @param {string} businessName
- * @param {string} bodyText   — first ~200 chars of the caption body (no hashtags)
- * @param {string} [seed]     — deterministic palette seed (default: businessName)
+ * @param {string} [seed] — deterministic palette seed
  * @returns {string} SVG markup
  */
 function buildSvg(businessName, bodyText, seed) {
   const W = 1080, H = 1080;
   const [c1, c2] = pickPalette(seed || businessName);
 
-  // Body text — wrap to ~28 chars per line, show max 7 lines
-  const rawLines = wrapText(bodyText.slice(0, 260), 28);
-  const lines = rawLines.slice(0, 7);
-  if (rawLines.length > 7) {
-    lines[6] = lines[6].slice(0, lines[6].length - 1) + "…";
-  }
+  // Deterministic "random" numbers from seed so the design is stable per business
+  let rng = 0;
+  for (let i = 0; i < businessName.length; i++) rng = (rng * 31 + businessName.charCodeAt(i)) >>> 0;
+  const r = (min, max) => { rng = (rng * 1664525 + 1013904223) >>> 0; return min + (rng % (max - min)); };
 
-  const fontSize    = lines.length <= 4 ? 64 : 54;
-  const lineSpacing = fontSize * 1.35;
-  const blockH      = lines.length * lineSpacing;
-  const startY      = (H - blockH) / 2 + fontSize;
+  // Geometric accent elements — NO text, NO fonts
+  const accents = [
+    // Large soft circle, top-right
+    `<circle cx="${r(700,950)}" cy="${r(80,280)}" r="${r(180,280)}" fill="white" fill-opacity="0.07"/>`,
+    // Medium circle
+    `<circle cx="${r(100,350)}" cy="${r(700,920)}" r="${r(120,190)}" fill="white" fill-opacity="0.05"/>`,
+    // Thin horizontal rule cluster, bottom-left
+    `<rect x="80" y="${r(820,870)}" width="${r(160,260)}" height="3" rx="2" fill="white" fill-opacity="0.35"/>`,
+    `<rect x="80" y="${r(848,895)}" width="${r(100,180)}" height="3" rx="2" fill="white" fill-opacity="0.2"/>`,
+    `<rect x="80" y="${r(876,920)}" width="${r(60,130)}" height="3" rx="2" fill="white" fill-opacity="0.12"/>`,
+    // Top-left small squares
+    `<rect x="${r(60,120)}" y="${r(60,120)}" width="32" height="32" rx="6" fill="white" fill-opacity="0.15"/>`,
+    `<rect x="${r(110,170)}" y="${r(70,130)}" width="18" height="18" rx="4" fill="white" fill-opacity="0.08"/>`,
+    // Diagonal accent line, top-right area
+    `<line x1="${r(850,950)}" y1="${r(700,800)}" x2="${r(900,990)}" y2="${r(850,950)}" stroke="white" stroke-width="3" stroke-opacity="0.18" stroke-linecap="round"/>`,
+    // Ring outline
+    `<circle cx="${r(500,600)}" cy="${r(480,580)}" r="${r(200,260)}" fill="none" stroke="white" stroke-width="1.5" stroke-opacity="0.08"/>`,
+  ];
 
-  // Use SVG fill + fill-opacity instead of rgba() — librsvg doesn't support rgba()
-  const textRows = lines.map((line, i) => `
-    <text x="540" y="${Math.round(startY + i * lineSpacing)}"
-      text-anchor="middle"
-      font-family="DejaVu Sans, Liberation Sans, Arial, sans-serif"
-      font-size="${fontSize}" font-weight="bold"
-      fill="white" fill-opacity="0.95">${escapeXml(line)}</text>`).join("");
-
-  // Business name — top strip
-  const bizName = businessName.length > 30 ? businessName.slice(0, 29) + "…" : businessName;
-
-  return `<svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}"
-  xmlns="http://www.w3.org/2000/svg">
+  return `<svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg">
   <defs>
     <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
       <stop offset="0%"   stop-color="${c1}"/>
       <stop offset="100%" stop-color="${c2}"/>
     </linearGradient>
-    <radialGradient id="vig" cx="50%" cy="50%" r="70%">
-      <stop offset="60%" stop-color="#000000" stop-opacity="0"/>
-      <stop offset="100%" stop-color="#000000" stop-opacity="0.25"/>
+    <radialGradient id="vig" cx="50%" cy="50%" r="72%">
+      <stop offset="55%" stop-color="${c1}" stop-opacity="0"/>
+      <stop offset="100%" stop-color="#000000" stop-opacity="0.28"/>
     </radialGradient>
   </defs>
-
-  <!-- Background -->
   <rect width="${W}" height="${H}" fill="url(#bg)"/>
+  ${accents.join("\n  ")}
   <rect width="${W}" height="${H}" fill="url(#vig)"/>
-
-  <!-- Top strip -->
-  <rect x="0" y="0" width="${W}" height="110" fill="#000000" fill-opacity="0.18"/>
-  <text x="540" y="70"
-    text-anchor="middle"
-    font-family="DejaVu Sans, Liberation Sans, Arial, sans-serif"
-    font-size="32" font-weight="bold"
-    fill="white" fill-opacity="0.85">${escapeXml(bizName.toUpperCase())}</text>
-
-  <!-- Decorative line -->
-  <rect x="200" y="92" width="680" height="2" fill="white" fill-opacity="0.2"/>
-
-  <!-- Main caption text -->
-  ${textRows}
-
-  <!-- Bottom bar -->
-  <rect x="0" y="${H - 80}" width="${W}" height="80" fill="#000000" fill-opacity="0.18"/>
 </svg>`;
 }
 

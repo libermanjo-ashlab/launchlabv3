@@ -111,7 +111,7 @@ router.post("/:businessId/marketing/run", requireAuth, async (req, res, next) =>
 
 router.post("/:businessId/management/implement", requireAuth, async (req, res, next) => {
   try {
-    const { insight } = req.body;
+    const { insight, mode } = req.body;
     const { user, effective } = await loadUserAndPlan(req.userId);
     const usage = await getUsage(req.params.businessId);
     const check = canImplement(effective, usage);
@@ -176,8 +176,8 @@ router.post("/:businessId/management/implement", requireAuth, async (req, res, n
         return res.json({ success:true, channel:"instagram", actionPlan: insight.recommendation, needsSetup:true, message:"Instagram credentials not set. Add your Access Token and Business Account ID in Hub → Instagram to enable automatic posting." });
       }
 
-      // Check if autopilot is on for instagram integration
-      const igAutopilot = !!(meta.autopilot);
+      // Use agent mode from request; fall back to integration's autopilot flag
+      const igAutopilot = mode === "auto" || (mode !== "guided" && mode !== "manual" && !!(meta.autopilot));
 
       // Generate caption + branded image in parallel
       let idea2 = {}; try { idea2 = JSON.parse(biz.ideaData||"{}"); } catch {}
