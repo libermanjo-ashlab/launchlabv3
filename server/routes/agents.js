@@ -179,19 +179,26 @@ router.post("/:businessId/management/implement", requireAuth, async (req, res, n
       // Check if autopilot is on for instagram integration
       const igAutopilot = !!(meta.autopilot);
 
-      // Generate caption regardless
+      // Generate caption + branded image in parallel
       let idea2 = {}; try { idea2 = JSON.parse(biz.ideaData||"{}"); } catch {}
       const metricsOut2 = await prisma.businessOutput.findFirst({ where:{ businessId:req.params.businessId, type:"user_metrics" } });
       let prefs2 = {}; try { const mm=JSON.parse(metricsOut2?.content||"{}"); prefs2=mm.prefs||{}; } catch {}
 
-      const captionResult = await ig.generateCaption(biz.name, idea2.name, insight.recommendation||insight.agentObservation, "authentic", prefs2);
+      const imgGen = require("../services/imageGen");
+      const context2 = insight.recommendation || insight.agentObservation;
+      const [captionResult, imageId] = await Promise.all([
+        ig.generateCaption(biz.name, idea2.name, context2, "authentic", prefs2),
+        imgGen.generatePostImage(biz.name, context2),
+      ]);
       logActivity(req.params.businessId,{ agent:"management", action:"Caption generated", detail:captionResult.body?.slice(0,80) });
 
-      const igResult = { success:true, channel:"instagram", caption:captionResult.caption, body:captionResult.body, hashtags:captionResult.hashtags, autopilot:igAutopilot };
+      const appUrl = process.env.APP_URL || process.env.CLIENT_URL || "http://localhost:3000";
+      const generatedImageUrl = `${appUrl}/api/instagram/images/${imageId}`;
+      const igResult = { success:true, channel:"instagram", caption:captionResult.caption, body:captionResult.body, hashtags:captionResult.hashtags, imageUrl:generatedImageUrl, autopilot:igAutopilot };
 
-      if (igAutopilot && req.body.imageUrl) {
+      if (igAutopilot) {
         try {
-          const postResult = await ig.createImagePost(meta.accessToken, meta.businessAccountId, req.body.imageUrl, captionResult.caption);
+          const postResult = await ig.createImagePost(meta.accessToken, meta.businessAccountId, generatedImageUrl, captionResult.caption);
           igResult.published = true;
           igResult.mediaId = postResult.mediaId;
           igResult.permalink = `https://www.instagram.com/p/${postResult.mediaId}/`;
@@ -199,14 +206,10 @@ router.post("/:businessId/management/implement", requireAuth, async (req, res, n
         } catch(postErr) {
           igResult.published = false;
           igResult.postError = postErr.friendlyMessage || postErr.message;
-          igResult.needsImageUrl = !req.body.imageUrl;
           logActivity(req.params.businessId,{ agent:"management", action:"Instagram post failed", detail: postErr.friendlyMessage||postErr.message });
         }
       } else {
-        igResult.needsImageUrl = true;
-        igResult.message = igAutopilot
-          ? "Autopilot ON: caption ready. Provide an image URL to publish automatically."
-          : "Caption generated. Copy it and post manually, or click Publish in the Instagram panel with an image URL.";
+        igResult.message = "Caption and image generated. Review and publish when ready.";
       }
 
       if (effective.plan === "trial") await bumpUsage(req.params.businessId, "managementImplements");

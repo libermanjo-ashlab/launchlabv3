@@ -69,6 +69,19 @@ export const api = {
     generateCaption:(bizId,context,tone)      => req("POST", `/instagram/${bizId}/generate-caption`, { context, tone }),
     generateReply:  (bizId,commentText,postContext) => req("POST", `/instagram/${bizId}/generate-reply`, { commentText, postContext }),
     act:            (bizId,insight,autopilot,imageUrl) => req("POST", `/instagram/${bizId}/act`, { insight, autopilot, imageUrl }),
+    uploadImage:    async (file) => {
+      const token = getToken();
+      const form = new FormData();
+      form.append("image", file);
+      const res = await fetch(`${BASE}/instagram/images/upload`, {
+        method: "POST",
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+        body: form,
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Upload failed");
+      return data;
+    },
   },
   subscriptions: {
     plans:    () => req("GET",  "/subscriptions/plans"),

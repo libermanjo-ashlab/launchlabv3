@@ -16,10 +16,40 @@
 
 const router      = require("express").Router();
 const requireAuth = require("../middleware/auth");
+const multer      = require("multer");
+const sharp       = require("sharp");
 const { PrismaClient } = require("@prisma/client");
-const ig = require("../services/instagram");
+const ig      = require("../services/instagram");
+const imgGen  = require("../services/imageGen");
 
-const prisma = new PrismaClient();
+const prisma  = new PrismaClient();
+const upload  = multer({ storage: multer.memoryStorage(), limits: { fileSize: 20 * 1024 * 1024 } });
+
+// ── Public image serving (no auth — Instagram's CDN fetches this) ─────────────
+router.get("/images/:id", (req, res) => {
+  const buf = imgGen.getImage(req.params.id);
+  if (!buf) return res.status(404).json({ error: "Image not found or expired" });
+  res.set("Content-Type", "image/png");
+  res.set("Cache-Control", "public, max-age=7200");
+  res.send(buf);
+});
+
+// ── Image upload — authenticated user uploads their own image ─────────────────
+// Accepts multipart/form-data with field "image". Stores in memory, returns
+// a self-hosted URL the client can pass as imageUrl for Instagram posts.
+router.post("/images/upload", requireAuth, upload.single("image"), async (req, res, next) => {
+  try {
+    if (!req.file) return res.status(400).json({ error: "No file uploaded" });
+    // Normalise to PNG, max 1080×1080
+    const buf = await sharp(req.file.buffer)
+      .resize(1080, 1080, { fit: "inside", withoutEnlargement: true })
+      .png({ compressionLevel: 8 })
+      .toBuffer();
+    const id = imgGen.storeImage(buf);
+    const appUrl = process.env.APP_URL || process.env.CLIENT_URL || "http://localhost:3000";
+    res.json({ imageUrl: `${appUrl}/api/instagram/images/${id}`, imageId: id });
+  } catch(e) { next(e); }
+});
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -117,16 +147,21 @@ router.post("/:businessId/comments/:commentId/hide", requireAuth, async (req, re
 });
 
 // POST /api/instagram/:businessId/post
-// Body: { imageUrl, caption }
-// imageUrl must be a publicly accessible HTTPS URL (JPEG or PNG)
+// Body: { caption, imageUrl? }
+// If imageUrl is omitted, a branded post image is generated automatically.
 router.post("/:businessId/post", requireAuth, async (req, res, next) => {
   try {
-    const { meta } = await getIgCreds(req.params.businessId, req.userId);
-    const { imageUrl, caption } = req.body;
-    if (!imageUrl?.trim()) return res.status(400).json({
-      error: "imageUrl is required. Provide a publicly accessible image URL (JPEG or PNG hosted on Cloudinary, Imgur, Google Drive with direct link, etc.)"
-    });
+    const { biz, meta } = await getIgCreds(req.params.businessId, req.userId);
+    let { imageUrl, caption } = req.body;
     if (!caption?.trim()) return res.status(400).json({ error: "caption is required" });
+
+    // Auto-generate image if none provided
+    if (!imageUrl?.trim()) {
+      let idea = {}; try { idea = JSON.parse(biz.ideaData || "{}"); } catch {}
+      const appUrl = process.env.APP_URL || process.env.CLIENT_URL || "http://localhost:3000";
+      const imageId = await imgGen.generatePostImage(biz.name, caption.split("#")[0].trim().slice(0, 200));
+      imageUrl = `${appUrl}/api/instagram/images/${imageId}`;
+    }
 
     const result = await ig.createImagePost(meta.accessToken, meta.businessAccountId, imageUrl.trim(), caption.trim());
     res.json({
@@ -139,19 +174,24 @@ router.post("/:businessId/post", requireAuth, async (req, res, next) => {
 
 // POST /api/instagram/:businessId/generate-caption
 // Body: { context, tone }
+// Returns caption + a pre-generated imageUrl hosted on this server.
 router.post("/:businessId/generate-caption", requireAuth, async (req, res, next) => {
   try {
     const { biz } = await getIgCreds(req.params.businessId, req.userId);
     let idea = {}; try { idea = JSON.parse(biz.ideaData || "{}"); } catch {}
 
-    // Load prefs from metrics output
     const metricsOut = await prisma.businessOutput.findFirst({ where: { businessId: req.params.businessId, type: "user_metrics" } });
     let prefs = {};
     try { const m = JSON.parse(metricsOut?.content || "{}"); prefs = m.prefs || {}; } catch {}
 
     const { context, tone } = req.body;
-    const result = await ig.generateCaption(biz.name, idea.name, context, tone, prefs);
-    res.json(result);
+    const [captionResult, imageId] = await Promise.all([
+      ig.generateCaption(biz.name, idea.name, context, tone, prefs),
+      imgGen.generatePostImage(biz.name, context || "New post"),
+    ]);
+
+    const appUrl = process.env.APP_URL || process.env.CLIENT_URL || "http://localhost:3000";
+    res.json({ ...captionResult, imageUrl: `${appUrl}/api/instagram/images/${imageId}`, imageId });
   } catch(e) { if (e.igCode) return igErrorResponse(res, e); next(e); }
 });
 
@@ -199,25 +239,27 @@ router.post("/:businessId/act", requireAuth, async (req, res, next) => {
     const wantsComments = /comment|reply|respond|engage/i.test(combined);
     const wantsBio      = /bio|profile|description|about/i.test(combined);
 
-    // ── Generate caption for post actions ───────────────────────────────────
+    // ── Generate caption + image for post actions ───────────────────────────
     if (wantsPost) {
-      const captionResult = await ig.generateCaption(
-        biz.name,
-        idea.name,
-        insight.recommendation || insight.agentObservation,
-        "authentic, on-brand",
-        prefs
-      );
+      const appUrl = process.env.APP_URL || process.env.CLIENT_URL || "http://localhost:3000";
+      const context = insight.recommendation || insight.agentObservation;
 
-      if (autopilot && imageUrl) {
-        // Full autopilot: post immediately
+      const [captionResult, imageId] = await Promise.all([
+        ig.generateCaption(biz.name, idea.name, context, "authentic, on-brand", prefs),
+        imgGen.generatePostImage(biz.name, context),
+      ]);
+
+      const generatedImageUrl = imageUrl || `${appUrl}/api/instagram/images/${imageId}`;
+
+      if (autopilot) {
         try {
           const postResult = await ig.createImagePost(
-            meta.accessToken, meta.businessAccountId, imageUrl, captionResult.caption
+            meta.accessToken, meta.businessAccountId, generatedImageUrl, captionResult.caption
           );
           actions.push({
             type: "post_published",
             caption: captionResult.caption,
+            imageUrl: generatedImageUrl,
             mediaId: postResult.mediaId,
             permalink: `https://www.instagram.com/p/${postResult.mediaId}/`,
           });
@@ -225,21 +267,19 @@ router.post("/:businessId/act", requireAuth, async (req, res, next) => {
           actions.push({
             type: "post_failed",
             caption: captionResult.caption,
+            imageUrl: generatedImageUrl,
             error: postErr.friendlyMessage || postErr.message,
-            needsImageUrl: !imageUrl,
           });
         }
       } else {
-        // No image URL yet — return generated caption for user to complete
         actions.push({
           type: "caption_ready",
           caption: captionResult.caption,
           body: captionResult.body,
           hashtags: captionResult.hashtags,
-          needsImageUrl: true,
-          message: autopilot
-            ? "Caption generated. Provide a publicly accessible image URL to publish automatically."
-            : "Caption generated. Add an image URL and publish, or copy the caption and post manually.",
+          imageUrl: generatedImageUrl,
+          imageId,
+          message: "Caption and post image generated. Review and publish when ready.",
         });
       }
     }

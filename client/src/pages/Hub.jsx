@@ -1018,7 +1018,8 @@ function InstagramPanel({ businessId, integs }) {
   const [cmtLoading, setCmtLoading] = useState(false);
   const [postOpen,   setPostOpen]   = useState(false);
   const [postCaption,setPostCaption]= useState("");
-  const [postImg,    setPostImg]    = useState("");
+  const [postImg,    setPostImg]    = useState(""); // server-hosted URL for the image
+  const [uploading,  setUploading]  = useState(false);
   const [genLoading, setGenLoading] = useState(false);
   const [posting,    setPosting]    = useState(false);
   const [postResult, setPostResult] = useState(null);
@@ -1073,17 +1074,27 @@ function InstagramPanel({ businessId, integs }) {
   const generateCaption = async () => {
     setGenLoading(true);
     try {
-      const { caption } = await api.instagram.generateCaption(businessId, "", "authentic");
-      setPostCaption(caption);
+      const res = await api.instagram.generateCaption(businessId, "", "authentic");
+      setPostCaption(res.caption);
+      if (res.imageUrl) setPostImg(res.imageUrl); // server-generated post image
     } catch(e){ alert(e.message); }
     setGenLoading(false);
   };
 
+  const uploadImage = async (file) => {
+    setUploading(true);
+    try {
+      const { imageUrl } = await api.instagram.uploadImage(file);
+      setPostImg(imageUrl);
+    } catch(e){ alert(e.message); }
+    setUploading(false);
+  };
+
   const publishPost = async () => {
-    if (!postImg.trim()) return alert("Enter a publicly accessible image URL first.");
     setPosting(true);
     try {
-      const result = await api.instagram.createPost(businessId, postImg, postCaption);
+      // postImg is a server-hosted URL (uploaded or AI-generated); server auto-generates if omitted
+      const result = await api.instagram.createPost(businessId, postImg || undefined, postCaption);
       setPostResult(result);
     } catch(e){ alert(e.message); }
     setPosting(false);
@@ -1155,15 +1166,23 @@ function InstagramPanel({ businessId, integs }) {
                 <label style={lbl}>Caption</label>
                 <textarea value={postCaption} onChange={e=>setPostCaption(e.target.value)} rows={5} style={{ ...inp({ height:110, resize:"vertical" }), fontFamily:FB, fontSize:13 }} placeholder="Write your caption here, or generate one below…" />
               </div>
-              <button onClick={generateCaption} disabled={genLoading} style={{ ...btnO(C.primary,12), marginBottom:10 }}>{genLoading?"Generating…":"Generate caption with AI"}</button>
-              <div style={{ marginBottom:12 }}>
-                <label style={lbl}>Image URL <span style={{ color:C.muted, fontWeight:400 }}>(must be publicly accessible HTTPS link)</span></label>
-                <input style={inp()} value={postImg} onChange={e=>setPostImg(e.target.value)} placeholder="https://res.cloudinary.com/… or https://i.imgur.com/…" />
-                <div style={{ fontSize:11, color:C.muted, marginTop:5, fontFamily:FB, lineHeight:1.55 }}>
-                  Upload your image to <a href="https://cloudinary.com" target="_blank" rel="noopener noreferrer" style={{ color:C.primary }}>Cloudinary</a> (free) or <a href="https://imgur.com" target="_blank" rel="noopener noreferrer" style={{ color:C.primary }}>Imgur</a> and paste the direct image link here. Google Drive links do not work.
-                </div>
+              <div style={{ display:"flex", gap:8, marginBottom:12, flexWrap:"wrap" }}>
+                <button onClick={generateCaption} disabled={genLoading} style={{ ...btnO(C.primary,12) }}>{genLoading?"Generating…":"Generate caption + image with AI"}</button>
+                <label style={{ ...btnO(C.muted,12), cursor:"pointer", display:"flex", alignItems:"center", gap:6 }}>
+                  {uploading?"Uploading…":"Upload your own image"}
+                  <input type="file" accept="image/*" style={{ display:"none" }} onChange={e=>{ if(e.target.files[0]) uploadImage(e.target.files[0]); }} disabled={uploading} />
+                </label>
               </div>
-              <button onClick={publishPost} disabled={posting||!postCaption.trim()||!postImg.trim()} style={{ ...btn("#E1306C","#fff",13), display:"flex", gap:8, alignItems:"center" }}>
+              {postImg && (
+                <div style={{ marginBottom:12 }}>
+                  <div style={{ fontSize:11, color:C.muted, fontFamily:FB, marginBottom:6, display:"flex", alignItems:"center", gap:8 }}>
+                    Post image
+                    <button onClick={()=>setPostImg("")} style={{ fontSize:10, color:C.err, background:"none", border:"none", cursor:"pointer", fontFamily:FB }}>Remove</button>
+                  </div>
+                  <img src={postImg} alt="Post preview" style={{ width:180, height:180, borderRadius:10, objectFit:"cover", border:`1px solid ${C.border}` }} />
+                </div>
+              )}
+              <button onClick={publishPost} disabled={posting||!postCaption.trim()} style={{ ...btn("#E1306C","#fff",13), display:"flex", gap:8, alignItems:"center" }}>
                 {posting&&<span style={{ width:12,height:12,borderRadius:"50%",border:"2px solid rgba(255,255,255,0.4)",borderTopColor:"#fff",animation:"spin 0.7s linear infinite" }}/>}
                 {posting?"Publishing…":"Publish to Instagram"}
               </button>
@@ -1287,13 +1306,21 @@ function AddCampaignForm({ onAdd }) {
 // ── ImplementResult — renders the result of clicking "Implement" on an insight ─
 
 function ImplementResult({ result, businessId }) {
-  const [imgUrl, setImgUrl] = useState("");
-  const [posting, setPosting] = useState(false);
-  const [postDone, setPostDone] = useState(null);
+  const [posting,   setPosting]   = useState(false);
+  const [postDone,  setPostDone]  = useState(null);
+  const [customImg, setCustomImg] = useState(""); // user-uploaded replacement image URL
+  const [uploading, setUploading] = useState(false);
+
+  const handleUpload = async (file) => {
+    setUploading(true);
+    try { const { imageUrl } = await api.instagram.uploadImage(file); setCustomImg(imageUrl); }
+    catch(e) { alert(e.message); }
+    setUploading(false);
+  };
 
   if (!result) return null;
 
-  // Instagram: published
+  // Instagram: already published (autopilot)
   if (result.channel === "instagram" && result.published && result.permalink) {
     return (
       <div style={{ marginTop:10, background:C.okBg, borderRadius:8, padding:"10px 14px", fontSize:12, color:C.ok, fontFamily:FB }}>
@@ -1303,7 +1330,7 @@ function ImplementResult({ result, businessId }) {
     );
   }
 
-  // Instagram: caption ready, needs image URL
+  // Instagram: caption + image generated — ready to review and publish
   if (result.channel === "instagram" && result.caption) {
     if (postDone) return (
       <div style={{ marginTop:10, background:C.okBg, borderRadius:8, padding:"10px 14px", fontSize:12, color:C.ok, fontFamily:FB }}>
@@ -1312,11 +1339,12 @@ function ImplementResult({ result, businessId }) {
       </div>
     );
 
+    const activeImg = customImg || result.imageUrl;
+
     const publishNow = async () => {
-      if (!imgUrl.trim()) return;
       setPosting(true);
       try {
-        const r = await api.instagram.createPost(businessId, imgUrl.trim(), result.caption);
+        const r = await api.instagram.createPost(businessId, activeImg || undefined, result.caption);
         setPostDone(r);
       } catch(e) { alert(e.message); }
       setPosting(false);
@@ -1325,21 +1353,29 @@ function ImplementResult({ result, businessId }) {
     return (
       <div style={{ marginTop:10, ...card("12px 14px"), border:`1px solid #E1306C30` }}>
         <div style={{ fontSize:11, fontWeight:700, color:"#E1306C", textTransform:"uppercase", letterSpacing:"0.06em", marginBottom:6, fontFamily:FB }}>
-          {result.needsSetup ? "Instagram not set up" : "Caption generated — publish when ready"}
+          {result.needsSetup ? "Instagram not set up" : "Caption + image ready — review and publish"}
         </div>
         {result.needsSetup ? (
           <div style={{ fontSize:12, color:C.muted, fontFamily:FB }}>Go to Hub → Instagram and add your Access Token + Business Account ID, then click Implement again.</div>
         ) : (
           <>
-            <div style={{ fontSize:12, color:C.text, fontFamily:FB, lineHeight:1.6, whiteSpace:"pre-wrap", marginBottom:10, background:"#F5F3FF", borderRadius:6, padding:"8px 10px" }}>{result.caption}</div>
-            <div style={{ marginBottom:8 }}>
-              <label style={lbl}>Image URL to publish <span style={{ color:C.muted, fontWeight:400 }}>(publicly accessible HTTPS link)</span></label>
-              <input style={{ ...inp(), fontSize:12 }} value={imgUrl} onChange={e=>setImgUrl(e.target.value)} placeholder="https://res.cloudinary.com/… or https://i.imgur.com/…" />
-              <div style={{ fontSize:10, color:C.muted, marginTop:4, fontFamily:FB }}>
-                Upload to <a href="https://cloudinary.com" target="_blank" rel="noopener noreferrer" style={{ color:C.primary }}>Cloudinary</a> (free) or <a href="https://imgur.com" target="_blank" rel="noopener noreferrer" style={{ color:C.primary }}>Imgur</a> and paste the direct image link.
+            {activeImg && (
+              <div style={{ marginBottom:10 }}>
+                <img src={activeImg} alt="Post image" style={{ width:160, height:160, borderRadius:10, objectFit:"cover", border:`1px solid ${C.border}`, display:"block", marginBottom:6 }} />
+                <label style={{ ...btnO(C.muted,10), cursor:"pointer", display:"inline-flex", alignItems:"center", gap:4 }}>
+                  {uploading?"Uploading…":"Replace with your own image"}
+                  <input type="file" accept="image/*" style={{ display:"none" }} onChange={e=>{ if(e.target.files[0]) handleUpload(e.target.files[0]); }} disabled={uploading} />
+                </label>
               </div>
-            </div>
-            <button onClick={publishNow} disabled={posting||!imgUrl.trim()} style={{ ...btn("#E1306C","#fff",12), display:"flex", gap:6, alignItems:"center" }}>
+            )}
+            {!activeImg && (
+              <label style={{ ...btnO(C.muted,11), cursor:"pointer", display:"inline-flex", alignItems:"center", gap:6, marginBottom:10 }}>
+                {uploading?"Uploading…":"Upload image"}
+                <input type="file" accept="image/*" style={{ display:"none" }} onChange={e=>{ if(e.target.files[0]) handleUpload(e.target.files[0]); }} disabled={uploading} />
+              </label>
+            )}
+            <div style={{ fontSize:12, color:C.text, fontFamily:FB, lineHeight:1.6, whiteSpace:"pre-wrap", marginBottom:10, background:"#F5F3FF", borderRadius:6, padding:"8px 10px" }}>{result.caption}</div>
+            <button onClick={publishNow} disabled={posting} style={{ ...btn("#E1306C","#fff",12), display:"flex", gap:6, alignItems:"center" }}>
               {posting&&<span style={{ width:10,height:10,borderRadius:"50%",border:"2px solid rgba(255,255,255,0.4)",borderTopColor:"#fff",animation:"spin 0.7s linear infinite" }}/>}
               {posting?"Publishing…":"Publish to Instagram"}
             </button>
