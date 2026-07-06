@@ -1002,6 +1002,246 @@ function UpgradeCard({ reason, navigate }) {
   );
 }
 
+// ── Instagram Panel ───────────────────────────────────────────────────────────
+
+function InstagramPanel({ businessId, integs }) {
+  const igMeta = (() => { try { const i=integs.find(x=>x.provider==="instagram"); return i?.metadata?JSON.parse(i.metadata):{};} catch{return {};} })();
+  const hasToken = !!(igMeta.accessToken && igMeta.businessAccountId);
+
+  const [profile,    setProfile]    = useState(null);
+  const [insights,   setInsights]   = useState(null);
+  const [media,      setMedia]      = useState([]);
+  const [loading,    setLoading]    = useState(false);
+  const [error,      setError]      = useState("");
+  const [activePost, setActivePost] = useState(null); // for comment management
+  const [comments,   setComments]   = useState([]);
+  const [cmtLoading, setCmtLoading] = useState(false);
+  const [postOpen,   setPostOpen]   = useState(false);
+  const [postCaption,setPostCaption]= useState("");
+  const [postImg,    setPostImg]    = useState("");
+  const [genLoading, setGenLoading] = useState(false);
+  const [posting,    setPosting]    = useState(false);
+  const [postResult, setPostResult] = useState(null);
+
+  const igAutopilot = !!igMeta.autopilot;
+
+  useEffect(()=>{
+    if (!hasToken) return;
+    loadData();
+  },[businessId, hasToken]);
+
+  const loadData = async () => {
+    setLoading(true); setError("");
+    try {
+      const [pRes, iRes, mRes] = await Promise.allSettled([
+        api.instagram.profile(businessId),
+        api.instagram.insights(businessId, 30),
+        api.instagram.media(businessId, 9),
+      ]);
+      if (pRes.status==="fulfilled") setProfile(pRes.value.profile);
+      if (iRes.status==="fulfilled") setInsights(iRes.value.insights);
+      if (mRes.status==="fulfilled") setMedia(mRes.value.media||[]);
+      const firstErr = [pRes,iRes,mRes].find(r=>r.status==="rejected");
+      if (firstErr) setError(firstErr.reason?.message || "Failed to load Instagram data");
+    } catch(e){ setError(e.message); }
+    setLoading(false);
+  };
+
+  const loadComments = async (post) => {
+    setActivePost(post); setCmtLoading(true); setComments([]);
+    try {
+      const { comments:c } = await api.instagram.comments(businessId, post.id);
+      // Pre-generate AI reply suggestions
+      const withSuggestions = await Promise.all((c||[]).map(async cmt => {
+        try {
+          const { reply } = await api.instagram.generateReply(businessId, cmt.text, post.caption?.slice(0,80));
+          return { ...cmt, suggestedReply: reply };
+        } catch { return cmt; }
+      }));
+      setComments(withSuggestions);
+    } catch(e){ setError(e.message); }
+    setCmtLoading(false);
+  };
+
+  const replyToComment = async (commentId, message, idx) => {
+    try {
+      await api.instagram.replyComment(businessId, commentId, message);
+      setComments(p=>p.map((c,i)=>i===idx?{...c,replied:true,repliedWith:message}:c));
+    } catch(e){ alert(e.message); }
+  };
+
+  const generateCaption = async () => {
+    setGenLoading(true);
+    try {
+      const { caption } = await api.instagram.generateCaption(businessId, "", "authentic");
+      setPostCaption(caption);
+    } catch(e){ alert(e.message); }
+    setGenLoading(false);
+  };
+
+  const publishPost = async () => {
+    if (!postImg.trim()) return alert("Enter a publicly accessible image URL first.");
+    setPosting(true);
+    try {
+      const result = await api.instagram.createPost(businessId, postImg, postCaption);
+      setPostResult(result);
+    } catch(e){ alert(e.message); }
+    setPosting(false);
+  };
+
+  if (!hasToken) return (
+    <div style={{ ...card("16px"), marginTop:16, borderStyle:"dashed" }}>
+      <div style={{ fontSize:13, fontWeight:600, fontFamily:FB, marginBottom:6 }}>Instagram not connected</div>
+      <div style={{ fontSize:12, color:C.muted, fontFamily:FB, lineHeight:1.6 }}>Add your Access Token and Business Account ID in Hub → Instagram. Expand the card and follow the Setup Guide.</div>
+    </div>
+  );
+
+  // Summarise reach data
+  const totalReach = insights?.reach?.reduce((sum,item)=>{
+    const vals = item.values||[]; return sum+(vals.reduce((s,v)=>s+(v.value||0),0));
+  },0)||0;
+  const avgReach = insights?.reach?.length ? Math.round(totalReach / (insights.reach.length||1)) : 0;
+
+  const statPill = (label, value) => (
+    <div key={label} style={{ background:C.surface, borderRadius:10, border:`1px solid ${C.border}`, padding:"10px 14px", minWidth:90, textAlign:"center" }}>
+      <div style={{ fontFamily:FH, fontWeight:700, fontSize:20, letterSpacing:"-0.03em" }}>{value}</div>
+      <div style={{ fontSize:10, color:C.muted, fontFamily:FB, textTransform:"uppercase", letterSpacing:"0.05em", marginTop:2 }}>{label}</div>
+    </div>
+  );
+
+  return (
+    <div style={{ marginTop:20 }}>
+      <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:12 }}>
+        <div style={{ display:"flex", alignItems:"center", gap:8 }}>
+          <div style={{ width:8, height:8, borderRadius:"50%", background:"#E1306C" }} />
+          <span style={{ fontFamily:FH, fontWeight:700, fontSize:15 }}>Instagram</span>
+          {igAutopilot && <span style={{ fontSize:10, fontWeight:700, fontFamily:FB, padding:"2px 8px", borderRadius:20, background:"#DCFCE7", color:C.ok }}>Autopilot ON</span>}
+        </div>
+        <div style={{ display:"flex", gap:8 }}>
+          <button onClick={loadData} disabled={loading} style={{ ...btnO(C.muted,11), padding:"5px 12px" }}>{loading?"Loading…":"Refresh"}</button>
+          <button onClick={()=>{ setPostOpen(o=>!o); setPostResult(null); }} style={{ ...btn("#E1306C","#fff",12), padding:"6px 14px" }}>+ New post</button>
+        </div>
+      </div>
+
+      {error && <div style={{ background:C.errBg, borderRadius:8, padding:"10px 14px", fontSize:13, color:C.err, fontFamily:FB, marginBottom:12 }}>{error}</div>}
+
+      {/* Profile row */}
+      {profile && (
+        <div style={{ display:"flex", alignItems:"center", gap:12, marginBottom:16, ...card("12px 14px") }}>
+          {profile.profile_picture_url && <img src={profile.profile_picture_url} alt="profile" style={{ width:44, height:44, borderRadius:"50%", objectFit:"cover" }} />}
+          <div style={{ flex:1 }}>
+            <div style={{ fontWeight:700, fontFamily:FB, fontSize:14 }}>@{profile.username}</div>
+            <div style={{ fontSize:12, color:C.muted, fontFamily:FB, marginTop:2, lineHeight:1.4 }}>{profile.biography?.slice(0,100)}</div>
+          </div>
+          <div style={{ display:"flex", gap:8, flexWrap:"wrap" }}>
+            {statPill("Followers", (profile.followers_count||0).toLocaleString())}
+            {statPill("Posts", (profile.media_count||0).toLocaleString())}
+            {avgReach > 0 && statPill("Avg Reach/day", avgReach.toLocaleString())}
+          </div>
+        </div>
+      )}
+
+      {/* Create post panel */}
+      {postOpen && (
+        <div style={{ ...card("16px"), marginBottom:16, border:`1px solid #E1306C30` }}>
+          <div style={{ fontFamily:FH, fontWeight:600, fontSize:14, marginBottom:10 }}>Create post</div>
+          {postResult ? (
+            <div style={{ background:C.okBg, borderRadius:8, padding:"12px 14px", fontSize:13, color:C.ok, fontFamily:FB }}>
+              Published! <a href={postResult.permalink} target="_blank" rel="noopener noreferrer" style={{ color:C.ok, fontWeight:700 }}>View on Instagram ↗</a>
+            </div>
+          ) : (
+            <>
+              <div style={{ marginBottom:10 }}>
+                <label style={lbl}>Caption</label>
+                <textarea value={postCaption} onChange={e=>setPostCaption(e.target.value)} rows={5} style={{ ...inp({ height:110, resize:"vertical" }), fontFamily:FB, fontSize:13 }} placeholder="Write your caption here, or generate one below…" />
+              </div>
+              <button onClick={generateCaption} disabled={genLoading} style={{ ...btnO(C.primary,12), marginBottom:10 }}>{genLoading?"Generating…":"Generate caption with AI"}</button>
+              <div style={{ marginBottom:12 }}>
+                <label style={lbl}>Image URL <span style={{ color:C.muted, fontWeight:400 }}>(must be publicly accessible HTTPS link)</span></label>
+                <input style={inp()} value={postImg} onChange={e=>setPostImg(e.target.value)} placeholder="https://res.cloudinary.com/… or https://i.imgur.com/…" />
+                <div style={{ fontSize:11, color:C.muted, marginTop:5, fontFamily:FB, lineHeight:1.55 }}>
+                  Upload your image to <a href="https://cloudinary.com" target="_blank" rel="noopener noreferrer" style={{ color:C.primary }}>Cloudinary</a> (free) or <a href="https://imgur.com" target="_blank" rel="noopener noreferrer" style={{ color:C.primary }}>Imgur</a> and paste the direct image link here. Google Drive links do not work.
+                </div>
+              </div>
+              <button onClick={publishPost} disabled={posting||!postCaption.trim()||!postImg.trim()} style={{ ...btn("#E1306C","#fff",13), display:"flex", gap:8, alignItems:"center" }}>
+                {posting&&<span style={{ width:12,height:12,borderRadius:"50%",border:"2px solid rgba(255,255,255,0.4)",borderTopColor:"#fff",animation:"spin 0.7s linear infinite" }}/>}
+                {posting?"Publishing…":"Publish to Instagram"}
+              </button>
+            </>
+          )}
+        </div>
+      )}
+
+      {/* Recent posts grid */}
+      {media.length > 0 && (
+        <div style={{ marginBottom:16 }}>
+          <div style={{ fontSize:12, fontWeight:700, color:C.muted, textTransform:"uppercase", letterSpacing:"0.06em", marginBottom:10, fontFamily:FB }}>Recent posts</div>
+          <div style={{ display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:10 }}>
+            {media.map(m=>(
+              <div key={m.id} style={{ ...card("0"), overflow:"hidden", cursor:"pointer", border:activePost?.id===m.id?`2px solid ${C.primary}`:undefined }} onClick={()=>activePost?.id===m.id?setActivePost(null):loadComments(m)}>
+                {(m.media_url||m.thumbnail_url) ? (
+                  <img src={m.media_url||m.thumbnail_url} alt="" style={{ width:"100%", aspectRatio:"1", objectFit:"cover", display:"block" }} />
+                ) : (
+                  <div style={{ aspectRatio:"1", background:"#F3F4F6", display:"flex", alignItems:"center", justifyContent:"center" }}>
+                    <span style={{ fontSize:10, color:C.muted, fontFamily:FB }}>{m.media_type}</span>
+                  </div>
+                )}
+                <div style={{ padding:"6px 8px" }}>
+                  <div style={{ display:"flex", gap:8, fontSize:11, color:C.muted, fontFamily:FB }}>
+                    <span>♥ {m.like_count||0}</span>
+                    <span>💬 {m.comments_count||0}</span>
+                    {m.postInsights?.impressions > 0 && <span>{m.postInsights.impressions.toLocaleString()} views</span>}
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Comment management panel */}
+      {activePost && (
+        <div style={{ ...card("14px 16px"), marginBottom:16, border:`1px solid ${C.primary}20` }}>
+          <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:10 }}>
+            <div style={{ fontFamily:FH, fontWeight:600, fontSize:14 }}>Comments</div>
+            <button onClick={()=>setActivePost(null)} style={{ fontSize:12, color:C.muted, background:"none", border:"none", cursor:"pointer", fontFamily:FB }}>Close</button>
+          </div>
+          <div style={{ fontSize:12, color:C.muted, fontFamily:FB, marginBottom:10 }}>{activePost.caption?.slice(0,80)}{activePost.caption?.length>80?"…":""}</div>
+
+          {cmtLoading && <div style={{ fontSize:12, color:C.muted, fontFamily:FB }}>Loading comments and generating replies…</div>}
+
+          {comments.length === 0 && !cmtLoading && <div style={{ fontSize:12, color:C.muted, fontFamily:FB }}>No comments on this post.</div>}
+
+          {comments.map((c,i)=>(
+            <div key={c.id} style={{ borderBottom:`1px solid ${C.border}`, padding:"10px 0" }}>
+              <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", marginBottom:6 }}>
+                <div>
+                  <span style={{ fontSize:12, fontWeight:700, fontFamily:FB }}>@{c.username}</span>
+                  <span style={{ fontSize:12, color:C.muted, fontFamily:FB, marginLeft:8 }}>{c.text}</span>
+                </div>
+                {c.replied && <span style={{ fontSize:10, color:C.ok, fontFamily:FB }}>Replied</span>}
+              </div>
+              {!c.replied && c.suggestedReply && (
+                <div style={{ background:"#F5F3FF", borderRadius:8, padding:"8px 12px", marginTop:6 }}>
+                  <div style={{ fontSize:11, color:C.primary, fontWeight:600, fontFamily:FB, marginBottom:4 }}>Suggested reply</div>
+                  <div style={{ fontSize:12, fontFamily:FB, color:C.text, marginBottom:8 }}>{c.suggestedReply}</div>
+                  <div style={{ display:"flex", gap:6 }}>
+                    <button onClick={()=>replyToComment(c.id, c.suggestedReply, i)} style={{ ...btn(C.primary,"#fff",11), padding:"4px 12px" }}>Post this reply</button>
+                    <button onClick={async()=>{try{const{reply}=await api.instagram.generateReply(businessId,c.text,"");setComments(p=>p.map((cm,ci)=>ci===i?{...cm,suggestedReply:reply}:cm));}catch{}}} style={{ ...btnO(C.muted,11), padding:"4px 10px" }}>Regenerate</button>
+                    <button onClick={()=>api.instagram.hideComment(businessId,c.id,true)} style={{ ...btnO(C.err,11), padding:"4px 10px" }}>Hide</button>
+                  </div>
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+
+      {loading && !profile && <div style={{ fontSize:12, color:C.muted, fontFamily:FB, padding:"20px 0", textAlign:"center" }}>Loading Instagram data…</div>}
+    </div>
+  );
+}
+
 const CHANNEL_OPTIONS = ["instagram","email","website","google","calendly","twitter","general"];
 
 function AddCampaignForm({ onAdd }) {
@@ -1549,6 +1789,9 @@ export default function Hub() {
             <div>
               <div style={{ fontFamily:FH, fontWeight:700, fontSize:24, letterSpacing:"-0.04em", marginBottom:4 }}>Marketing Agent</div>
               <p style={{ color:C.muted, fontSize:14, marginBottom:24, fontFamily:FB }}>Analyzes your connected channels and metrics to surface the highest-impact opportunities. Works with any channel — add more in the Hub to broaden coverage.</p>
+              {integs.some(i=>i.provider==="instagram") && (
+                <InstagramPanel businessId={businessId} integs={integs} />
+              )}
               <AgentPanel businessId={businessId} metrics={metrics} planInfo={planInfo} integs={integs}/>
             </div>
           )}

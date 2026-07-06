@@ -159,12 +159,61 @@ router.post("/:businessId/management/implement", requireAuth, async (req, res, n
       return res.json({ success:true, liveUrl, deployId });
     }
 
-    // Non-website channels (Instagram, email, Google, Calendly, etc.)
-    // Log the action plan and mark as implemented — user executes manually or via future API integrations
+    // Non-website channels — route to channel-specific handlers
     const channelLabel = insight.implementationChannel || insight.type || "channel";
-    logActivity(req.params.businessId,{ agent:"management", action:`${channelLabel} action queued`, detail: insight.managementAction?.slice(0,100) || insight.recommendation?.slice(0,100) });
-    logActivity(req.params.businessId,{ agent:"management", action:"Ready to act", detail:`Review the recommendation and apply it on ${channelLabel}` });
+    logActivity(req.params.businessId,{ agent:"management", action:`${channelLabel} action starting`, detail: insight.recommendation?.slice(0,100) });
 
+    if (channelLabel === "instagram") {
+      // Delegate to Instagram act route logic inline
+      const igRouter = require("./instagram");
+      // We forward by calling the Instagram service directly
+      const ig = require("../services/instagram");
+      const intg = await prisma.integration.findFirst({ where:{ businessId:req.params.businessId, provider:"instagram" } });
+      const meta = intg?.metadata ? JSON.parse(intg.metadata) : {};
+
+      if (!meta.accessToken || !meta.businessAccountId) {
+        logActivity(req.params.businessId,{ agent:"management", action:"Instagram not configured", detail:"Add Access Token and Business Account ID in Hub → Instagram" });
+        return res.json({ success:true, channel:"instagram", actionPlan: insight.recommendation, needsSetup:true, message:"Instagram credentials not set. Add your Access Token and Business Account ID in Hub → Instagram to enable automatic posting." });
+      }
+
+      // Check if autopilot is on for instagram integration
+      const igAutopilot = !!(meta.autopilot);
+
+      // Generate caption regardless
+      let idea2 = {}; try { idea2 = JSON.parse(biz.ideaData||"{}"); } catch {}
+      const metricsOut2 = await prisma.businessOutput.findFirst({ where:{ businessId:req.params.businessId, type:"user_metrics" } });
+      let prefs2 = {}; try { const mm=JSON.parse(metricsOut2?.content||"{}"); prefs2=mm.prefs||{}; } catch {}
+
+      const captionResult = await ig.generateCaption(biz.name, idea2.name, insight.recommendation||insight.agentObservation, "authentic", prefs2);
+      logActivity(req.params.businessId,{ agent:"management", action:"Caption generated", detail:captionResult.body?.slice(0,80) });
+
+      const igResult = { success:true, channel:"instagram", caption:captionResult.caption, body:captionResult.body, hashtags:captionResult.hashtags, autopilot:igAutopilot };
+
+      if (igAutopilot && req.body.imageUrl) {
+        try {
+          const postResult = await ig.createImagePost(meta.accessToken, meta.businessAccountId, req.body.imageUrl, captionResult.caption);
+          igResult.published = true;
+          igResult.mediaId = postResult.mediaId;
+          igResult.permalink = `https://www.instagram.com/p/${postResult.mediaId}/`;
+          logActivity(req.params.businessId,{ agent:"management", action:"Posted to Instagram", detail:`Published: ${captionResult.body?.slice(0,60)}` });
+        } catch(postErr) {
+          igResult.published = false;
+          igResult.postError = postErr.friendlyMessage || postErr.message;
+          igResult.needsImageUrl = !req.body.imageUrl;
+          logActivity(req.params.businessId,{ agent:"management", action:"Instagram post failed", detail: postErr.friendlyMessage||postErr.message });
+        }
+      } else {
+        igResult.needsImageUrl = true;
+        igResult.message = igAutopilot
+          ? "Autopilot ON: caption ready. Provide an image URL to publish automatically."
+          : "Caption generated. Copy it and post manually, or click Publish in the Instagram panel with an image URL.";
+      }
+
+      if (effective.plan === "trial") await bumpUsage(req.params.businessId, "managementImplements");
+      return res.json(igResult);
+    }
+
+    logActivity(req.params.businessId,{ agent:"management", action:"Ready to act", detail:`Apply the recommendation on your ${channelLabel} channel` });
     if (effective.plan === "trial") await bumpUsage(req.params.businessId, "managementImplements");
     return res.json({ success:true, channel: channelLabel, actionPlan: insight.managementAction || insight.recommendation });
   } catch(e) { next(e); }

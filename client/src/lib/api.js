@@ -58,6 +58,18 @@ export const api = {
     saveFields: (bizId,p,fields) => req("PUT", `/integrations/${bizId}/${p}`, { fields }),
   },
 
+  instagram: {
+    profile:        bizId               => req("GET",  `/instagram/${bizId}/profile`),
+    insights:       (bizId,days=30)     => req("GET",  `/instagram/${bizId}/insights?days=${days}`),
+    media:          (bizId,limit=12)    => req("GET",  `/instagram/${bizId}/media?limit=${limit}`),
+    comments:       (bizId,mediaId)     => req("GET",  `/instagram/${bizId}/media/${mediaId}/comments`),
+    replyComment:   (bizId,commentId,message) => req("POST", `/instagram/${bizId}/comments/${commentId}/reply`, { message }),
+    hideComment:    (bizId,commentId,hide)    => req("POST", `/instagram/${bizId}/comments/${commentId}/hide`, { hide }),
+    createPost:     (bizId,imageUrl,caption)  => req("POST", `/instagram/${bizId}/post`, { imageUrl, caption }),
+    generateCaption:(bizId,context,tone)      => req("POST", `/instagram/${bizId}/generate-caption`, { context, tone }),
+    generateReply:  (bizId,commentText,postContext) => req("POST", `/instagram/${bizId}/generate-reply`, { commentText, postContext }),
+    act:            (bizId,insight,autopilot,imageUrl) => req("POST", `/instagram/${bizId}/act`, { insight, autopilot, imageUrl }),
+  },
   subscriptions: {
     plans:    () => req("GET",  "/subscriptions/plans"),
     me:       () => req("GET",  "/subscriptions/me"),

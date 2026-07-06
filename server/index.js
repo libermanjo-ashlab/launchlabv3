@@ -38,6 +38,7 @@ const integRoutes    = require("./routes/integrations");
 const deployRoutes   = require("./routes/deploy");
 const agentRoutes    = require("./routes/agents");
 const metricsRoutes  = require("./routes/metrics");
+const igRoutes       = require("./routes/instagram");
 const { router: subscriptionRoutes, handleWebhook } = require("./routes/subscriptions");
 const { startBackupSchedule } = require("./services/backup");
 
@@ -63,6 +64,7 @@ app.use("/api/integrations",  integRoutes);
 app.use("/api/deploy",        deployRoutes);
 app.use("/api/agents",        agentRoutes);
 app.use("/api/metrics",       metricsRoutes);
+app.use("/api/instagram",     igRoutes);
 app.use("/api/subscriptions", subscriptionRoutes);
 
 app.get("/api/health", (req, res) => res.json({ ok: true, version: "1.2.0" }));
