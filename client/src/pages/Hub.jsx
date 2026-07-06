@@ -3,6 +3,7 @@ import { useParams, useNavigate, useSearchParams } from "react-router-dom";
 import useStore from "../lib/store";
 import { api } from "../lib/api";
 import { C, FH, FB, btn, btnO, card, inp, lbl, GuidePanel, Logo } from "../components";
+import AgentPanel from "./MarketingAgent";
 
 // ── GUIDED TOUR ───────────────────────────────────────────────────────────────
 
@@ -517,6 +518,34 @@ function TaskCard({ task, businessId, outputs, onUpdate, onDelete }) {
   );
 }
 
+const NOTE_BG_COLORS = ["#FEF9C3","#FCE7F3","#DBEAFE","#D1FAE5","#FEE2E2"];
+
+function NotesGrid({ notes, onDelete }) {
+  if (notes.length===0) return (
+    <div style={{ ...card("28px"), textAlign:"center", color:C.muted }}>
+      <div style={{ fontSize:24, marginBottom:8 }}>📝</div>
+      <div style={{ fontFamily:FH, fontWeight:600, fontSize:14, marginBottom:4 }}>No notes yet</div>
+      <p style={{ fontSize:12, lineHeight:1.6 }}>Add sticky notes in the Marketing Agent tab and they'll appear here.</p>
+    </div>
+  );
+  return (
+    <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill,minmax(220px,1fr))", gap:12, marginTop:4 }}>
+      {notes.map((n,i)=>(
+        <div key={n.id} style={{ background:NOTE_BG_COLORS[i%NOTE_BG_COLORS.length], borderRadius:10, padding:"14px 16px", boxShadow:"0 2px 6px rgba(0,0,0,0.07)", position:"relative", minHeight:90 }}>
+          <p style={{ fontSize:13, color:"#374151", fontFamily:FB, lineHeight:1.65, wordBreak:"break-word", paddingRight:20 }}>{n.description||n.name}</p>
+          <div style={{ fontSize:10, color:"#9CA3AF", fontFamily:FB, marginTop:8 }}>
+            {n.createdAt ? new Date(n.createdAt).toLocaleDateString(undefined,{month:"short",day:"numeric"}) : ""}
+          </div>
+          <button onClick={()=>onDelete(n.id)}
+            style={{ position:"absolute", top:8, right:8, background:"none", border:"none", cursor:"pointer", color:"#9CA3AF", fontSize:16, padding:0, lineHeight:1 }}>
+            ×
+          </button>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 function TasksPanel({ businessId, businessOutputs }) {
   const [tasks,    setTasks]    = useState([]);
   const [loading,  setLoading]  = useState(true);
@@ -534,10 +563,18 @@ function TasksPanel({ businessId, businessOutputs }) {
     setTasks(p => p.filter(t => t.id !== id));
   };
 
-  const categories = ["all", ...new Set(tasks.map(t => t.category))];
-  const visible = filter === "all" ? tasks : tasks.filter(t => t.category === filter);
-  const done  = tasks.filter(t => t.status === "done").length;
-  const total = tasks.length;
+  const regularTasks = tasks.filter(t => t.category !== "notes");
+  const noteTasks    = tasks.filter(t => t.category === "notes");
+
+  // Build category list from regular tasks only
+  const rawCategories = ["all", ...new Set(regularTasks.map(t => t.category).filter(Boolean))];
+  // Add "notes" as a special tab if there are notes
+  const categories = noteTasks.length > 0 ? [...rawCategories, "notes"] : rawCategories;
+
+  const isNoteTab = filter === "notes";
+  const visible = isNoteTab ? [] : (filter==="all" ? regularTasks : regularTasks.filter(t=>t.category===filter));
+  const done  = regularTasks.filter(t => t.status === "done").length;
+  const total = regularTasks.length;
 
   if (loading) return <div style={{ padding:"40px 0", textAlign:"center", color:C.muted }}>Loading tasks…</div>;
 
@@ -548,10 +585,10 @@ function TasksPanel({ businessId, businessOutputs }) {
           <div style={{ fontFamily:FH, fontWeight:700, fontSize:24, letterSpacing:"-0.04em" }}>Tasks</div>
           <p style={{ color:C.muted, fontSize:13, marginTop:4, fontFamily:FB }}>{done} of {total} complete</p>
         </div>
-        <button onClick={()=>setShowAdd(true)} style={{ ...btn(C.primary,"#fff",13) }}>+ Add task</button>
+        {!isNoteTab && <button onClick={()=>setShowAdd(true)} style={{ ...btn(C.primary,"#fff",13) }}>+ Add task</button>}
       </div>
 
-      {total > 0 && (
+      {total > 0 && !isNoteTab && (
         <div style={{ marginBottom:10, height:4, borderRadius:2, background:C.border }}>
           <div style={{ height:"100%", width:`${total ? (done/total*100) : 0}%`, background:C.primary, borderRadius:2, transition:"width 0.3s" }} />
         </div>
@@ -560,33 +597,42 @@ function TasksPanel({ businessId, businessOutputs }) {
       {categories.length > 2 && (
         <div style={{ display:"flex", gap:6, flexWrap:"wrap", marginBottom:16 }}>
           {categories.map(c => (
-            <button key={c} onClick={()=>setFilter(c)} style={{ ...btn(filter===c?C.primary:"#F4F4F5", filter===c?"#fff":C.muted, 11), padding:"5px 12px", textTransform:"capitalize" }}>{c}</button>
+            <button key={c} onClick={()=>setFilter(c)}
+              style={{ ...btn(filter===c?(c==="notes"?"#D97706":C.primary):"#F4F4F5", filter===c?"#fff":C.muted, 11), padding:"5px 12px", textTransform:"capitalize" }}>
+              {c==="notes"?"📝 Notes":c}
+              {c==="notes"&&noteTasks.length>0&&<span style={{ marginLeft:4, background:"rgba(255,255,255,0.3)", borderRadius:10, padding:"0 5px", fontSize:9 }}>{noteTasks.length}</span>}
+            </button>
           ))}
         </div>
       )}
 
-      {visible.length === 0 && (
-        <div style={{ ...card("28px"), textAlign:"center", color:C.muted }}>
-          <div style={{ fontSize:28, marginBottom:10 }}>📋</div>
-          <div style={{ fontFamily:FH, fontWeight:600, fontSize:15, marginBottom:6 }}>No tasks yet</div>
-          <p style={{ fontSize:13, lineHeight:1.65, marginBottom:16 }}>Add tasks to track your progress and generate business assets with AI.</p>
-          <button onClick={()=>setShowAdd(true)} style={{ ...btn(C.primary,"#fff",13) }}>Add your first task</button>
-        </div>
-      )}
-
-      <div>
-        {visible.filter(t=>t.status!=="done").map(t => (
-          <TaskCard key={t.id} task={t} businessId={businessId} outputs={businessOutputs} onUpdate={onUpdate} onDelete={onDelete} />
-        ))}
-        {visible.some(t=>t.status==="done") && (
-          <>
-            <div style={{ fontSize:11, fontWeight:700, color:C.muted, textTransform:"uppercase", letterSpacing:"0.08em", padding:"12px 0 8px", fontFamily:FB }}>Completed</div>
-            {visible.filter(t=>t.status==="done").map(t => (
+      {isNoteTab ? (
+        <NotesGrid notes={noteTasks} onDelete={onDelete} />
+      ) : (
+        <>
+          {visible.length === 0 && (
+            <div style={{ ...card("28px"), textAlign:"center", color:C.muted }}>
+              <div style={{ fontSize:28, marginBottom:10 }}>📋</div>
+              <div style={{ fontFamily:FH, fontWeight:600, fontSize:15, marginBottom:6 }}>No tasks yet</div>
+              <p style={{ fontSize:13, lineHeight:1.65, marginBottom:16 }}>Add tasks to track your progress and generate business assets with AI.</p>
+              <button onClick={()=>setShowAdd(true)} style={{ ...btn(C.primary,"#fff",13) }}>Add your first task</button>
+            </div>
+          )}
+          <div>
+            {visible.filter(t=>t.status!=="done").map(t => (
               <TaskCard key={t.id} task={t} businessId={businessId} outputs={businessOutputs} onUpdate={onUpdate} onDelete={onDelete} />
             ))}
-          </>
-        )}
-      </div>
+            {visible.some(t=>t.status==="done") && (
+              <>
+                <div style={{ fontSize:11, fontWeight:700, color:C.muted, textTransform:"uppercase", letterSpacing:"0.08em", padding:"12px 0 8px", fontFamily:FB }}>Completed</div>
+                {visible.filter(t=>t.status==="done").map(t => (
+                  <TaskCard key={t.id} task={t} businessId={businessId} outputs={businessOutputs} onUpdate={onUpdate} onDelete={onDelete} />
+                ))}
+              </>
+            )}
+          </div>
+        </>
+      )}
 
       {showAdd && <AddTaskModal businessId={businessId} onAdd={onAdd} onClose={()=>setShowAdd(false)} />}
     </div>
@@ -1263,511 +1309,7 @@ function InstagramPanel({ businessId, integs }) {
 
 const CHANNEL_OPTIONS = ["instagram","email","website","google","calendly","twitter","general"];
 
-// ── CampaignCard ─────────────────────────────────────────────────────────────
-
-function CampaignCard({ campaign:c, onModeChange, onStart, onTaskComplete, onDone, onDelete, businessId, setTab, statusClr, typeLabel }) {
-  const [starting, setStarting] = useState(false);
-  const [running,  setRunning]  = useState(null); // taskId being run
-
-  const mode      = c.mode || "guided";
-  const tasks     = c.tasks || [];
-  const completed = tasks.filter(t=>t.status==="completed").length;
-  const total     = tasks.length;
-  const progCurr  = c.progressCurrent || 0;
-  const progTgt   = c.progressTarget  || 0;
-  const pct       = total > 0 ? Math.round(completed / total * 100) : (progTgt > 0 ? Math.min(100, Math.round(progCurr / progTgt * 100)) : 0);
-  const isLongTerm = progTgt > 0;
-
-  const handleStart = async () => {
-    setStarting(true);
-    await onStart();
-    setStarting(false);
-  };
-
-  const runTask = async (task) => {
-    setRunning(task.id);
-    try {
-      const result = await api.tasks.run(task.id);
-      onTaskComplete(task.id);
-      alert(`Task done: ${task.name}\n\n${result.output?.slice(0,300)||""}`);
-    } catch(e){ alert(e.message); }
-    setRunning(null);
-  };
-
-  return (
-    <div style={{ ...card("12px 14px"), marginBottom:10, border:`1px solid ${(statusClr[c.status]||"#E2E0DB")}30` }}>
-      {/* Header */}
-      <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", marginBottom:6 }}>
-        <div style={{ fontSize:13, fontWeight:600, fontFamily:FB, flex:1, lineHeight:1.4, paddingRight:8 }}>{c.title}</div>
-        <span style={{ fontSize:9, fontWeight:700, fontFamily:FB, padding:"2px 7px", borderRadius:20, textTransform:"uppercase", letterSpacing:"0.05em", background:(statusClr[c.status]||"#9CA3AF")+"18", color:statusClr[c.status]||"#9CA3AF", flexShrink:0 }}>{c.status}</span>
-      </div>
-      {c.channel && <div style={{ fontSize:11, color:C.primary, fontFamily:FB, marginBottom:4 }}>{typeLabel[c.channel]||c.channel}</div>}
-      {c.rationale && <div style={{ fontSize:12, color:C.muted, fontFamily:FB, lineHeight:1.5, marginBottom:6 }}>{c.rationale}</div>}
-      {c.expectedImpact && <div style={{ background:C.okBg, borderRadius:6, padding:"4px 8px", fontSize:11, color:C.ok, fontFamily:FB, marginBottom:8 }}>Target: {c.expectedImpact}</div>}
-
-      {/* Mode selector (only while planned) */}
-      {c.status === "planned" && (
-        <div style={{ display:"flex", gap:4, marginBottom:10 }}>
-          {MODE_OPTS.map(o=>(
-            <button key={o.value} onClick={()=>onModeChange(o.value)} title={o.desc}
-              style={{ ...btn(mode===o.value?C.primary:"#F4F4F5", mode===o.value?"#fff":C.muted, 10), padding:"4px 10px" }}>{o.label}</button>
-          ))}
-        </div>
-      )}
-
-      {/* Progress bar (when active with tasks or long-term metric) */}
-      {c.status !== "planned" && (total > 0 || isLongTerm) && (
-        <div style={{ marginBottom:10 }}>
-          <div style={{ display:"flex", justifyContent:"space-between", fontSize:10, color:C.muted, fontFamily:FB, marginBottom:4 }}>
-            <span>{isLongTerm ? `${progCurr} / ${progTgt} ${c.progressUnit||"actions"}` : `${completed} / ${total} tasks`}</span>
-            <span>{pct}%</span>
-          </div>
-          <div style={{ height:6, borderRadius:3, background:C.border, overflow:"hidden" }}>
-            <div style={{ height:"100%", width:`${pct}%`, borderRadius:3, background: pct>=100?C.ok:C.primary, transition:"width 0.4s ease" }} />
-          </div>
-        </div>
-      )}
-
-      {/* Task list */}
-      {tasks.length > 0 && (
-        <div style={{ marginBottom:10 }}>
-          {tasks.map((t,ti)=>(
-            <div key={t.id||ti} style={{ display:"flex", alignItems:"center", gap:8, padding:"6px 0", borderBottom:`1px solid ${C.border}`, fontSize:12, fontFamily:FB }}>
-              <div style={{ width:14, height:14, borderRadius:"50%", border:`2px solid ${t.status==="completed"?C.ok:C.border}`, background:t.status==="completed"?C.ok:"transparent", flexShrink:0 }} />
-              <span style={{ flex:1, color:t.status==="completed"?C.muted:C.text, textDecoration:t.status==="completed"?"line-through":"none" }}>{t.name}</span>
-              {t.estimatedTime && <span style={{ fontSize:10, color:C.muted }}>{t.estimatedTime}</span>}
-              {t.status!=="completed" && mode!=="manual" && t.id && (
-                <button onClick={()=>runTask(t)} disabled={!!running} style={{ ...btn(mode==="auto"?C.primary:C.warn,"#fff",10), padding:"3px 8px", flexShrink:0 }}>
-                  {running===t.id?"Running…":mode==="auto"?"Run":"Start"}
-                </button>
-              )}
-              {mode==="manual" && t.status!=="completed" && (
-                <button onClick={()=>setTab("tasks")} style={{ ...btnO(C.muted,10), padding:"3px 8px", flexShrink:0 }}>View in Tasks</button>
-              )}
-            </div>
-          ))}
-        </div>
-      )}
-
-      {/* Footer actions */}
-      <div style={{ display:"flex", gap:6, flexWrap:"wrap" }}>
-        {c.status==="planned" && (
-          <button onClick={handleStart} disabled={starting} style={{ ...btn(C.warn,"#fff",10), padding:"4px 12px", display:"flex", gap:4, alignItems:"center" }}>
-            {starting&&<span style={{ width:8,height:8,borderRadius:"50%",border:"1.5px solid rgba(255,255,255,0.4)",borderTopColor:"#fff",animation:"spin 0.7s linear infinite" }}/>}
-            {starting?"Breaking into tasks…":"Start campaign"}
-          </button>
-        )}
-        {c.status==="active" && tasks.length === 0 && (
-          <button onClick={handleStart} disabled={starting} style={{ ...btnO(C.primary,10), padding:"4px 10px" }}>
-            {starting?"Generating tasks…":"Generate tasks"}
-          </button>
-        )}
-        {c.status==="active" && <button onClick={onDone} style={{ ...btn(C.ok,"#fff",10), padding:"4px 10px" }}>Mark done</button>}
-        {c.status==="active" && <button onClick={()=>setTab("tasks")} style={{ ...btnO(C.primary,10), padding:"4px 10px" }}>All tasks ↗</button>}
-        {c.status==="completed" && <span style={{ fontSize:11, color:C.ok, fontFamily:FB }}>Completed {c.completedAt ? new Date(c.completedAt).toLocaleDateString():"" }</span>}
-        <button onClick={onDelete} style={{ ...btnO(C.err,10), padding:"4px 10px", marginLeft:"auto" }}>Remove</button>
-      </div>
-    </div>
-  );
-}
-
-const MODE_OPTS = [
-  { value:"auto",    label:"Auto",    desc:"Tasks run automatically when in autopilot" },
-  { value:"guided",  label:"Guided",  desc:"Suggests each action, you approve" },
-  { value:"manual",  label:"Manual",  desc:"Plan only — you do the work" },
-];
-
-function AddCampaignForm({ onAdd }) {
-  const [open,    setOpen]    = useState(false);
-  const [title,   setTitle]   = useState("");
-  const [channel, setChannel] = useState("general");
-  const [target,  setTarget]  = useState("");
-  const [mode,    setMode]    = useState("guided");
-
-  const add = () => {
-    if (!title.trim()) return;
-    onAdd({ id:Date.now().toString(), title:title.trim(), channel, expectedImpact:target.trim()||undefined, rationale:"", status:"planned", mode, createdAt:new Date().toISOString() });
-    setTitle(""); setTarget(""); setOpen(false);
-  };
-
-  if (!open) return (
-    <button onClick={()=>setOpen(true)} style={{ ...btnO(C.primary,12), width:"100%", textAlign:"center", marginBottom:10 }}>+ Add campaign manually</button>
-  );
-  return (
-    <div style={{ ...card("14px 16px"), marginBottom:12, border:`1px solid ${C.primary}20` }}>
-      <div style={{ fontFamily:FH, fontWeight:600, fontSize:13, marginBottom:10 }}>New campaign</div>
-      <div style={{ marginBottom:8 }}>
-        <label style={lbl}>What are you doing?</label>
-        <input style={inp()} value={title} onChange={e=>setTitle(e.target.value)} placeholder="e.g. Post 3x per week on Instagram for a month" autoFocus />
-      </div>
-      <div style={{ marginBottom:8 }}>
-        <label style={lbl}>Channel</label>
-        <select style={{ ...inp(), appearance:"none" }} value={channel} onChange={e=>setChannel(e.target.value)}>
-          {CHANNEL_OPTIONS.map(c=><option key={c} value={c}>{c.charAt(0).toUpperCase()+c.slice(1)}</option>)}
-        </select>
-      </div>
-      <div style={{ marginBottom:8 }}>
-        <label style={lbl}>Mode</label>
-        <div style={{ display:"flex", gap:6 }}>
-          {MODE_OPTS.map(o=>(
-            <button key={o.value} onClick={()=>setMode(o.value)} style={{ ...btn(mode===o.value?C.primary:"#F4F4F5", mode===o.value?"#fff":C.muted, 11), flex:1, flexDirection:"column", padding:"6px 8px", lineHeight:1.4 }} title={o.desc}>{o.label}</button>
-          ))}
-        </div>
-      </div>
-      <div style={{ marginBottom:12 }}>
-        <label style={lbl}>Target / success metric (optional)</label>
-        <input style={inp()} value={target} onChange={e=>setTarget(e.target.value)} placeholder="e.g. +100 followers, 5 new leads" />
-      </div>
-      <div style={{ display:"flex", gap:8 }}>
-        <button onClick={add} style={{ ...btn(C.primary,"#fff",12), flex:1 }}>Add campaign</button>
-        <button onClick={()=>setOpen(false)} style={{ ...btnO(C.muted,12), padding:"8px 14px" }}>Cancel</button>
-      </div>
-    </div>
-  );
-}
-
-// ── ImplementResult — renders the result of clicking "Implement" on an insight ─
-
-function ImplementResult({ result, businessId }) {
-  const [posting,   setPosting]   = useState(false);
-  const [postDone,  setPostDone]  = useState(null);
-  const [customImg, setCustomImg] = useState(""); // user-uploaded replacement image URL
-  const [uploading, setUploading] = useState(false);
-
-  const handleUpload = async (file) => {
-    setUploading(true);
-    try { const { imageUrl } = await api.instagram.uploadImage(file); setCustomImg(imageUrl); }
-    catch(e) { alert(e.message); }
-    setUploading(false);
-  };
-
-  if (!result) return null;
-
-  // Instagram: already published (autopilot)
-  if (result.channel === "instagram" && result.published && result.permalink) {
-    return (
-      <div style={{ marginTop:10, background:C.okBg, borderRadius:8, padding:"10px 14px", fontSize:12, color:C.ok, fontFamily:FB }}>
-        Posted to Instagram.{" "}
-        <a href={result.permalink} target="_blank" rel="noopener noreferrer" style={{ color:C.ok, fontWeight:700 }}>View post ↗</a>
-      </div>
-    );
-  }
-
-  // Instagram: caption + image generated — ready to review and publish
-  if (result.channel === "instagram" && result.caption) {
-    if (postDone) return (
-      <div style={{ marginTop:10, background:C.okBg, borderRadius:8, padding:"10px 14px", fontSize:12, color:C.ok, fontFamily:FB }}>
-        Posted to Instagram.{" "}
-        <a href={postDone.permalink} target="_blank" rel="noopener noreferrer" style={{ color:C.ok, fontWeight:700 }}>View post ↗</a>
-      </div>
-    );
-
-    const activeImg = customImg || result.imageUrl;
-
-    const publishNow = async () => {
-      setPosting(true);
-      try {
-        const r = await api.instagram.createPost(businessId, activeImg || undefined, result.caption);
-        setPostDone(r);
-      } catch(e) { alert(e.message); }
-      setPosting(false);
-    };
-
-    return (
-      <div style={{ marginTop:10, ...card("12px 14px"), border:`1px solid #E1306C30` }}>
-        <div style={{ fontSize:11, fontWeight:700, color:"#E1306C", textTransform:"uppercase", letterSpacing:"0.06em", marginBottom:6, fontFamily:FB }}>
-          {result.needsSetup ? "Instagram not set up" : "Caption + image ready — review and publish"}
-        </div>
-        {result.needsSetup ? (
-          <div style={{ fontSize:12, color:C.muted, fontFamily:FB }}>Go to Hub → Instagram and add your Access Token + Business Account ID, then click Implement again.</div>
-        ) : (
-          <>
-            {activeImg && (
-              <div style={{ marginBottom:10 }}>
-                <img src={activeImg} alt="Post image" style={{ width:160, height:160, borderRadius:10, objectFit:"cover", border:`1px solid ${C.border}`, display:"block", marginBottom:6 }} />
-                <label style={{ ...btnO(C.muted,10), cursor:"pointer", display:"inline-flex", alignItems:"center", gap:4 }}>
-                  {uploading?"Uploading…":"Replace with your own image"}
-                  <input type="file" accept="image/*" style={{ display:"none" }} onChange={e=>{ if(e.target.files[0]) handleUpload(e.target.files[0]); }} disabled={uploading} />
-                </label>
-              </div>
-            )}
-            {!activeImg && (
-              <label style={{ ...btnO(C.muted,11), cursor:"pointer", display:"inline-flex", alignItems:"center", gap:6, marginBottom:10 }}>
-                {uploading?"Uploading…":"Upload image"}
-                <input type="file" accept="image/*" style={{ display:"none" }} onChange={e=>{ if(e.target.files[0]) handleUpload(e.target.files[0]); }} disabled={uploading} />
-              </label>
-            )}
-            <div style={{ fontSize:12, color:C.text, fontFamily:FB, lineHeight:1.6, whiteSpace:"pre-wrap", marginBottom:10, background:"#F5F3FF", borderRadius:6, padding:"8px 10px" }}>{result.caption}</div>
-            <button onClick={publishNow} disabled={posting} style={{ ...btn("#E1306C","#fff",12), display:"flex", gap:6, alignItems:"center" }}>
-              {posting&&<span style={{ width:10,height:10,borderRadius:"50%",border:"2px solid rgba(255,255,255,0.4)",borderTopColor:"#fff",animation:"spin 0.7s linear infinite" }}/>}
-              {posting?"Publishing…":"Publish to Instagram"}
-            </button>
-          </>
-        )}
-      </div>
-    );
-  }
-
-  // Website: live URL
-  if (result.liveUrl) {
-    return (
-      <div style={{ marginTop:10, background:C.okBg, borderRadius:8, padding:"10px 14px", fontSize:12, color:C.ok, fontFamily:FB }}>
-        Website deployed.{" "}
-        <a href={result.liveUrl} target="_blank" rel="noopener noreferrer" style={{ color:C.ok, fontWeight:700 }}>View live site ↗</a>
-      </div>
-    );
-  }
-
-  // All other channels: show the action plan as steps
-  if (result.actionPlan) {
-    const steps = result.actionPlan.split(/\.\s+/).filter(Boolean);
-    return (
-      <div style={{ marginTop:10, ...card("12px 14px"), border:`1px solid ${C.border}` }}>
-        <div style={{ fontSize:11, fontWeight:700, color:C.muted, textTransform:"uppercase", letterSpacing:"0.06em", marginBottom:8, fontFamily:FB }}>
-          Next steps — {result.channel || "manual"}
-        </div>
-        {steps.map((s,i) => (
-          <div key={i} style={{ display:"flex", gap:8, marginBottom:6, fontSize:12, color:C.text, fontFamily:FB, lineHeight:1.55 }}>
-            <span style={{ minWidth:18, height:18, borderRadius:"50%", background:C.primaryBg, color:C.primary, fontSize:10, fontWeight:700, display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0, marginTop:1 }}>{i+1}</span>
-            <span>{s.trim()}{s.trim().endsWith(".")?"":" ."}</span>
-          </div>
-        ))}
-        <button onClick={()=>navigator.clipboard?.writeText(result.actionPlan)} style={{ ...btnO(C.muted,11), marginTop:6, padding:"4px 12px" }}>Copy plan</button>
-      </div>
-    );
-  }
-
-  return null;
-}
-
-function AgentPanel({ businessId, metrics, planInfo, integs, setTab }) {
-  const [insights,     setInsights]     = useState([]);
-  const [ranAt,        setRanAt]        = useState(null);
-  const [running,      setRunning]      = useState(false);
-  const [implementing, setImplementing] = useState(null);
-  const [implemented,  setImplemented]  = useState({});
-  const [activity,     setActivity]     = useState([]);
-  const [error,        setError]        = useState("");
-  const [access,       setAccess]       = useState(null);
-  const [agentMode,    setAgentMode]    = useState(() => {
-    try { return localStorage.getItem(`earnedlab_agentmode_${businessId}`) || "guided"; } catch { return "guided"; }
-  });
-  const [campaigns,    setCampaigns]    = useState(()=>{
-    try { return JSON.parse(localStorage.getItem(`earnedlab_campaigns_${businessId}`)||"[]"); } catch { return []; }
-  });
-  const navigate = useNavigate();
-
-  const saveAgentMode = (m) => {
-    setAgentMode(m);
-    try { localStorage.setItem(`earnedlab_agentmode_${businessId}`, m); } catch {}
-  };
-
-  const refreshAccess = () => api.agents.access(businessId).then(setAccess).catch(()=>{});
-
-  const saveCampaigns = (next) => {
-    setCampaigns(next);
-    localStorage.setItem(`earnedlab_campaigns_${businessId}`, JSON.stringify(next));
-  };
-
-  useEffect(()=>{
-    api.agents.activity(businessId).then(d=>setActivity(d.activity||[])).catch(()=>{});
-    api.agents.savedInsights(businessId).then(d=>{ if(d.insights?.length) { setInsights(d.insights); setRanAt(d.ranAt); } }).catch(()=>{});
-    // If autopilot is on, lock mode to "auto"
-    api.agents.getAutopilot(businessId).then(d=>{ if(d.autopilotEnabled) saveAgentMode("auto"); }).catch(()=>{});
-    refreshAccess();
-  },[businessId]);
-
-  const runAnalysis = async () => {
-    setRunning(true); setError(""); setInsights([]);
-    try {
-      const {insights:data, ranAt:ts} = await api.agents.runMarketing(businessId);
-      setInsights(Array.isArray(data) ? data : []);
-      setRanAt(ts||new Date().toISOString());
-      api.agents.activity(businessId).then(d=>setActivity(d.activity||[])).catch(()=>{});
-      refreshAccess();
-    } catch(e){ setError(e.message); }
-    setRunning(false);
-  };
-
-  const implement = async insight => {
-    setImplementing(insight.id); setError("");
-    try {
-      const result = await api.agents.implement(businessId, insight, agentMode);
-      setImplemented(p=>({...p,[insight.id]:result}));
-      api.agents.activity(businessId).then(d=>setActivity(d.activity||[])).catch(()=>{});
-      refreshAccess();
-    } catch(e){ setError(e.message); }
-    setImplementing(null);
-  };
-
-  const saveCampaign = (insight) => {
-    const c = { id: Date.now().toString(), title: insight.recommendation, rationale: insight.agentObservation, channel: insight.implementationChannel||insight.type, expectedImpact: insight.expectedImpact, status:"planned", mode: agentMode || "guided", createdAt: new Date().toISOString() };
-    saveCampaigns([c, ...campaigns]);
-  };
-
-  const markCampaignDone = (id) => saveCampaigns(campaigns.map(c=>c.id===id?{...c,status:"completed",completedAt:new Date().toISOString()}:c));
-  const markCampaignActive = (id) => saveCampaigns(campaigns.map(c=>c.id===id?{...c,status:"active"}:c));
-  const deleteCampaign = (id) => saveCampaigns(campaigns.filter(c=>c.id!==id));
-
-  const connectedChannels = (integs||[]).filter(i=>{
-    try { const m=JSON.parse(i.metadata||"{}"); return m.autopilot || Object.values(m).some(v=>typeof v==="string"&&v.length>3&&v!=="manual"); } catch { return false; }
-  }).map(i=>i.provider);
-
-  const priorityClr = { high:"#EF4444", medium:C.warn, low:C.muted };
-  const typeLabel    = { website:"Website", social:"Social Media", instagram:"Instagram", email:"Email", pricing:"Pricing", outreach:"Outreach", google:"Google Business", calendly:"Calendly", twitter:"X / Twitter" };
-  const statusClr    = { planned:C.primary, active:C.warn, completed:C.ok };
-
-  return (
-    <div>
-      {error && (
-        <div style={{ ...card("12px 16px"), background:C.errBg, border:`1px solid #DC262625`, marginBottom:16, fontSize:13, color:C.err, fontFamily:FB }}>
-          {error}
-          {error.includes("Generate your website") && <div style={{ marginTop:6 }}>Generate your website in the Tasks tab first, then run analysis.</div>}
-        </div>
-      )}
-
-      <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:20, alignItems:"start" }}>
-        {/* LEFT — analysis */}
-        <div>
-          {access?.effective?.isTrial && !access.effective.locked && (
-            <div style={{ fontSize:11, color:C.muted, marginBottom:10, fontFamily:FB, display:"flex", alignItems:"center", gap:10 }}>
-              <span>Trial: {Math.max(0,3-(access.usage?.marketingRuns||0))} analyses left</span>
-              {planInfo?.isAdmin && (
-                <button onClick={async()=>{ await api.agents.resetUsage(businessId).catch(()=>{}); refreshAccess(); }} style={{ ...btnO("#9333EA",10), padding:"2px 8px" }}>Reset (admin)</button>
-              )}
-            </div>
-          )}
-          {access && !access.marketing.allowed && <UpgradeCard reason={access.marketing.reason} navigate={navigate} />}
-
-          {connectedChannels.length > 0 && (
-            <div style={{ display:"flex", gap:6, flexWrap:"wrap", marginBottom:12 }}>
-              {connectedChannels.map(ch=>(
-                <span key={ch} style={{ fontSize:10, fontWeight:600, fontFamily:FB, padding:"3px 9px", borderRadius:20, background:C.primaryBg, color:C.primary, textTransform:"capitalize" }}>{typeLabel[ch]||ch} ✓</span>
-              ))}
-            </div>
-          )}
-          {connectedChannels.length === 0 && (
-            <div style={{ ...card("10px 14px"), marginBottom:12, fontSize:12, color:C.muted, fontFamily:FB, borderStyle:"dashed" }}>Add integrations in the Hub tab to get channel-specific insights. Analysis works with any or all channels.</div>
-          )}
-
-          {/* Mode selector */}
-          <div style={{ display:"flex", gap:4, marginBottom:10 }}>
-            {MODE_OPTS.map(o=>(
-              <button key={o.value} onClick={()=>saveAgentMode(o.value)} title={o.desc}
-                style={{ ...btn(agentMode===o.value?C.primary:"#F4F4F5", agentMode===o.value?"#fff":C.muted, 11), flex:1, padding:"6px 8px" }}>{o.label}</button>
-            ))}
-          </div>
-
-          <button onClick={runAnalysis} disabled={running||(access&&!access.marketing.allowed)} style={{ ...btn(running?"#9CA3AF":(access&&!access.marketing.allowed)?"#D1D5DB":C.grad), width:"100%", marginBottom:ranAt?6:14, display:"flex", alignItems:"center", justifyContent:"center", gap:10, cursor:(access&&!access.marketing.allowed)?"not-allowed":"pointer" }}>
-            {running && <span style={{ width:14,height:14,borderRadius:"50%",border:"2px solid rgba(255,255,255,0.4)",borderTopColor:"#fff",animation:"spin 0.7s linear infinite",flexShrink:0 }}/>}
-            {running?"Analyzing your business…":(access&&!access.marketing.allowed)?"Upgrade to run analysis":insights.length?"Re-run analysis":"Run marketing analysis"}
-          </button>
-          {ranAt && !running && <div style={{ fontSize:11, color:C.muted, fontFamily:FB, marginBottom:14, textAlign:"center" }}>Last run {new Date(ranAt).toLocaleDateString(undefined,{month:"short",day:"numeric",hour:"2-digit",minute:"2-digit"})}</div>}
-
-          {running && (
-            <div style={{ ...card("14px"), marginBottom:12, background:C.primaryBg, border:`1px solid ${C.primary}20` }}>
-              {["Reviewing your metrics and channels","Finding the highest-impact opportunities","Building channel-specific recommendations","Prioritizing by expected impact"].map((s,i)=>(
-                <div key={i} style={{ display:"flex", gap:8, alignItems:"center", padding:"5px 0", opacity:0.6+i*0.1 }}>
-                  <div style={{ width:4, height:4, borderRadius:"50%", background:C.primary, flexShrink:0 }} />
-                  <span style={{ fontSize:12, color:C.primary, fontFamily:FB }}>{s}</span>
-                </div>
-              ))}
-            </div>
-          )}
-
-          {insights.length === 0 && !running && (
-            <div style={{ ...card("16px"), textAlign:"center", border:"1px dashed "+C.border }}>
-              <div style={{ fontSize:13, color:C.muted, fontFamily:FB, lineHeight:1.6 }}>No analysis yet. Run one above to get specific recommendations for your connected channels.</div>
-            </div>
-          )}
-
-          {insights.map((insight,i)=>(
-            <div key={i} style={{ ...card("14px 16px"), marginBottom:10, border:`1px solid ${insight.priority==="high"?"#EF444425":C.border}` }}>
-              <div style={{ display:"flex", gap:6, marginBottom:10, flexWrap:"wrap" }}>
-                <span style={{ background:priorityClr[insight.priority]+"18", color:priorityClr[insight.priority], fontSize:10, fontWeight:700, padding:"2px 8px", borderRadius:20, textTransform:"uppercase", letterSpacing:"0.06em", fontFamily:FB }}>{insight.priority}</span>
-                <span style={{ background:C.primaryBg, color:C.primary, fontSize:10, fontWeight:600, padding:"2px 8px", borderRadius:20, textTransform:"uppercase", letterSpacing:"0.04em", fontFamily:FB }}>{typeLabel[insight.type]||insight.type}</span>
-              </div>
-              <p style={{ fontSize:11, fontWeight:700, color:C.muted, textTransform:"uppercase", letterSpacing:"0.05em", marginBottom:3, fontFamily:FB }}>What the agent noticed</p>
-              <p style={{ fontSize:13, color:C.text, lineHeight:1.6, marginBottom:8, fontFamily:FB }}>{insight.agentObservation}</p>
-              <p style={{ fontSize:11, fontWeight:700, color:C.muted, textTransform:"uppercase", letterSpacing:"0.05em", marginBottom:3, fontFamily:FB }}>Recommended action</p>
-              <p style={{ fontSize:13, color:C.text, lineHeight:1.6, marginBottom:8, fontFamily:FB }}>{insight.recommendation}</p>
-              <div style={{ background:C.okBg, borderRadius:6, padding:"6px 10px", marginBottom:10, fontSize:12, color:C.ok, fontFamily:FB }}>Expected: {insight.expectedImpact}</div>
-              <div style={{ display:"flex", gap:8 }}>
-                <button onClick={()=>saveCampaign(insight)} style={{ ...btnO(C.primary,11), flex:1, textAlign:"center" }}>Save as campaign</button>
-                {access && !access.management.allowed ? (
-                  <button onClick={()=>navigate("/pricing")} style={{ ...btn("#D97706","#fff",12), flex:1 }}>Upgrade to implement</button>
-                ) : (
-                  <button onClick={()=>implement(insight)} disabled={!!implementing} style={{ ...btn(implementing===insight.id?"#9CA3AF":implemented[insight.id]?C.ok:C.dark,"#fff",12), flex:1, display:"flex", alignItems:"center", justifyContent:"center", gap:8, opacity:implementing&&implementing!==insight.id?0.5:1 }}>
-                    {implementing===insight.id&&<span style={{ width:12,height:12,borderRadius:"50%",border:"2px solid rgba(255,255,255,0.4)",borderTopColor:"#fff",animation:"spin 0.7s linear infinite" }}/>}
-                    {implementing===insight.id?"Implementing…":implemented[insight.id]?"Done":"Implement"}
-                  </button>
-                )}
-              </div>
-              <ImplementResult result={implemented[insight.id]} businessId={businessId} />
-            </div>
-          ))}
-        </div>
-
-        {/* RIGHT — Campaigns */}
-        <div>
-          <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:12 }}>
-            <div style={{ display:"flex", alignItems:"center", gap:8 }}>
-              <div style={{ width:8, height:8, borderRadius:"50%", background:C.ok }} />
-              <span style={{ fontFamily:FH, fontWeight:700, fontSize:15 }}>Marketing Campaigns</span>
-            </div>
-            {campaigns.length > 0 && <span style={{ fontSize:11, color:C.muted, fontFamily:FB }}>{campaigns.filter(c=>c.status==="completed").length}/{campaigns.length} done</span>}
-          </div>
-          <p style={{ fontSize:13, color:C.muted, lineHeight:1.6, marginBottom:14, fontFamily:FB }}>Save insights from analysis as campaigns to track and measure them over time.</p>
-
-          {campaigns.length === 0 && (
-            <div style={{ ...card("16px"), textAlign:"center", border:"1px dashed "+C.border, marginBottom:14 }}>
-              <div style={{ fontSize:12, color:C.muted, fontFamily:FB, lineHeight:1.6 }}>Run an analysis, then hit "Save as campaign" on any insight to track it here. Or add a campaign manually below.</div>
-            </div>
-          )}
-
-          {campaigns.map((c,i)=>(
-            <CampaignCard key={c.id} campaign={c}
-              onModeChange={(mode)=>saveCampaigns(campaigns.map(x=>x.id===c.id?{...x,mode}:x))}
-              onStart={async()=>{
-                const updated = {...c, status:"active"};
-                saveCampaigns(campaigns.map(x=>x.id===c.id?updated:x));
-                try {
-                  const res = await api.agents.campaignBreakdown(businessId, updated);
-                  saveCampaigns(prev=>prev.map(x=>x.id===c.id?{...x,status:"active",taskIds:res.taskIds,progressTarget:res.progressTarget,progressUnit:res.progressUnit,tasks:res.tasks}:x));
-                } catch(e){ alert("Could not break down campaign: "+e.message); }
-              }}
-              onTaskComplete={(taskId)=>saveCampaigns(campaigns.map(x=>x.id===c.id?{...x,tasks:(x.tasks||[]).map(t=>t.id===taskId?{...t,status:"completed"}:t),progressCurrent:(x.progressCurrent||0)+1}:x))}
-              onDone={()=>markCampaignDone(c.id)}
-              onDelete={()=>deleteCampaign(c.id)}
-              businessId={businessId}
-              setTab={setTab}
-              statusClr={statusClr}
-              typeLabel={typeLabel}
-            />
-          ))}
-
-          <AddCampaignForm onAdd={c=>saveCampaigns([c,...campaigns])} />
-
-          {activity.length > 0 && (
-            <div style={{ ...card("14px 16px"), background:C.dark, marginTop:4 }}>
-              <p style={{ fontSize:11, fontWeight:600, color:"rgba(255,255,255,0.3)", textTransform:"uppercase", letterSpacing:"0.08em", marginBottom:10, fontFamily:FB }}>Agent log</p>
-              {activity.slice(0,5).map((e,i)=>(
-                <div key={i} style={{ display:"flex", gap:8, padding:"5px 0", borderBottom:i<4?"1px solid rgba(255,255,255,0.05)":"none" }}>
-                  <div style={{ width:5, height:5, borderRadius:"50%", background:e.agent==="marketing"?C.primary:"#4ADE80", flexShrink:0, marginTop:5 }} />
-                  <div style={{ flex:1 }}>
-                    <div style={{ fontSize:12, color:"rgba(255,255,255,0.8)", fontFamily:FB, fontWeight:500 }}>{e.action}</div>
-                    <div style={{ fontSize:11, color:"rgba(255,255,255,0.3)", fontFamily:FB }}>{e.detail}</div>
-                  </div>
-                  <div style={{ fontSize:10, color:"rgba(255,255,255,0.2)", fontFamily:FB, flexShrink:0 }}>{new Date(e.timestamp).toLocaleTimeString()}</div>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-      </div>
-    </div>
-  );
-}
+// ── Marketing Agent components → see MarketingAgent.jsx (imported above as AgentPanel) ──
 
 function AutopilotCard({ businessId, planInfo, navigate }) {
   const [enabled, setEnabled] = useState(null);

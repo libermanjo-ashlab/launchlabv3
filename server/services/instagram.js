@@ -208,25 +208,41 @@ async function generateCaption(businessName, businessType, context, tone, prefs)
     : prefs?.targetMarket            ? `Target audience: ${prefs.targetMarket}.`
     : "";
 
+  // Determine post type from context for structured, high-quality output
+  const postType = context
+    ? (/tip|teach|learn|how to/i.test(context) ? "value tip"
+     : /proof|result|client|customer|testimonial/i.test(context) ? "social proof"
+     : /behind|process|how we|day in/i.test(context) ? "behind the scenes"
+     : /offer|promo|deal|discount|book/i.test(context) ? "direct offer"
+     : "value tip")
+    : "value tip";
+
   const msg = await client.messages.create({
     model: "claude-sonnet-4-6",
-    max_tokens: 350,
+    max_tokens: 500,
     messages: [{ role: "user", content: `
-Write ONE Instagram post caption for "${businessName}"${businessType ? ` — ${businessType}` : ""}.
-${context ? `Post angle: ${context}` : ""}
-${tone   ? `Tone: ${tone}`   : "Tone: direct, confident, real"}
+You are a professional social media copywriter. Write ONE Instagram post for ${businessName}${businessType ? ` (${businessType})` : ""}.
+
+Post format: ${postType}
+${context ? `Angle: ${context}` : ""}
+${tone ? `Tone: ${tone}` : "Tone: confident, direct, real"}
 ${audienceCtx}
 
-STRICT rules:
-- Write for ${businessName} specifically — mention the business or its actual value prop
-- ONE caption, ONE post — do NOT write a strategy, plan, or multiple versions
-- If the angle mentions multiple content types, write for the FIRST one only
-- 2–3 sentences max: hook first, value second, CTA third
-- No emojis whatsoever
-- No markdown (no **, no --, no headers)
+STRUCTURE (follow exactly):
+1. HOOK (line 1): One sentence that stops the scroll. Bold claim, relatable problem, or surprising fact about ${businessName}'s work.
+2. VALUE (lines 2-3): 1-2 sentences delivering on the hook. Be SPECIFIC — name the actual service, outcome, or process. Mention ${businessName}.
+3. CTA (line 4): One action-oriented sentence. Examples: "DM us [keyword]", "Book at link in bio", "Comment below", "Save this for later".
+4. Blank line, then 10-12 relevant hashtags.
+
+NON-NEGOTIABLE RULES:
+- No emojis
+- No markdown (no **, no ##, no bullet points)
+- No generic phrases ("consistency is key", "stay authentic", "join us on this journey")
 - No location phrases unless explicitly local
-- No quotation marks wrapping the caption
-- Hashtags on their own line after the caption, 8–10 tags
+- One post only — no alternatives, no headers, no numbering
+- Write specifically for ${businessName} — not generic business advice
+
+Start directly with the hook. Do not add any intro like "Here's a caption:".
 ` }],
   });
 

@@ -59,33 +59,74 @@ function pickPalette(seed) {
  * @param {string} [seed] — deterministic palette seed
  * @returns {string} SVG markup
  */
+/**
+ * Word-wrap text into lines of maxChars each (word-boundary aware).
+ */
+function wrapText(text, maxChars) {
+  if (!text) return [];
+  const words = text.split(/\s+/);
+  const lines = [];
+  let line = "";
+  for (const w of words) {
+    if ((line + " " + w).trim().length > maxChars) {
+      if (line) lines.push(line.trim());
+      line = w;
+    } else {
+      line = (line + " " + w).trim();
+    }
+  }
+  if (line) lines.push(line.trim());
+  return lines;
+}
+
+/**
+ * Build an SVG post image.
+ * Renders:
+ *  - Gradient background
+ *  - Geometric accent shapes (stable per business)
+ *  - Business name as a small label at bottom-left
+ *  - Optional short caption text in a frosted content card
+ *
+ * Text uses system-generic font stacks (sans-serif). Sharp/librsvg will
+ * substitute system fonts — no custom fonts required.
+ */
 function buildSvg(businessName, bodyText, seed) {
   const W = 1080, H = 1080;
   const [c1, c2] = pickPalette(seed || businessName);
 
-  // Deterministic "random" numbers from seed so the design is stable per business
   let rng = 0;
   for (let i = 0; i < businessName.length; i++) rng = (rng * 31 + businessName.charCodeAt(i)) >>> 0;
   const r = (min, max) => { rng = (rng * 1664525 + 1013904223) >>> 0; return min + (rng % (max - min)); };
 
-  // Geometric accent elements — NO text, NO fonts
+  // Geometric accents
   const accents = [
-    // Large soft circle, top-right
-    `<circle cx="${r(700,950)}" cy="${r(80,280)}" r="${r(180,280)}" fill="white" fill-opacity="0.07"/>`,
-    // Medium circle
-    `<circle cx="${r(100,350)}" cy="${r(700,920)}" r="${r(120,190)}" fill="white" fill-opacity="0.05"/>`,
-    // Thin horizontal rule cluster, bottom-left
-    `<rect x="80" y="${r(820,870)}" width="${r(160,260)}" height="3" rx="2" fill="white" fill-opacity="0.35"/>`,
-    `<rect x="80" y="${r(848,895)}" width="${r(100,180)}" height="3" rx="2" fill="white" fill-opacity="0.2"/>`,
-    `<rect x="80" y="${r(876,920)}" width="${r(60,130)}" height="3" rx="2" fill="white" fill-opacity="0.12"/>`,
-    // Top-left small squares
-    `<rect x="${r(60,120)}" y="${r(60,120)}" width="32" height="32" rx="6" fill="white" fill-opacity="0.15"/>`,
-    `<rect x="${r(110,170)}" y="${r(70,130)}" width="18" height="18" rx="4" fill="white" fill-opacity="0.08"/>`,
-    // Diagonal accent line, top-right area
-    `<line x1="${r(850,950)}" y1="${r(700,800)}" x2="${r(900,990)}" y2="${r(850,950)}" stroke="white" stroke-width="3" stroke-opacity="0.18" stroke-linecap="round"/>`,
-    // Ring outline
-    `<circle cx="${r(500,600)}" cy="${r(480,580)}" r="${r(200,260)}" fill="none" stroke="white" stroke-width="1.5" stroke-opacity="0.08"/>`,
+    `<circle cx="${r(680,950)}" cy="${r(60,260)}" r="${r(180,280)}" fill="white" fill-opacity="0.06"/>`,
+    `<circle cx="${r(80,300)}"  cy="${r(680,900)}" r="${r(100,170)}" fill="white" fill-opacity="0.04"/>`,
+    `<circle cx="${r(480,580)}" cy="${r(420,560)}" r="${r(180,250)}" fill="none" stroke="white" stroke-width="1.5" stroke-opacity="0.07"/>`,
+    `<rect x="${r(60,110)}" y="${r(60,110)}" width="28" height="28" rx="5" fill="white" fill-opacity="0.12"/>`,
+    `<rect x="${r(120,180)}" y="${r(70,130)}" width="16" height="16" rx="3" fill="white" fill-opacity="0.07"/>`,
+    `<line x1="${r(820,920)}" y1="${r(680,780)}" x2="${r(880,980)}" y2="${r(800,900)}" stroke="white" stroke-width="2.5" stroke-opacity="0.14" stroke-linecap="round"/>`,
   ];
+
+  // Caption text card (only if bodyText provided and short enough)
+  const textBlock = [];
+  if (bodyText && bodyText.length > 0) {
+    // Take first sentence only, max 80 chars
+    const firstSentence = bodyText.split(/[.!?]/)[0]?.trim() || bodyText;
+    const display = firstSentence.length > 72 ? firstSentence.slice(0, 69) + "…" : firstSentence;
+    const lines = wrapText(display, 24);
+    const cardH = 80 + lines.length * 52;
+    const cardY = 500 - cardH / 2;
+    // Frosted card
+    textBlock.push(`<rect x="80" y="${cardY}" width="920" height="${cardH}" rx="16" fill="white" fill-opacity="0.13"/>`);
+    lines.forEach((line, i) => {
+      textBlock.push(`<text x="540" y="${cardY + 52 + i * 52}" text-anchor="middle" font-family="Arial,Helvetica,sans-serif" font-size="52" font-weight="700" fill="white" fill-opacity="0.92">${line.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;")}</text>`);
+    });
+  }
+
+  // Business name label — bottom left strip
+  const nameLabel = businessName.length > 28 ? businessName.slice(0,25)+"…" : businessName;
+  const nameLabelEl = `<text x="80" y="1020" font-family="Arial,Helvetica,sans-serif" font-size="32" font-weight="600" fill="white" fill-opacity="0.55">${nameLabel.replace(/&/g,"&amp;")}</text>`;
 
   return `<svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg">
   <defs>
@@ -95,12 +136,14 @@ function buildSvg(businessName, bodyText, seed) {
     </linearGradient>
     <radialGradient id="vig" cx="50%" cy="50%" r="72%">
       <stop offset="55%" stop-color="${c1}" stop-opacity="0"/>
-      <stop offset="100%" stop-color="#000000" stop-opacity="0.28"/>
+      <stop offset="100%" stop-color="#000000" stop-opacity="0.32"/>
     </radialGradient>
   </defs>
   <rect width="${W}" height="${H}" fill="url(#bg)"/>
   ${accents.join("\n  ")}
+  ${textBlock.join("\n  ")}
   <rect width="${W}" height="${H}" fill="url(#vig)"/>
+  ${nameLabelEl}
 </svg>`;
 }
 

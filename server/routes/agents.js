@@ -5,6 +5,7 @@ const router      = require("express").Router();
 const requireAuth = require("../middleware/auth");
 const { PrismaClient } = require("@prisma/client");
 const { runMarketingAgent, runManagementAgent } = require("../services/agents");
+const { runEnhancedMarketingAgent, runBasicOverview, generateChannelContent } = require("../services/marketingAgent");
 const { createSite, deploySite } = require("../services/netlify");
 const { runAutopilotIteration } = require("../services/autopilotLoop");
 const { getEffectivePlan, canRunMarketing, canImplement, canUseAutopilot } = require("../services/plans");
@@ -73,9 +74,12 @@ router.get("/:businessId/marketing/insights", requireAuth, async (req, res, next
     const biz = await prisma.business.findFirst({ where:{ id:req.params.businessId, userId:req.userId } });
     if (!biz) return res.status(404).json({ error:"Business not found" });
     const out = await prisma.businessOutput.findFirst({ where:{ businessId:req.params.businessId, type:"marketing_insights" } });
-    if (!out) return res.json({ insights:[], ranAt:null });
-    try { const d = JSON.parse(out.content); return res.json({ insights: d.insights||[], ranAt: d.ranAt||null }); }
-    catch { return res.json({ insights:[], ranAt:null }); }
+    if (!out) return res.json({ insights:[], report:null, overview:null, ranAt:null, mode:null });
+    try {
+      const d = JSON.parse(out.content);
+      return res.json({ insights: d.insights||[], report: d.report||null, overview: d.overview||null, ranAt: d.ranAt||null, mode: d.mode||null });
+    }
+    catch { return res.json({ insights:[], report:null, overview:null, ranAt:null, mode:null }); }
   } catch(e) { next(e); }
 });
 
@@ -94,18 +98,44 @@ router.post("/:businessId/marketing/run", requireAuth, async (req, res, next) =>
     const integrations = await prisma.integration.findMany({ where:{ businessId:req.params.businessId } });
 
     logActivity(req.params.businessId,{ agent:"marketing", action:"Analysis started", detail:"Scanning your business metrics and channels for growth opportunities" });
-    const insights = await runMarketingAgent(biz, metrics, intake, integrations);
-    if (effective.plan === "trial") await bumpUsage(req.params.businessId, "marketingRuns");
-    logActivity(req.params.businessId,{ agent:"marketing", action:`Found ${insights.length} insights`, detail:`${insights.filter(i=>i.priority==="high").length} high priority actions identified` });
 
-    // Persist insights so they survive page navigation
-    const ranAt = new Date().toISOString();
-    const content = JSON.stringify({ insights, ranAt });
+    const { mode } = req.body;
+    let reportData;
+
+    if (mode === "manual") {
+      // Manual mode: basic overview only, no deep AI analysis
+      const overview = await runBasicOverview(biz, metrics, integrations);
+      reportData = { insights:[], overview, ranAt:new Date().toISOString(), mode:"manual" };
+      logActivity(req.params.businessId,{ agent:"marketing", action:"Basic overview generated", detail:"Channel stats and general tips ready" });
+    } else {
+      // Guided/Autopilot: full enhanced report
+      const report = await runEnhancedMarketingAgent(biz, metrics, intake, integrations);
+      // Map suggestions → insights for backward compat + keep full report
+      const insights = (report.suggestions || []).map(s => ({
+        id: s.id,
+        type: s.channel,
+        priority: s.priority,
+        agentObservation: s.rationale,
+        recommendation: s.title,
+        expectedImpact: s.expectedImpact,
+        implementationChannel: s.channel,
+        managementAction: s.title,
+        estimatedMinutes: s.estimatedMinutes,
+        tasks: s.tasks,
+        contentPreview: s.contentPreview,
+      }));
+      reportData = { insights, report, ranAt:new Date().toISOString(), mode: mode || "guided" };
+      if (effective.plan === "trial") await bumpUsage(req.params.businessId, "marketingRuns");
+      logActivity(req.params.businessId,{ agent:"marketing", action:`Found ${insights.length} insights`, detail:`${insights.filter(i=>i.priority==="high").length} high priority, market analysis ready` });
+    }
+
+    // Persist report so it survives page navigation
+    const content = JSON.stringify(reportData);
     const existing = await prisma.businessOutput.findFirst({ where:{ businessId:req.params.businessId, type:"marketing_insights" } });
     if (existing) await prisma.businessOutput.update({ where:{ id:existing.id }, data:{ content } });
     else await prisma.businessOutput.create({ data:{ businessId:req.params.businessId, type:"marketing_insights", title:"Marketing Analysis", content } });
 
-    res.json({ insights, ranAt });
+    res.json(reportData);
   } catch(e) { next(e); }
 });
 
@@ -311,6 +341,85 @@ Return a JSON object:
       progressTarget: parsed.progressTarget || null,
       progressUnit:   parsed.progressUnit   || null,
     });
+  } catch(e) { next(e); }
+});
+
+// ── Marketing Notes (sticky notes) ───────────────────────────────────────────
+
+async function getNotesRecord(bizId) {
+  const out = await prisma.businessOutput.findFirst({ where:{ businessId:bizId, type:"marketing_notes" } });
+  if (!out) return { id:null, notes:[] };
+  try { return { id:out.id, notes:JSON.parse(out.content)||[] }; } catch { return { id:out.id, notes:[] }; }
+}
+
+async function saveNotesRecord(bizId, notes, existingId) {
+  const content = JSON.stringify(notes);
+  if (existingId) {
+    await prisma.businessOutput.update({ where:{ id:existingId }, data:{ content } });
+  } else {
+    await prisma.businessOutput.create({ data:{ businessId:bizId, type:"marketing_notes", title:"Marketing Notes", content } });
+  }
+}
+
+router.get("/:businessId/marketing/notes", requireAuth, async (req, res, next) => {
+  try {
+    const biz = await prisma.business.findFirst({ where:{ id:req.params.businessId, userId:req.userId } });
+    if (!biz) return res.status(404).json({ error:"Business not found" });
+    const { notes } = await getNotesRecord(req.params.businessId);
+    res.json({ notes });
+  } catch(e) { next(e); }
+});
+
+router.post("/:businessId/marketing/notes", requireAuth, async (req, res, next) => {
+  try {
+    const biz = await prisma.business.findFirst({ where:{ id:req.params.businessId, userId:req.userId } });
+    if (!biz) return res.status(404).json({ error:"Business not found" });
+    const { text, color } = req.body;
+    if (!text?.trim()) return res.status(400).json({ error:"Note text required" });
+    const { id, notes } = await getNotesRecord(req.params.businessId);
+    const note = { id: require("crypto").randomUUID(), text:text.trim(), color:color||"#FEF9C3", createdAt:new Date().toISOString() };
+    notes.unshift(note);
+    await saveNotesRecord(req.params.businessId, notes, id);
+
+    // Also create a task with category "note" so it shows in Tasks page
+    await prisma.task.create({
+      data: {
+        businessId: req.params.businessId,
+        name: text.trim().slice(0, 80),
+        category: "notes",
+        description: text.trim(),
+        status: "pending",
+        mode: "manual",
+        canAutomate: false,
+        steps: JSON.stringify([{ label:"Note", detail:text.trim() }]),
+        sortOrder: 9999,
+      },
+    });
+
+    res.json({ note });
+  } catch(e) { next(e); }
+});
+
+router.delete("/:businessId/marketing/notes/:noteId", requireAuth, async (req, res, next) => {
+  try {
+    const biz = await prisma.business.findFirst({ where:{ id:req.params.businessId, userId:req.userId } });
+    if (!biz) return res.status(404).json({ error:"Business not found" });
+    const { id, notes } = await getNotesRecord(req.params.businessId);
+    await saveNotesRecord(req.params.businessId, notes.filter(n=>n.id!==req.params.noteId), id);
+    res.json({ ok:true });
+  } catch(e) { next(e); }
+});
+
+// ── Campaign task content generation ─────────────────────────────────────────
+
+router.post("/:businessId/campaigns/task-content", requireAuth, async (req, res, next) => {
+  try {
+    const { task, channel, mode } = req.body;
+    if (!task) return res.status(400).json({ error:"task required" });
+    const biz = await prisma.business.findFirst({ where:{ id:req.params.businessId, userId:req.userId } });
+    if (!biz) return res.status(404).json({ error:"Business not found" });
+    const content = await generateChannelContent(biz, task, channel || task.channel || "general", mode || "guided");
+    res.json({ content });
   } catch(e) { next(e); }
 });
 
