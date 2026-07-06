@@ -103,12 +103,13 @@ function buildSvg(businessName, bodyText, seed) {
   const blockH      = lines.length * lineSpacing;
   const startY      = (H - blockH) / 2 + fontSize;
 
+  // Use SVG fill + fill-opacity instead of rgba() — librsvg doesn't support rgba()
   const textRows = lines.map((line, i) => `
     <text x="540" y="${Math.round(startY + i * lineSpacing)}"
-      text-anchor="middle" dominant-baseline="auto"
-      font-family="'Arial', 'Helvetica Neue', sans-serif"
-      font-size="${fontSize}" font-weight="600"
-      fill="rgba(255,255,255,0.95)">${escapeXml(line)}</text>`).join("");
+      text-anchor="middle"
+      font-family="DejaVu Sans, Liberation Sans, Arial, sans-serif"
+      font-size="${fontSize}" font-weight="bold"
+      fill="white" fill-opacity="0.95">${escapeXml(line)}</text>`).join("");
 
   // Business name — top strip
   const bizName = businessName.length > 30 ? businessName.slice(0, 29) + "…" : businessName;
@@ -120,10 +121,9 @@ function buildSvg(businessName, bodyText, seed) {
       <stop offset="0%"   stop-color="${c1}"/>
       <stop offset="100%" stop-color="${c2}"/>
     </linearGradient>
-    <!-- subtle vignette -->
     <radialGradient id="vig" cx="50%" cy="50%" r="70%">
-      <stop offset="60%" stop-color="transparent"/>
-      <stop offset="100%" stop-color="rgba(0,0,0,0.25)"/>
+      <stop offset="60%" stop-color="#000000" stop-opacity="0"/>
+      <stop offset="100%" stop-color="#000000" stop-opacity="0.25"/>
     </radialGradient>
   </defs>
 
@@ -132,21 +132,21 @@ function buildSvg(businessName, bodyText, seed) {
   <rect width="${W}" height="${H}" fill="url(#vig)"/>
 
   <!-- Top strip -->
-  <rect x="0" y="0" width="${W}" height="110" fill="rgba(0,0,0,0.18)"/>
-  <text x="540" y="68"
+  <rect x="0" y="0" width="${W}" height="110" fill="#000000" fill-opacity="0.18"/>
+  <text x="540" y="70"
     text-anchor="middle"
-    font-family="'Arial', 'Helvetica Neue', sans-serif"
-    font-size="32" font-weight="700" letter-spacing="3"
-    fill="rgba(255,255,255,0.85)">${escapeXml(bizName.toUpperCase())}</text>
+    font-family="DejaVu Sans, Liberation Sans, Arial, sans-serif"
+    font-size="32" font-weight="bold"
+    fill="white" fill-opacity="0.85">${escapeXml(bizName.toUpperCase())}</text>
 
   <!-- Decorative line -->
-  <rect x="200" y="90" width="680" height="1.5" fill="rgba(255,255,255,0.2)"/>
+  <rect x="200" y="92" width="680" height="2" fill="white" fill-opacity="0.2"/>
 
   <!-- Main caption text -->
   ${textRows}
 
   <!-- Bottom bar -->
-  <rect x="0" y="${H - 80}" width="${W}" height="80" fill="rgba(0,0,0,0.18)"/>
+  <rect x="0" y="${H - 80}" width="${W}" height="80" fill="#000000" fill-opacity="0.18"/>
 </svg>`;
 }
 
