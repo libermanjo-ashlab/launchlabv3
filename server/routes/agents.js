@@ -79,9 +79,10 @@ router.post("/:businessId/marketing/run", requireAuth, async (req, res, next) =>
     let intake = {};
     try { intake = JSON.parse(biz.intakeData||"{}"); } catch {}
     const metrics = await getUserMetrics(req.params.businessId);
+    const integrations = await prisma.integration.findMany({ where:{ businessId:req.params.businessId } });
 
-    logActivity(req.params.businessId,{ agent:"marketing", action:"Analysis started", detail:"Scanning your business metrics for growth opportunities" });
-    const insights = await runMarketingAgent(biz, metrics, intake);
+    logActivity(req.params.businessId,{ agent:"marketing", action:"Analysis started", detail:"Scanning your business metrics and channels for growth opportunities" });
+    const insights = await runMarketingAgent(biz, metrics, intake, integrations);
     if (effective.plan === "trial") await bumpUsage(req.params.businessId, "marketingRuns");
     logActivity(req.params.businessId,{ agent:"marketing", action:`Found ${insights.length} insights`, detail:`${insights.filter(i=>i.priority==="high").length} high priority actions identified` });
 

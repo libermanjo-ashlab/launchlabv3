@@ -610,7 +610,32 @@ function AutopilotToggle({ on, onToggle, label, disabled }) {
   );
 }
 
-function IntegrationCard({ provider, label, desc, fields, savedMeta, onSave, isConn, autopilotLabel, autopilotDisabled }) {
+function SetupGuide({ steps }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <div style={{ marginBottom:14, borderRadius:10, border:`1px solid ${C.primary}20`, overflow:"hidden" }}>
+      <div onClick={()=>setOpen(o=>!o)} style={{ display:"flex", justifyContent:"space-between", alignItems:"center", padding:"10px 14px", background:"#F5F3FF", cursor:"pointer" }}>
+        <span style={{ fontSize:12, fontWeight:700, color:C.primary, fontFamily:FB }}>Step-by-step setup guide</span>
+        <span style={{ fontSize:13, color:C.primary, transform:open?"rotate(180deg)":"none", transition:"transform 0.15s", display:"inline-block" }}>▾</span>
+      </div>
+      {open && (
+        <div style={{ background:"#FDFCFF", padding:"12px 14px" }}>
+          {steps.map((s,i)=>(
+            <div key={i} style={{ display:"flex", gap:10, padding:"7px 0", borderBottom:i<steps.length-1?`1px solid ${C.primary}10`:"none" }}>
+              <div style={{ width:20, height:20, borderRadius:"50%", background:C.primary, color:"#fff", fontSize:10, fontWeight:700, fontFamily:FB, display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0, marginTop:2 }}>{i+1}</div>
+              <div style={{ fontSize:12.5, color:C.text, lineHeight:1.65, fontFamily:FB }}>
+                {s.text}
+                {s.link && <>{" "}<a href={s.link} target="_blank" rel="noopener noreferrer" style={{ color:C.primary, fontWeight:600, textDecoration:"none" }}>Open ↗</a></>}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function IntegrationCard({ provider, label, desc, fields, savedMeta, onSave, isConn, autopilotLabel, autopilotDisabled, setupGuide }) {
   const [open,   setOpen]   = useState(false);
   const [vals,   setVals]   = useState(savedMeta||{});
   const [saving, setSaving] = useState(false);
@@ -666,6 +691,7 @@ function IntegrationCard({ provider, label, desc, fields, savedMeta, onSave, isC
       {open && (
         <div style={{ paddingBottom:18, display:"flex", flexDirection:"column", gap:12 }}>
           <AutopilotToggle on={autopilotOn} onToggle={toggleAutopilot} label={autopilotLabel} disabled={autopilotDisabled} />
+          {setupGuide && <SetupGuide steps={setupGuide} />}
           {fields.map(f => (
             <div key={f.key}>
               <label style={lbl}>{f.label}</label>
@@ -757,82 +783,157 @@ function HubPanel({ businessId, integs, onSaveFields, tasks, outputs, isMinor })
   };
   const isConn = provider => integs.find(i=>i.provider===provider)?.status==="connected";
 
+  const G_INSTAGRAM = [
+    { text:'Make sure your Instagram is set to a Professional account. Open Instagram → tap your profile photo → Edit profile → "Switch to professional account" (if not already done).', link:"https://www.instagram.com/accounts/convert_to_professional_account/" },
+    { text:'Connect your Instagram to a Facebook Page (required by Meta). In Instagram: Settings → Accounts Center → tap "Add accounts" → add your Facebook account and link a Page.' },
+    { text:'Create a free Meta Developer account using your Facebook login.', link:"https://developers.facebook.com/" },
+    { text:'In the developer portal, click "My Apps" → "Create App" → select "Business" → give it any name (e.g., "My Business App") → click Create.' },
+    { text:'Inside your new app, click "+ Add Products" → find "Instagram Graph API" → click Set up.' },
+    { text:'Open the Graph API Explorer tool.', link:"https://developers.facebook.com/tools/explorer/" },
+    { text:'Select your app from the top-right "Meta App" dropdown → click "Generate Access Token" → log in with Facebook and grant all permissions shown (instagram_basic, instagram_manage_insights, instagram_content_publish).' },
+    { text:'Copy the long token string that appears and paste it into the Access Token field above.' },
+    { text:'To get your Business Account ID: in the Explorer query box, type me/accounts?fields=instagram_business_account → click Submit → find the "instagram_business_account" object → copy the "id" number and paste it above.' },
+    { text:'Note: access tokens expire in about 60 days. Return here and repeat steps 6–8 to refresh when needed.' },
+  ];
+  const G_EMAIL = [
+    { text:'Enter your business email address in the field above. This is for the agent to reference in outreach plans.' },
+    { text:'Select your email provider from the dropdown.' },
+    { text:'If using Gmail: no API key is needed — just enter your address and you are done.' },
+    { text:'If using Mailchimp: log in at mailchimp.com → click your profile icon (bottom-left) → Account & Billing → Extras → API Keys → Create A Key → copy and paste the key above.', link:"https://mailchimp.com" },
+    { text:'If using Klaviyo: go to Account → Settings → API Keys → Create Private API Key → copy and paste it above.', link:"https://www.klaviyo.com/account#api-keys-tab" },
+    { text:'If using ConvertKit: go to Settings → Advanced → API → copy your API Key.', link:"https://app.convertkit.com/account_settings/advanced_settings" },
+  ];
+  const G_WEBSITE = [
+    { text:'Enter your website URL exactly as shown in your browser (e.g., yourbusiness.com or www.yourbusiness.com).' },
+    { text:'Select your hosting platform from the dropdown. This helps the agent understand your setup. No login or access is required — the agent never edits your site.' },
+    { text:'Optional: get your Google Analytics Measurement ID to allow traffic data in reports. Go to analytics.google.com → Admin (bottom-left gear) → Data Streams → click your stream → copy the Measurement ID (starts with G-).', link:"https://analytics.google.com/" },
+  ];
+  const G_GOOGLE = [
+    { text:'Go to business.google.com and sign in with your Google account.', link:"https://business.google.com/" },
+    { text:'Click "Add your business to Google" → enter your business name → select a category that describes what you do.' },
+    { text:'Choose whether customers come to your location or you serve them remotely. Fill in your phone number and website.' },
+    { text:'Verify your business. Google will mail a postcard with a 5-digit code to your address. It arrives in 5–7 business days.' },
+    { text:'After verification, search your business name in Google Maps → click "Share" (the chain-link icon) → copy the link and paste it into the Profile URL field above.' },
+  ];
+  const G_STRIPE = [
+    { text:'Go to stripe.com and click "Start now" to create a free account.', link:"https://stripe.com/register" },
+    { text:'Complete your business profile: legal name, address, business type, and bank account for payouts (Settings → Bank accounts).' },
+    { text:'Once your account is active, go to Developers → API Keys in the left sidebar.' },
+    { text:'Copy your Publishable key (starts with pk_live_) and paste it into the field above. Never share your Secret key (sk_live_).' },
+  ];
+  const G_CALENDLY = [
+    { text:'Go to calendly.com and create a free account.', link:"https://calendly.com/signup" },
+    { text:'Click "New Event Type" → set your event name (e.g., "30-Minute Consultation"), duration, and availability hours.' },
+    { text:'Your booking link is shown at the top of the dashboard (e.g., calendly.com/yourname/30min). Copy it and paste it above.' },
+    { text:'Optional: connect Stripe inside Calendly (Integrations → Stripe) so clients pay when they book.' },
+  ];
+  const G_PAYPAL = [
+    { text:'Log in to paypal.com with your personal PayPal account.', link:"https://paypal.com" },
+    { text:'Go to paypal.me in your browser. If you have not claimed your link yet, follow the prompts to set it up (it takes 2 minutes).', link:"https://www.paypal.com/paypalme/my/landing" },
+    { text:'Your link will look like paypal.me/yourname. Copy it and paste it above.' },
+    { text:'When a client needs to pay you, just send them your PayPal.me link — they can pay with any card or PayPal balance.' },
+  ];
+  const G_VENMO = [
+    { text:'Open the Venmo app on your phone and tap your profile photo at the bottom right.' },
+    { text:'Your @username is shown at the top of your profile page (e.g., @john-smith).' },
+    { text:'Paste it into the field above (include the @).' },
+    { text:'To receive payment, tell clients to search your @username in Venmo and send money. You can also share your Venmo QR code.' },
+  ];
+  const G_TWITTER = [
+    { text:'Log in to x.com and click your profile photo (top-left on desktop or bottom-right on mobile).', link:"https://x.com" },
+    { text:'Your username is shown as @yourhandle on your profile page.' },
+    { text:'Paste it into the field above. Full posting and analytics integration is coming soon.' },
+  ];
+
   const integrationDefs = isMinor ? [
     { provider:"paypal",   label:"PayPal.me",              desc:"Accept payments — free for any age",
-      autopilotLabel:"Agent includes payment links in outreach", fields:[
-      { key:"link", label:"Your PayPal.me link", placeholder:"paypal.me/yourusername", hint:"Create at paypal.me and paste your personal link here." },
+      autopilotLabel:"Agent includes payment link in outreach",
+      setupGuide:G_PAYPAL, fields:[
+      { key:"link", label:"Your PayPal.me link", placeholder:"paypal.me/yourusername" },
     ]},
     { provider:"venmo",    label:"Venmo",                  desc:"Fast peer-to-peer payments",
-      autopilotLabel:"Agent references Venmo in client communications", fields:[
+      autopilotLabel:"Agent references Venmo in client communications",
+      setupGuide:G_VENMO, fields:[
       { key:"handle", label:"@Venmo handle", placeholder:"@yourhandle" },
     ]},
     { provider:"google",   label:"Google Business Profile", desc:"Appear in local search",
-      autopilotLabel:"Agent monitors and responds to reviews", fields:[
-      { key:"profileUrl", label:"Profile URL", placeholder:"maps.app.goo.gl/...", hint:"Find at business.google.com after verifying your listing." },
+      autopilotLabel:"Agent monitors reviews",
+      setupGuide:G_GOOGLE, fields:[
+      { key:"profileUrl", label:"Profile URL", placeholder:"maps.app.goo.gl/..." },
       { key:"status",     label:"Verification status", placeholder:"Pending / Verified" },
     ]},
-    { provider:"website",  label:"Your Website",           desc:"Your website — any host",
-      autopilotLabel:"Agent includes your site in reports and marketing plans", fields:[
-      { key:"siteUrl",     label:"Live site URL", placeholder:"yourbusiness.com" },
-      { key:"host",        label:"Hosting platform", placeholder:"GoDaddy / Namecheap / Squarespace / other", hint:"No login needed — the agent uses this for reporting only, not for editing your site." },
-      { key:"analyticsId", label:"Google Analytics ID (optional)", placeholder:"G-XXXXXXXXXX", hint:"Paste your Measurement ID from analytics.google.com to pull traffic stats." },
+    { provider:"website",  label:"Your Website",           desc:"Your website — any host, never edited",
+      autopilotLabel:"Agent includes your site in marketing reports",
+      setupGuide:G_WEBSITE, fields:[
+      { key:"siteUrl",     label:"Website URL", placeholder:"yourbusiness.com" },
+      { key:"host",        label:"Hosting platform", placeholder:"GoDaddy / Squarespace / Wix / other" },
+      { key:"analyticsId", label:"Google Analytics ID (optional)", placeholder:"G-XXXXXXXXXX" },
     ]},
     { provider:"calendly", label:"Calendly",               desc:"Let clients book without back-and-forth",
-      autopilotLabel:"Agent promotes booking link in posts and emails", fields:[
-      { key:"bookingUrl", label:"Booking link", placeholder:"calendly.com/yourname", hint:"Create a free account at calendly.com, then paste your link here." },
+      autopilotLabel:"Agent promotes booking link in posts and emails",
+      setupGuide:G_CALENDLY, fields:[
+      { key:"bookingUrl", label:"Booking link", placeholder:"calendly.com/yourname/event" },
     ]},
     { provider:"instagram",label:"Instagram",              desc:"Agent analyzes insights, creates posts, and plans ads",
-      autopilotLabel:"Agent analyzes insights, suggests and creates posts, and plans ads", fields:[
-      { key:"handle",          label:"@Instagram handle", placeholder:"@yourbusiness" },
-      { key:"accessToken",     label:"Access Token", placeholder:"EAAxxxxxxx...", inputType:"password", mono:true, hint:"From Meta Business Suite → Settings → API → Generate token. Required for autopilot." },
-      { key:"businessAccountId", label:"Business Account ID", placeholder:"17841400000000000", mono:true, hint:"Found in Instagram app: Settings → Account → About this account → Account ID." },
+      autopilotLabel:"Agent analyzes insights, suggests posts, and plans ads",
+      setupGuide:G_INSTAGRAM, fields:[
+      { key:"handle",            label:"@Instagram handle", placeholder:"@yourbusiness" },
+      { key:"accessToken",       label:"Access Token", placeholder:"EAAxxxxxxx...", inputType:"password", mono:true },
+      { key:"businessAccountId", label:"Business Account ID", placeholder:"17841400000000000", mono:true },
     ]},
     { provider:"email",    label:"Email / Newsletter",     desc:"Agent manages outreach and follow-ups",
-      autopilotLabel:"Agent sends follow-ups, newsletters, and re-engagement emails", fields:[
-      { key:"address",    label:"Business email address", placeholder:"hello@yourbusiness.com" },
-      { key:"provider",   label:"Email provider", type:"select", options:["Gmail","Outlook","Mailchimp","Klaviyo","ConvertKit","Other"] },
-      { key:"apiKey",     label:"API key (optional)", placeholder:"Mailchimp / Klaviyo key", inputType:"password", mono:true, hint:"Only needed for bulk sending via Mailchimp, Klaviyo, or ConvertKit. Leave blank if using Gmail." },
+      autopilotLabel:"Agent sends follow-ups, newsletters, and re-engagement emails",
+      setupGuide:G_EMAIL, fields:[
+      { key:"address",  label:"Business email address", placeholder:"hello@yourbusiness.com" },
+      { key:"provider", label:"Email provider", type:"select", options:["Gmail","Outlook","Mailchimp","Klaviyo","ConvertKit","Other"] },
+      { key:"apiKey",   label:"API key (optional)", placeholder:"Mailchimp / Klaviyo key", inputType:"password", mono:true },
     ]},
     { provider:"twitter",  label:"X / Twitter",            desc:"Post and grow your audience — coming soon",
-      autopilotDisabled:true, fields:[
+      autopilotDisabled:true, setupGuide:G_TWITTER, fields:[
       { key:"handle", label:"@X handle", placeholder:"@yourbusiness" },
     ]},
   ] : [
     { provider:"stripe",   label:"Stripe",                 desc:"Accept card payments",
-      autopilotLabel:"Agent monitors revenue and flags payment issues", fields:[
-      { key:"dashboardUrl", label:"Stripe dashboard URL", placeholder:"dashboard.stripe.com", hint:"Connect via the billing portal. Your payment processing is handled automatically once you upgrade." },
-      { key:"publicKey",    label:"Publishable key (optional)", placeholder:"pk_live_...", mono:true, hint:"Only needed for custom integrations. Never paste your secret key here." },
+      autopilotLabel:"Agent monitors revenue and flags payment issues",
+      setupGuide:G_STRIPE, fields:[
+      { key:"dashboardUrl", label:"Stripe dashboard URL", placeholder:"dashboard.stripe.com" },
+      { key:"publicKey",    label:"Publishable key (optional)", placeholder:"pk_live_...", mono:true, hint:"Never paste your secret key (sk_live_) here." },
     ]},
     { provider:"google",   label:"Google Business Profile", desc:"Appear in local search and on Google Maps",
-      autopilotLabel:"Agent monitors reviews and updates your listing", fields:[
-      { key:"profileUrl", label:"Profile URL", placeholder:"maps.app.goo.gl/...", hint:"Find at business.google.com after postcard verification (5-7 days)." },
+      autopilotLabel:"Agent monitors reviews and updates your listing",
+      setupGuide:G_GOOGLE, fields:[
+      { key:"profileUrl", label:"Profile URL", placeholder:"maps.app.goo.gl/..." },
       { key:"status",     label:"Verification status", placeholder:"Pending / Verified" },
     ]},
-    { provider:"website",  label:"Your Website",           desc:"Your website — any host, no editing required",
-      autopilotLabel:"Agent includes your site in reports and marketing plans", fields:[
-      { key:"siteUrl",     label:"Live site URL", placeholder:"yourbusiness.com" },
-      { key:"host",        label:"Hosting platform", placeholder:"GoDaddy / Namecheap / Netlify / Squarespace / other", hint:"No login needed — the agent uses this for reporting and analytics only, not for editing your site." },
-      { key:"analyticsId", label:"Google Analytics ID (optional)", placeholder:"G-XXXXXXXXXX", hint:"Paste your Measurement ID from analytics.google.com to pull traffic data into reports." },
+    { provider:"website",  label:"Your Website",           desc:"Your website — any host, never edited by agents",
+      autopilotLabel:"Agent includes your site in reports and marketing plans",
+      setupGuide:G_WEBSITE, fields:[
+      { key:"siteUrl",     label:"Website URL", placeholder:"yourbusiness.com" },
+      { key:"host",        label:"Hosting platform", placeholder:"GoDaddy / Namecheap / Netlify / Squarespace / other" },
+      { key:"analyticsId", label:"Google Analytics ID (optional)", placeholder:"G-XXXXXXXXXX" },
     ]},
     { provider:"calendly", label:"Calendly",               desc:"Let clients book without back-and-forth",
-      autopilotLabel:"Agent promotes booking link in posts and emails", fields:[
-      { key:"bookingUrl", label:"Booking link", placeholder:"calendly.com/yourname", hint:"Create your schedule at calendly.com and paste the link here." },
+      autopilotLabel:"Agent promotes booking link in posts and emails",
+      setupGuide:G_CALENDLY, fields:[
+      { key:"bookingUrl", label:"Booking link", placeholder:"calendly.com/yourname/event" },
     ]},
     { provider:"instagram",label:"Instagram",              desc:"Agent analyzes insights, creates posts, and plans ads",
-      autopilotLabel:"Agent analyzes insights, suggests and creates posts, and plans ads", fields:[
+      autopilotLabel:"Agent analyzes insights, suggests posts, and plans ads",
+      setupGuide:G_INSTAGRAM, fields:[
       { key:"handle",            label:"@Instagram handle", placeholder:"@yourbusiness" },
-      { key:"accessToken",       label:"Access Token", placeholder:"EAAxxxxxxx...", inputType:"password", mono:true, hint:"From Meta Business Suite → Settings → API → Generate token. Required for autopilot." },
-      { key:"businessAccountId", label:"Business Account ID", placeholder:"17841400000000000", mono:true, hint:"Found in Instagram app: Settings → Account → About this account → Account ID." },
-      { key:"pageId",            label:"Facebook Page ID (optional)", placeholder:"123456789", mono:true, hint:"Required if you run Facebook Ads. Found in your Page settings." },
+      { key:"accessToken",       label:"Access Token", placeholder:"EAAxxxxxxx...", inputType:"password", mono:true },
+      { key:"businessAccountId", label:"Business Account ID", placeholder:"17841400000000000", mono:true },
+      { key:"pageId",            label:"Facebook Page ID (optional)", placeholder:"123456789", mono:true, hint:"Required to run Facebook Ads. Found in your Facebook Page settings → Page Info." },
     ]},
     { provider:"email",    label:"Email / Newsletter",     desc:"Agent manages outreach and follow-ups",
-      autopilotLabel:"Agent sends follow-ups, newsletters, and re-engagement emails", fields:[
-      { key:"address",    label:"Business email address", placeholder:"hello@yourbusiness.com" },
-      { key:"provider",   label:"Email provider", type:"select", options:["Gmail","Outlook","Mailchimp","Klaviyo","ConvertKit","Other"] },
-      { key:"apiKey",     label:"API key (optional)", placeholder:"Mailchimp / Klaviyo key", inputType:"password", mono:true, hint:"Only needed for bulk sending via Mailchimp, Klaviyo, or ConvertKit. Leave blank if using Gmail." },
+      autopilotLabel:"Agent sends follow-ups, newsletters, and re-engagement emails",
+      setupGuide:G_EMAIL, fields:[
+      { key:"address",  label:"Business email address", placeholder:"hello@yourbusiness.com" },
+      { key:"provider", label:"Email provider", type:"select", options:["Gmail","Outlook","Mailchimp","Klaviyo","ConvertKit","Other"] },
+      { key:"apiKey",   label:"API key (optional)", placeholder:"Mailchimp / Klaviyo key", inputType:"password", mono:true, hint:"Only needed for bulk sending. Leave blank if using Gmail or Outlook." },
     ]},
     { provider:"twitter",  label:"X / Twitter",            desc:"Post and grow your audience — coming soon",
-      autopilotDisabled:true, fields:[
+      autopilotDisabled:true, setupGuide:G_TWITTER, fields:[
       { key:"handle", label:"@X handle", placeholder:"@yourbusiness" },
     ]},
   ];
@@ -857,6 +958,7 @@ function HubPanel({ businessId, integs, onSaveFields, tasks, outputs, isMinor })
             onSave={vals => onSaveFields(def.provider, vals)}
             autopilotLabel={def.autopilotLabel}
             autopilotDisabled={def.autopilotDisabled}
+            setupGuide={def.setupGuide}
           />
         ))}
       </div>
@@ -900,21 +1002,27 @@ function UpgradeCard({ reason, navigate }) {
   );
 }
 
-function AgentPanel({ businessId, metrics, planInfo }) {
+function AgentPanel({ businessId, metrics, planInfo, integs }) {
   const [insights,     setInsights]     = useState([]);
   const [running,      setRunning]      = useState(false);
   const [implementing, setImplementing] = useState(null);
-  const [liveUrl,      setLiveUrl]      = useState(null);
   const [activity,     setActivity]     = useState([]);
   const [error,        setError]        = useState("");
   const [access,       setAccess]       = useState(null);
+  const [campaigns,    setCampaigns]    = useState(()=>{
+    try { return JSON.parse(localStorage.getItem(`earnedlab_campaigns_${businessId}`)||"[]"); } catch { return []; }
+  });
   const navigate = useNavigate();
 
   const refreshAccess = () => api.agents.access(businessId).then(setAccess).catch(()=>{});
 
+  const saveCampaigns = (next) => {
+    setCampaigns(next);
+    localStorage.setItem(`earnedlab_campaigns_${businessId}`, JSON.stringify(next));
+  };
+
   useEffect(()=>{
     api.agents.activity(businessId).then(d=>setActivity(d.activity||[])).catch(()=>{});
-    api.agents.deployStatus(businessId).then(d=>{ if(d.liveUrl) setLiveUrl(d.liveUrl); }).catch(()=>{});
     refreshAccess();
   },[businessId]);
 
@@ -932,58 +1040,83 @@ function AgentPanel({ businessId, metrics, planInfo }) {
   const implement = async insight => {
     setImplementing(insight.id); setError("");
     try {
-      const result = await api.agents.implement(businessId,insight);
-      setLiveUrl(result.liveUrl);
+      await api.agents.implement(businessId, insight);
       api.agents.activity(businessId).then(d=>setActivity(d.activity||[])).catch(()=>{});
       refreshAccess();
     } catch(e){ setError(e.message); }
     setImplementing(null);
   };
 
+  const saveCampaign = (insight) => {
+    const c = { id: Date.now().toString(), title: insight.recommendation, rationale: insight.agentObservation, channel: insight.implementationChannel||insight.type, expectedImpact: insight.expectedImpact, status:"planned", createdAt: new Date().toISOString() };
+    saveCampaigns([c, ...campaigns]);
+  };
+
+  const markCampaignDone = (id) => saveCampaigns(campaigns.map(c=>c.id===id?{...c,status:"completed",completedAt:new Date().toISOString()}:c));
+  const markCampaignActive = (id) => saveCampaigns(campaigns.map(c=>c.id===id?{...c,status:"active"}:c));
+  const deleteCampaign = (id) => saveCampaigns(campaigns.filter(c=>c.id!==id));
+
+  const connectedChannels = (integs||[]).filter(i=>{
+    try { const m=JSON.parse(i.metadata||"{}"); return m.autopilot || Object.values(m).some(v=>typeof v==="string"&&v.length>3&&v!=="manual"); } catch { return false; }
+  }).map(i=>i.provider);
+
   const priorityClr = { high:"#EF4444", medium:C.warn, low:C.muted };
-  const typeLabel    = { website:"Website", social:"Social Media", pricing:"Pricing", outreach:"Outreach" };
+  const typeLabel    = { website:"Website", social:"Social Media", instagram:"Instagram", email:"Email", pricing:"Pricing", outreach:"Outreach", google:"Google Business", calendly:"Calendly", twitter:"X / Twitter" };
+  const statusClr    = { planned:C.primary, active:C.warn, completed:C.ok };
 
   return (
     <div>
       {error && (
         <div style={{ ...card("12px 16px"), background:C.errBg, border:`1px solid #DC262625`, marginBottom:16, fontSize:13, color:C.err, fontFamily:FB }}>
           {error}
-          {error.includes("NETLIFY_TOKEN") && <div style={{ marginTop:8, lineHeight:1.7 }}>Add <code style={{ background:"#fee2e2", padding:"1px 5px", borderRadius:4 }}>NETLIFY_TOKEN</code> to your Railway environment variables. Get it at app.netlify.com/user/applications.</div>}
-          {error.includes("Generate your website") && <div style={{ marginTop:6 }}>Generate your website in the Marketing Agent tab first.</div>}
+          {error.includes("Generate your website") && <div style={{ marginTop:6 }}>Generate your website in the Tasks tab first, then run analysis.</div>}
         </div>
       )}
 
-      <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:16, alignItems:"start" }}>
+      <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:20, alignItems:"start" }}>
+        {/* LEFT — analysis */}
         <div>
-          <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:12 }}>
-            <div style={{ width:8, height:8, borderRadius:"50%", background:C.primary }} />
-            <span style={{ fontFamily:FH, fontWeight:700, fontSize:15 }}>Marketing Agent</span>
-          </div>
-          <p style={{ fontSize:13, color:C.muted, lineHeight:1.65, marginBottom:14, fontFamily:FB }}>
-            Analyzes your business data and finds the highest-impact changes. Each insight is specific to your numbers.
-          </p>
           {access?.effective?.isTrial && !access.effective.locked && (
             <div style={{ fontSize:11, color:C.muted, marginBottom:10, fontFamily:FB, display:"flex", alignItems:"center", gap:10 }}>
-              <span>Free trial: {Math.max(0,3-(access.usage?.marketingRuns||0))} marketing analyses left</span>
+              <span>Trial: {Math.max(0,3-(access.usage?.marketingRuns||0))} analyses left</span>
               {planInfo?.isAdmin && (
                 <button onClick={async()=>{ await api.agents.resetUsage(businessId).catch(()=>{}); refreshAccess(); }} style={{ ...btnO("#9333EA",10), padding:"2px 8px" }}>Reset (admin)</button>
               )}
             </div>
           )}
           {access && !access.marketing.allowed && <UpgradeCard reason={access.marketing.reason} navigate={navigate} />}
+
+          {connectedChannels.length > 0 && (
+            <div style={{ display:"flex", gap:6, flexWrap:"wrap", marginBottom:12 }}>
+              {connectedChannels.map(ch=>(
+                <span key={ch} style={{ fontSize:10, fontWeight:600, fontFamily:FB, padding:"3px 9px", borderRadius:20, background:C.primaryBg, color:C.primary, textTransform:"capitalize" }}>{typeLabel[ch]||ch} ✓</span>
+              ))}
+            </div>
+          )}
+          {connectedChannels.length === 0 && (
+            <div style={{ ...card("10px 14px"), marginBottom:12, fontSize:12, color:C.muted, fontFamily:FB, borderStyle:"dashed" }}>Add integrations in the Hub tab to get channel-specific insights. Analysis works with any or all channels.</div>
+          )}
+
           <button onClick={runAnalysis} disabled={running||(access&&!access.marketing.allowed)} style={{ ...btn(running?"#9CA3AF":(access&&!access.marketing.allowed)?"#D1D5DB":C.grad), width:"100%", marginBottom:14, display:"flex", alignItems:"center", justifyContent:"center", gap:10, cursor:(access&&!access.marketing.allowed)?"not-allowed":"pointer" }}>
             {running && <span style={{ width:14,height:14,borderRadius:"50%",border:"2px solid rgba(255,255,255,0.4)",borderTopColor:"#fff",animation:"spin 0.7s linear infinite",flexShrink:0 }}/>}
-            {running?"Analyzing your business…":(access&&!access.marketing.allowed)?"Upgrade to run analysis":"Run marketing analysis"}
+            {running?"Analyzing your business…":(access&&!access.marketing.allowed)?"Upgrade to run analysis":insights.length?"Re-run analysis":"Run marketing analysis"}
           </button>
 
           {running && (
             <div style={{ ...card("14px"), marginBottom:12, background:C.primaryBg, border:`1px solid ${C.primary}20` }}>
-              {["Reviewing revenue and client trends","Checking engagement and conversion rates","Finding the highest-impact opportunities","Building your prioritized action list"].map((s,i)=>(
+              {["Reviewing your metrics and channels","Finding the highest-impact opportunities","Building channel-specific recommendations","Prioritizing by expected impact"].map((s,i)=>(
                 <div key={i} style={{ display:"flex", gap:8, alignItems:"center", padding:"5px 0", opacity:0.6+i*0.1 }}>
                   <div style={{ width:4, height:4, borderRadius:"50%", background:C.primary, flexShrink:0 }} />
                   <span style={{ fontSize:12, color:C.primary, fontFamily:FB }}>{s}</span>
                 </div>
               ))}
+            </div>
+          )}
+
+          {insights.length === 0 && !running && (
+            <div style={{ ...card("16px"), textAlign:"center", border:"1px dashed "+C.border }}>
+              <div style={{ fontSize:28, marginBottom:8 }}>📊</div>
+              <div style={{ fontSize:13, color:C.muted, fontFamily:FB, lineHeight:1.6 }}>No analysis yet. Run one above to get specific recommendations for your connected channels.</div>
             </div>
           )}
 
@@ -993,56 +1126,67 @@ function AgentPanel({ businessId, metrics, planInfo }) {
                 <span style={{ background:priorityClr[insight.priority]+"18", color:priorityClr[insight.priority], fontSize:10, fontWeight:700, padding:"2px 8px", borderRadius:20, textTransform:"uppercase", letterSpacing:"0.06em", fontFamily:FB }}>{insight.priority}</span>
                 <span style={{ background:C.primaryBg, color:C.primary, fontSize:10, fontWeight:600, padding:"2px 8px", borderRadius:20, textTransform:"uppercase", letterSpacing:"0.04em", fontFamily:FB }}>{typeLabel[insight.type]||insight.type}</span>
               </div>
-              <p style={{ fontSize:12, fontWeight:600, color:C.muted, textTransform:"uppercase", letterSpacing:"0.05em", marginBottom:3, fontFamily:FB }}>What the agent noticed</p>
+              <p style={{ fontSize:11, fontWeight:700, color:C.muted, textTransform:"uppercase", letterSpacing:"0.05em", marginBottom:3, fontFamily:FB }}>What the agent noticed</p>
               <p style={{ fontSize:13, color:C.text, lineHeight:1.6, marginBottom:8, fontFamily:FB }}>{insight.agentObservation}</p>
-              <p style={{ fontSize:12, fontWeight:600, color:C.muted, textTransform:"uppercase", letterSpacing:"0.05em", marginBottom:3, fontFamily:FB }}>Recommended action</p>
+              <p style={{ fontSize:11, fontWeight:700, color:C.muted, textTransform:"uppercase", letterSpacing:"0.05em", marginBottom:3, fontFamily:FB }}>Recommended action</p>
               <p style={{ fontSize:13, color:C.text, lineHeight:1.6, marginBottom:8, fontFamily:FB }}>{insight.recommendation}</p>
               <div style={{ background:C.okBg, borderRadius:6, padding:"6px 10px", marginBottom:10, fontSize:12, color:C.ok, fontFamily:FB }}>Expected: {insight.expectedImpact}</div>
-              {access && !access.management.allowed ? (
-                <button onClick={()=>navigate("/pricing")} style={{ ...btn("#D97706","#fff",12), width:"100%" }}>Upgrade to implement this</button>
-              ) : (
-                <button onClick={()=>implement(insight)} disabled={!!implementing} style={{ ...btn(implementing===insight.id?"#9CA3AF":C.dark,"#fff",12), width:"100%", display:"flex", alignItems:"center", justifyContent:"center", gap:8, opacity:implementing&&implementing!==insight.id?0.5:1 }}>
-                  {implementing===insight.id&&<span style={{ width:12,height:12,borderRadius:"50%",border:"2px solid rgba(255,255,255,0.4)",borderTopColor:"#fff",animation:"spin 0.7s linear infinite" }}/>}
-                  {implementing===insight.id?"Management agent implementing…":"Hand off to management agent"}
-                </button>
-              )}
+              <div style={{ display:"flex", gap:8 }}>
+                <button onClick={()=>saveCampaign(insight)} style={{ ...btnO(C.primary,11), flex:1, textAlign:"center" }}>Save as campaign</button>
+                {access && !access.management.allowed ? (
+                  <button onClick={()=>navigate("/pricing")} style={{ ...btn("#D97706","#fff",12), flex:1 }}>Upgrade to implement</button>
+                ) : (
+                  <button onClick={()=>implement(insight)} disabled={!!implementing} style={{ ...btn(implementing===insight.id?"#9CA3AF":C.dark,"#fff",12), flex:1, display:"flex", alignItems:"center", justifyContent:"center", gap:8, opacity:implementing&&implementing!==insight.id?0.5:1 }}>
+                    {implementing===insight.id&&<span style={{ width:12,height:12,borderRadius:"50%",border:"2px solid rgba(255,255,255,0.4)",borderTopColor:"#fff",animation:"spin 0.7s linear infinite" }}/>}
+                    {implementing===insight.id?"Implementing…":"Implement"}
+                  </button>
+                )}
+              </div>
             </div>
           ))}
         </div>
 
+        {/* RIGHT — Campaigns */}
         <div>
-          <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:12 }}>
-            <div style={{ width:8, height:8, borderRadius:"50%", background:C.ok }} />
-            <span style={{ fontFamily:FH, fontWeight:700, fontSize:15 }}>Management Agent</span>
-          </div>
-          <div style={{ ...card("16px 18px"), marginBottom:12, background:C.dark, border:`1px solid ${liveUrl?"#4ADE8030":"rgba(255,255,255,0.06)"}` }}>
-            <div style={{ fontSize:10, color:"rgba(255,255,255,0.4)", textTransform:"uppercase", letterSpacing:"0.08em", fontFamily:FB, marginBottom:6 }}>Live website</div>
+          <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:12 }}>
             <div style={{ display:"flex", alignItems:"center", gap:8 }}>
-              <div style={{ width:6, height:6, borderRadius:"50%", background:liveUrl?"#4ADE80":"rgba(255,255,255,0.2)", boxShadow:liveUrl?"0 0 6px #4ADE8088":undefined }} />
-              <span style={{ fontSize:14, fontFamily:FH, fontWeight:600, color:liveUrl?"#4ADE80":"rgba(255,255,255,0.4)" }}>{liveUrl?"Live":"Not deployed yet"}</span>
+              <div style={{ width:8, height:8, borderRadius:"50%", background:C.ok }} />
+              <span style={{ fontFamily:FH, fontWeight:700, fontSize:15 }}>Marketing Campaigns</span>
             </div>
-            {liveUrl && <a href={liveUrl} target="_blank" rel="noopener noreferrer" style={{ display:"block", fontSize:12, color:"rgba(255,255,255,0.5)", marginTop:6, fontFamily:FB, wordBreak:"break-all", textDecoration:"none" }}>{liveUrl} ↗</a>}
-            {!liveUrl && <p style={{ fontSize:11, color:"rgba(255,255,255,0.25)", marginTop:4, fontFamily:FB }}>Created automatically when you implement your first insight</p>}
+            {campaigns.length > 0 && <span style={{ fontSize:11, color:C.muted, fontFamily:FB }}>{campaigns.filter(c=>c.status==="completed").length}/{campaigns.length} done</span>}
           </div>
+          <p style={{ fontSize:13, color:C.muted, lineHeight:1.6, marginBottom:14, fontFamily:FB }}>Save insights from analysis as campaigns to track and measure them over time.</p>
 
-          <div style={{ ...card("14px 16px"), marginBottom:12 }}>
-            <p style={{ fontSize:11, fontWeight:600, color:C.muted, textTransform:"uppercase", letterSpacing:"0.06em", marginBottom:10, fontFamily:FB }}>Other implementation channels</p>
-            {[["Social Media","Post updated content"],["Email campaign","Reach your contact list"],["Booking availability","Adjust your schedule"],["Google Business","Update your listing"]].map(([n,d],i,a)=>(
-              <div key={n} style={{ display:"flex", justifyContent:"space-between", alignItems:"center", padding:"7px 0", borderBottom:i<a.length-1?`1px solid ${C.border}`:"none" }}>
-                <div>
-                  <div style={{ fontSize:13, fontWeight:500, fontFamily:FB }}>{n}</div>
-                  <div style={{ fontSize:11, color:C.muted, fontFamily:FB }}>{d}</div>
-                </div>
-                <span style={{ background:C.okBg, color:C.ok, fontSize:10, fontWeight:600, padding:"2px 8px", borderRadius:20, textTransform:"uppercase", letterSpacing:"0.04em" }}>Ready</span>
+          {campaigns.length === 0 && (
+            <div style={{ ...card("16px"), textAlign:"center", border:"1px dashed "+C.border, marginBottom:14 }}>
+              <div style={{ fontSize:28, marginBottom:8 }}>🎯</div>
+              <div style={{ fontSize:12, color:C.muted, fontFamily:FB, lineHeight:1.6 }}>Run an analysis, then hit "Save as campaign" on any insight to track it here.</div>
+            </div>
+          )}
+
+          {campaigns.map((c,i)=>(
+            <div key={c.id} style={{ ...card("12px 14px"), marginBottom:10, border:`1px solid ${statusClr[c.status]||C.border}18` }}>
+              <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", marginBottom:6 }}>
+                <div style={{ fontSize:13, fontWeight:600, fontFamily:FB, flex:1, lineHeight:1.4, paddingRight:8 }}>{c.title}</div>
+                <span style={{ fontSize:9, fontWeight:700, fontFamily:FB, padding:"2px 7px", borderRadius:20, textTransform:"uppercase", letterSpacing:"0.05em", background:(statusClr[c.status]||C.muted)+"18", color:statusClr[c.status]||C.muted, flexShrink:0 }}>{c.status}</span>
               </div>
-            ))}
-          </div>
+              {c.channel && <div style={{ fontSize:11, color:C.primary, fontFamily:FB, marginBottom:4 }}>{typeLabel[c.channel]||c.channel}</div>}
+              {c.rationale && <div style={{ fontSize:12, color:C.muted, fontFamily:FB, lineHeight:1.5, marginBottom:8 }}>{c.rationale}</div>}
+              {c.expectedImpact && <div style={{ background:C.okBg, borderRadius:6, padding:"4px 8px", fontSize:11, color:C.ok, fontFamily:FB, marginBottom:8 }}>Target: {c.expectedImpact}</div>}
+              <div style={{ display:"flex", gap:6, flexWrap:"wrap" }}>
+                {c.status==="planned" && <button onClick={()=>markCampaignActive(c.id)} style={{ ...btn(C.warn,"#fff",10), padding:"4px 10px" }}>Start</button>}
+                {c.status==="active"  && <button onClick={()=>markCampaignDone(c.id)} style={{ ...btn(C.ok,"#fff",10), padding:"4px 10px" }}>Mark done</button>}
+                {c.status==="completed" && <span style={{ fontSize:11, color:C.ok, fontFamily:FB }}>✓ Completed {c.completedAt ? new Date(c.completedAt).toLocaleDateString() : ""}</span>}
+                <button onClick={()=>deleteCampaign(c.id)} style={{ ...btnO(C.err,10), padding:"4px 10px", marginLeft:"auto" }}>Remove</button>
+              </div>
+            </div>
+          ))}
 
-          {activity.length>0 && (
-            <div style={{ ...card("14px 16px"), background:C.dark }}>
+          {activity.length > 0 && (
+            <div style={{ ...card("14px 16px"), background:C.dark, marginTop:4 }}>
               <p style={{ fontSize:11, fontWeight:600, color:"rgba(255,255,255,0.3)", textTransform:"uppercase", letterSpacing:"0.08em", marginBottom:10, fontFamily:FB }}>Agent log</p>
-              {activity.slice(0,6).map((e,i)=>(
-                <div key={i} style={{ display:"flex", gap:8, padding:"6px 0", borderBottom:i<5?"1px solid rgba(255,255,255,0.05)":"none" }}>
+              {activity.slice(0,5).map((e,i)=>(
+                <div key={i} style={{ display:"flex", gap:8, padding:"5px 0", borderBottom:i<4?"1px solid rgba(255,255,255,0.05)":"none" }}>
                   <div style={{ width:5, height:5, borderRadius:"50%", background:e.agent==="marketing"?C.primary:"#4ADE80", flexShrink:0, marginTop:5 }} />
                   <div style={{ flex:1 }}>
                     <div style={{ fontSize:12, color:"rgba(255,255,255,0.8)", fontFamily:FB, fontWeight:500 }}>{e.action}</div>
@@ -1115,6 +1259,7 @@ export default function Hub() {
   const [showTour,   setShowTour]   = useState(false);
   const [genLoading, setGenLoading] = useState({});
   const [genError,   setGenError]   = useState("");
+  const [prefs,      setPrefs]      = useState({ audience:"local", stage:"starting", goals:"", targetMarket:"" });
   const [hubQ,       setHubQ]       = useState("");
   const [hubAns,     setHubAns]     = useState("");
   const [hubLoading, setHubLoading] = useState(false);
@@ -1143,7 +1288,7 @@ export default function Hub() {
       api.tasks.list(businessId),
     ]).then(([{business:b},{outputs:o},{integrations:ig},{metrics:m},{tasks:t}])=>{
       setBusiness(b); setOutputs(o); setIntegs(ig); setTasks(t||[]);
-      if(m) setMetrics(m);
+      if(m) { const { prefs:p, ...rest } = m; setMetrics(rest); if(p) setPrefs(p); }
     }).catch(console.error).finally(()=>setLoading(false));
   },[businessId]);
 
@@ -1171,8 +1316,13 @@ export default function Hub() {
     finally{ setGenLoading(p=>({...p,[type]:false})); }
   };
 
-  const askHub  = async()=>{ if(!hubQ.trim())return; setHubLoading(true); setHubAns(""); try{const{suggestion}=await api.metrics.suggest(businessId,hubQ);setHubAns(suggestion);}catch(e){setHubAns("Error: "+e.message);} setHubLoading(false); };
-  const askMgmt = async()=>{ if(!mgmtQ.trim())return; setHubLoading(true); try{const{suggestion}=await api.metrics.suggest(businessId,mgmtQ);setMgmtAns(suggestion);}catch(e){setMgmtAns("Error: "+e.message);} setHubLoading(false); setMgmtQ(""); };
+  const savePrefs = async(next) => {
+    setPrefs(next);
+    await api.metrics.save(businessId, { ...metrics, prefs: next }).catch(()=>{});
+  };
+
+  const askHub  = async()=>{ if(!hubQ.trim())return; setHubLoading(true); setHubAns(""); try{const{suggestion}=await api.metrics.suggest(businessId,hubQ,prefs);setHubAns(suggestion);}catch(e){setHubAns("Error: "+e.message);} setHubLoading(false); };
+  const askMgmt = async()=>{ if(!mgmtQ.trim())return; setHubLoading(true); try{const{suggestion}=await api.metrics.suggest(businessId,mgmtQ,prefs);setMgmtAns(suggestion);}catch(e){setMgmtAns("Error: "+e.message);} setHubLoading(false); setMgmtQ(""); };
   const sendChat = async msg=>{ setChatMsgs(p=>[...p,{role:"user",text:msg}]); try{const{reply}=await api.generate.chat(msg,businessId);setChatMsgs(p=>[...p,{role:"ai",text:reply}]);}catch{setChatMsgs(p=>[...p,{role:"ai",text:"Sorry, couldn't process that."}]);} };
 
   const saveIntegFields = async (provider, vals) => {
@@ -1346,42 +1496,8 @@ export default function Hub() {
           {tab==="marketing" && (
             <div>
               <div style={{ fontFamily:FH, fontWeight:700, fontSize:24, letterSpacing:"-0.04em", marginBottom:4 }}>Marketing Agent</div>
-              <p style={{ color:C.muted, fontSize:14, marginBottom:24, fontFamily:FB }}>The marketing agent analyzes your metrics and finds the best opportunities. The management agent implements them — including updating your live website.</p>
-
-              <div style={{ ...card("18px 20px"), marginBottom:24 }}>
-                <div style={{ fontFamily:FH, fontWeight:700, fontSize:15, marginBottom:14 }}>Generate content</div>
-                <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10 }}>
-                  {[
-                    { type:"website",         label:"Business Website",       apiCall:api.generate.website,        desc:"Deploy-ready, mobile-friendly" },
-                    { type:"business_plan",   label:"Business Plan",          apiCall:api.generate.businessPlan,   desc:"With financial projections" },
-                    { type:"social_content",  label:"30-Day Social Calendar", apiCall:api.generate.socialContent,  desc:"Captions and hashtags included" },
-                    { type:"email_templates", label:"Email Templates",        apiCall:api.generate.emailTemplates, desc:"8 ready-to-use templates" },
-                  ].map(({type,label,apiCall,desc})=>{
-                    const out=getOutput(type); const loading=!!genLoading[type];
-                    return (
-                      <div key={type} style={{ ...card("12px 14px"), border:`1px solid ${out?C.ok+"30":C.border}`, background:out?"#F0FDF4":C.surface }}>
-                        <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", marginBottom:8 }}>
-                          <div>
-                            <div style={{ fontSize:13, fontWeight:600, fontFamily:FB }}>{label}</div>
-                            <div style={{ fontSize:11, color:C.muted, fontFamily:FB }}>{desc}</div>
-                          </div>
-                          {out&&<span style={{ background:C.okBg, color:C.ok, fontSize:9, fontWeight:700, padding:"2px 6px", borderRadius:20, textTransform:"uppercase" }}>Ready</span>}
-                        </div>
-                        <div style={{ display:"flex", gap:6 }}>
-                          {out&&<button onClick={()=>{const b=new Blob([out.content],{type:"text/html"});const u=URL.createObjectURL(b);const a=document.createElement("a");a.href=u;a.download=`${type}.html`;a.click();URL.revokeObjectURL(u);}} style={{ ...btnO(C.primary,11), flex:1, textAlign:"center" }}>Download</button>}
-                          <button onClick={()=>generate(type,apiCall)} disabled={loading} style={{ ...btn(loading?"#9CA3AF":out?C.muted:C.primary,"#fff",12), flex:1, display:"flex", alignItems:"center", justifyContent:"center", gap:6 }}>
-                            {loading&&<span style={{ width:11,height:11,borderRadius:"50%",border:"2px solid rgba(255,255,255,0.4)",borderTopColor:"#fff",animation:"spin 0.7s linear infinite" }}/>}
-                            {loading?"Generating…":(out?"Regenerate":"Generate")}
-                          </button>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-                {genError&&<div style={{ marginTop:12, background:C.errBg, borderRadius:8, padding:"10px 14px", fontSize:13, color:C.err, fontFamily:FB }}>{genError}</div>}
-              </div>
-
-              <AgentPanel businessId={businessId} metrics={metrics} planInfo={planInfo}/>
+              <p style={{ color:C.muted, fontSize:14, marginBottom:24, fontFamily:FB }}>Analyzes your connected channels and metrics to surface the highest-impact opportunities. Works with any channel — add more in the Hub to broaden coverage.</p>
+              <AgentPanel businessId={businessId} metrics={metrics} planInfo={planInfo} integs={integs}/>
             </div>
           )}
 
@@ -1389,14 +1505,50 @@ export default function Hub() {
           {tab==="management" && (
             <div>
               <div style={{ fontFamily:FH, fontWeight:700, fontSize:24, letterSpacing:"-0.04em", marginBottom:4 }}>Management Agent</div>
-              <p style={{ color:C.muted, fontSize:14, marginBottom:24, fontFamily:FB }}>Track your business numbers here. The management agent uses this data to give better recommendations.</p>
+              <p style={{ color:C.muted, fontSize:14, marginBottom:24, fontFamily:FB }}>Track your metrics and preferences. The management agent adapts its advice as your business evolves.</p>
 
               <AutopilotCard businessId={businessId} planInfo={planInfo} navigate={navigate} />
 
+              {/* Business Preferences */}
+              <div style={{ ...card("16px 18px"), marginBottom:24 }}>
+                <div style={{ fontFamily:FH, fontWeight:600, fontSize:15, marginBottom:4 }}>Business preferences</div>
+                <p style={{ fontSize:12, color:C.muted, marginBottom:16, fontFamily:FB }}>Tell the agent who you are targeting and where you are in your journey. This shapes all advice and output.</p>
+                <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:12, marginBottom:12 }}>
+                  <div>
+                    <label style={lbl}>Target audience</label>
+                    <select style={{ ...inp(), appearance:"none" }} value={prefs.audience} onChange={e=>savePrefs({...prefs,audience:e.target.value})}>
+                      <option value="local">Local (city / region)</option>
+                      <option value="national">National</option>
+                      <option value="global">Global / online</option>
+                      <option value="niche">Niche community</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label style={lbl}>Business stage</label>
+                    <select style={{ ...inp(), appearance:"none" }} value={prefs.stage} onChange={e=>savePrefs({...prefs,stage:e.target.value})}>
+                      <option value="starting">Just starting out</option>
+                      <option value="growing">Growing — have first clients</option>
+                      <option value="scaling">Scaling up</option>
+                      <option value="established">Established</option>
+                    </select>
+                  </div>
+                </div>
+                <div style={{ marginBottom:12 }}>
+                  <label style={lbl}>Target market description (optional)</label>
+                  <input style={inp()} value={prefs.targetMarket||""} onChange={e=>savePrefs({...prefs,targetMarket:e.target.value})} placeholder="e.g. small business owners in the US, college students, fitness enthusiasts" />
+                </div>
+                <div>
+                  <label style={lbl}>Current goals (optional)</label>
+                  <input style={inp()} value={prefs.goals||""} onChange={e=>savePrefs({...prefs,goals:e.target.value})} placeholder="e.g. reach 100 clients by Q3, expand to a second city, launch a course" />
+                </div>
+                <div style={{ fontSize:11, color:C.muted, marginTop:10, fontFamily:FB }}>Preferences are saved automatically and used by all agents and the guide chat.</div>
+              </div>
+
               <div style={{ ...card("16px 18px"), marginBottom:24, background:C.primaryBg, border:`1px solid ${C.primary}15` }}>
                 <div style={{ fontFamily:FH, fontWeight:600, fontSize:14, marginBottom:8 }}>Ask your management agent</div>
+                <p style={{ fontSize:12, color:C.muted, marginBottom:10, fontFamily:FB }}>Ask anything about your business. Say "I'm scaling up" or "I want to go global" and those preferences will be updated automatically.</p>
                 <div style={{ display:"flex", gap:8, marginBottom:mgmtAns?12:0 }}>
-                  <input value={mgmtQ} onChange={e=>setMgmtQ(e.target.value)} onKeyDown={e=>e.key==="Enter"&&askMgmt()} placeholder="What should I focus on this week? How do I get my next client?" style={{ ...inp(), flex:1 }} />
+                  <input value={mgmtQ} onChange={e=>setMgmtQ(e.target.value)} onKeyDown={e=>e.key==="Enter"&&askMgmt()} placeholder="What should I focus on this week? I want to go global." style={{ ...inp(), flex:1 }} />
                   <button onClick={askMgmt} disabled={hubLoading} style={{ ...btn(C.primary,"#fff",13), padding:"10px 16px", flexShrink:0 }}>{hubLoading?"…":"Ask"}</button>
                 </div>
                 {mgmtAns&&<div style={{ background:C.surface, borderRadius:10, padding:"12px 14px", fontSize:13, color:C.text, lineHeight:1.7, fontFamily:FB, border:`1px solid ${C.border}` }}>{mgmtAns}</div>}

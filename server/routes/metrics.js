@@ -63,20 +63,42 @@ router.post("/:businessId/suggest", requireAuth, async (req, res, next) => {
     const metrics = await getMetrics(req.params.businessId);
     let idea = {};
     try { idea = JSON.parse(biz.ideaData || "{}"); } catch {}
+    const prefs = req.body.prefs || metrics.prefs || {};
+
+    const audienceCtx = prefs.audience === "local"      ? `targeting a local audience near ${biz.location}`
+      : prefs.audience === "national"                   ? "targeting a national audience — do not use location-specific phrases"
+      : prefs.audience === "global"                     ? "targeting a global / online audience — never use city or location language"
+      : prefs.audience === "niche"                      ? `targeting a niche community${prefs.targetMarket?" ("+prefs.targetMarket+")":""}`
+      : prefs.targetMarket                              ? `targeting: ${prefs.targetMarket}`
+      : `based in ${biz.location}`;
+
+    const stageCtx = prefs.stage === "scaling"          ? "currently scaling up"
+      : prefs.stage === "established"                   ? "an established business"
+      : prefs.stage === "growing"                       ? "in a growth phase with early clients"
+      : "just starting out";
+
+    // If user mentions scaling/global/etc., detect and update prefs
+    const q = req.body.question || "";
+    const suggestedPrefsUpdate = {};
+    if (/\bscal(e|ing)\b/i.test(q))     suggestedPrefsUpdate.stage    = "scaling";
+    if (/\bgo(ing)? global\b/i.test(q)) suggestedPrefsUpdate.audience = "global";
+    if (/\bnational\b/i.test(q))        suggestedPrefsUpdate.audience = "national";
+    if (/\bestablish/i.test(q))         suggestedPrefsUpdate.stage    = "established";
 
     const msg = await ai.messages.create({
       model:"claude-sonnet-4-6", max_tokens:600,
       messages:[{ role:"user", content:`
-You are the management agent for "${biz.name}" (${idea.name||"service business"} in ${biz.location}).
-Current metrics: revenue $${metrics.revenue.this_month}/mo, ${metrics.clients.active} active clients, ${metrics.leads.this_month} leads this month, ${metrics.social.instagram} Instagram followers.
+You are the management agent for "${biz.name}" (${idea.name||"service business"}, ${stageCtx}, ${audienceCtx}).
+Current metrics: revenue $${metrics.revenue?.this_month||0}/mo, ${metrics.clients?.active||0} active clients, ${metrics.leads?.this_month||0} leads this month, ${metrics.social?.instagram||0} Instagram followers.
+${prefs.goals ? `Owner goal: ${prefs.goals}` : ""}
 
-The user asked: "${req.body.question||"What should I focus on this week?"}"
+The user said: "${q||"What should I focus on this week?"}"
 
-Give a specific, actionable answer in 2-3 sentences. Focus on the most impactful next step. No double quotes or apostrophes.
+Give a specific, actionable answer in 2-3 sentences. Focus on the most impactful next step. Do not use location-specific phrases unless audience is local. No double quotes or apostrophes.
 ` }],
     });
 
-    res.json({ suggestion: msg.content[0]?.text||"" });
+    res.json({ suggestion: msg.content[0]?.text||"", prefsUpdate: Object.keys(suggestedPrefsUpdate).length ? suggestedPrefsUpdate : null });
   } catch(e) { next(e); }
 });
 

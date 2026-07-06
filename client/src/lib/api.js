@@ -77,6 +77,6 @@ export const api = {
   metrics: {
     get:     bizId          => req("GET", `/metrics/${bizId}`),
     save:    (bizId,data)   => req("PUT", `/metrics/${bizId}`, data),
-    suggest: (bizId,question)=>req("POST",`/metrics/${bizId}/suggest`, { question }),
+    suggest: (bizId,question,prefs)=>req("POST",`/metrics/${bizId}/suggest`, { question, prefs }),
   },
 };

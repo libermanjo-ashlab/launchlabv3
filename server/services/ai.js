@@ -207,6 +207,7 @@ Design requirements:
 - Contact form shows thank-you message on submit via JS — no backend required
 - No external dependencies except Google Fonts (Space Grotesk)
 - Fast loading, professional, builds trust
+- Do NOT write copy that says "serving [city] clients" or "for [city] residents" — keep language universal unless the business is explicitly local.
 `, 7000);
   return text.replace(/^```html?\s*/i, "").replace(/\s*```\s*$/i, "").trim();
 }
@@ -229,9 +230,9 @@ Write clearly. Avoid jargon. Use the actual numbers provided. Make it actionable
 
 async function generateSocialContent(business, idea, intake) {
   const result = await chatStructured(`
-Create a 30-day social media content calendar for "${business.name}" (${idea.name} in ${business.location}).
+Create a 30-day social media content calendar for "${business.name}" (${idea.name}).
 Generate 30 posts alternating Instagram and TikTok.
-Tone: authentic, clear, appropriate for a local service business.
+Tone: authentic, clear, relatable. Write for the business owner's audience — keep copy universal and avoid phrases like "in [city]" or "for [city] residents" unless the business is explicitly local and physical.
 Use $ for all dollar amounts.
 `, {
     type: "object",
@@ -293,11 +294,47 @@ Use [FIRST_NAME] placeholders. Body under 100 words each. Use $ for dollar amoun
   return result;
 }
 
-async function runMarketingAgent(business, metrics, intake) {
+async function runMarketingAgent(business, metrics, intake, integrations) {
   let idea = {};
   try { idea = JSON.parse(business.ideaData || "{}"); } catch {}
+
+  const prefs = metrics.prefs || {};
+
+  // Build connected-channel context from integration records
+  const channels = [];
+  for (const intg of (integrations || [])) {
+    let meta = {};
+    try { meta = JSON.parse(intg.metadata || "{}"); } catch {}
+    const hasData = Object.entries(meta).some(([k,v])=>k!=="autopilot"&&typeof v==="string"&&v.length>3);
+    if (intg.status === "connected" || hasData) {
+      channels.push({ provider: intg.provider, autopilot: !!meta.autopilot, handle: meta.handle||"" });
+    }
+  }
+  const channelList = channels.length > 0
+    ? channels.map(c=>`${c.provider}${c.handle?" (@"+c.handle+")":""}${c.autopilot?" [autopilot ON]":""}`).join(", ")
+    : "none — provide general channel-agnostic advice";
+
+  const audienceNote = prefs.audience === "local"
+    ? `Target audience is local (near ${business.location}).`
+    : prefs.audience === "national" ? "Target audience is national — do not use location phrases in recommendations."
+    : prefs.audience === "global"   ? "Target audience is global / online — never use location-specific language in recommendations or copy."
+    : prefs.audience === "niche"    ? `Target audience is a niche community${prefs.targetMarket ? " ("+prefs.targetMarket+")" : ""}.`
+    : `Target audience: ${prefs.targetMarket || "general"}.`;
+
+  const stageNote = prefs.stage === "scaling"     ? "Business is scaling — focus on growth, efficiency, and expanding reach."
+    : prefs.stage === "established"               ? "Business is established — focus on retention, referrals, and new revenue streams."
+    : prefs.stage === "growing"                   ? "Business is growing — focus on consistency, reviews, and acquiring more clients."
+    : "Business is just starting — focus on fast, low-cost wins and getting the first clients.";
+
   const result = await chatStructured(`
-You are the marketing agent for "${business.name}" (${idea.name || "business"} in ${business.location}).
+You are the marketing agent for "${business.name}" (${idea.name || "business"}).
+${audienceNote}
+${stageNote}
+${prefs.goals ? `Current owner goal: ${prefs.goals}` : ""}
+
+Connected marketing channels: ${channelList}
+${channels.length === 0 ? "Provide general advice and gently mention that adding integrations in the Hub will sharpen future analysis." : ""}
+${channels.length === 1 ? "Only one channel connected. Give detailed, actionable advice specifically for that channel. Briefly mention that adding more channels will broaden analysis." : ""}
 
 Current metrics:
 - Revenue: $${metrics.revenue?.this_month || 0}/month
@@ -306,7 +343,11 @@ Current metrics:
 - Instagram followers: ${metrics.social?.instagram || 0}
 - Bookings this week: ${metrics.bookings?.this_week || 0}
 
-Generate 4 specific, data-backed marketing insights. At least one must target the website (type: "website").
+Generate 4 specific, data-backed marketing insights tailored to the connected channels above.
+IMPORTANT rules:
+- Do NOT use location phrases like "for your [city] clients" or "in [city]" unless audience is explicitly local.
+- Set implementationChannel to the relevant connected channel provider name (instagram/email/website/google/calendly/general).
+- Each insight must be actionable with the channels the user actually has.
 Keep each string field under 20 words.
 `, {
     type: "object",
