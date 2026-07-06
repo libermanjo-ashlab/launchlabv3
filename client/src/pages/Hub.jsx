@@ -1002,10 +1002,54 @@ function UpgradeCard({ reason, navigate }) {
   );
 }
 
+const CHANNEL_OPTIONS = ["instagram","email","website","google","calendly","twitter","general"];
+
+function AddCampaignForm({ onAdd }) {
+  const [open,    setOpen]    = useState(false);
+  const [title,   setTitle]   = useState("");
+  const [channel, setChannel] = useState("general");
+  const [target,  setTarget]  = useState("");
+
+  const add = () => {
+    if (!title.trim()) return;
+    onAdd({ id:Date.now().toString(), title:title.trim(), channel, expectedImpact:target.trim()||undefined, rationale:"", status:"planned", createdAt:new Date().toISOString() });
+    setTitle(""); setTarget(""); setOpen(false);
+  };
+
+  if (!open) return (
+    <button onClick={()=>setOpen(true)} style={{ ...btnO(C.primary,12), width:"100%", textAlign:"center", marginBottom:10 }}>+ Add campaign manually</button>
+  );
+  return (
+    <div style={{ ...card("14px 16px"), marginBottom:12, border:`1px solid ${C.primary}20` }}>
+      <div style={{ fontFamily:FH, fontWeight:600, fontSize:13, marginBottom:10 }}>New campaign</div>
+      <div style={{ marginBottom:8 }}>
+        <label style={lbl}>What are you doing?</label>
+        <input style={inp()} value={title} onChange={e=>setTitle(e.target.value)} placeholder="e.g. Post 3x per week on Instagram for a month" autoFocus />
+      </div>
+      <div style={{ marginBottom:8 }}>
+        <label style={lbl}>Channel</label>
+        <select style={{ ...inp(), appearance:"none" }} value={channel} onChange={e=>setChannel(e.target.value)}>
+          {CHANNEL_OPTIONS.map(c=><option key={c} value={c}>{c.charAt(0).toUpperCase()+c.slice(1)}</option>)}
+        </select>
+      </div>
+      <div style={{ marginBottom:12 }}>
+        <label style={lbl}>Target / success metric (optional)</label>
+        <input style={inp()} value={target} onChange={e=>setTarget(e.target.value)} placeholder="e.g. +100 followers, 5 new leads" />
+      </div>
+      <div style={{ display:"flex", gap:8 }}>
+        <button onClick={add} style={{ ...btn(C.primary,"#fff",12), flex:1 }}>Add campaign</button>
+        <button onClick={()=>setOpen(false)} style={{ ...btnO(C.muted,12), padding:"8px 14px" }}>Cancel</button>
+      </div>
+    </div>
+  );
+}
+
 function AgentPanel({ businessId, metrics, planInfo, integs }) {
   const [insights,     setInsights]     = useState([]);
+  const [ranAt,        setRanAt]        = useState(null);
   const [running,      setRunning]      = useState(false);
   const [implementing, setImplementing] = useState(null);
+  const [implemented,  setImplemented]  = useState({});
   const [activity,     setActivity]     = useState([]);
   const [error,        setError]        = useState("");
   const [access,       setAccess]       = useState(null);
@@ -1023,14 +1067,16 @@ function AgentPanel({ businessId, metrics, planInfo, integs }) {
 
   useEffect(()=>{
     api.agents.activity(businessId).then(d=>setActivity(d.activity||[])).catch(()=>{});
+    api.agents.savedInsights(businessId).then(d=>{ if(d.insights?.length) { setInsights(d.insights); setRanAt(d.ranAt); } }).catch(()=>{});
     refreshAccess();
   },[businessId]);
 
   const runAnalysis = async () => {
     setRunning(true); setError(""); setInsights([]);
     try {
-      const {insights:data} = await api.agents.runMarketing(businessId);
+      const {insights:data, ranAt:ts} = await api.agents.runMarketing(businessId);
       setInsights(Array.isArray(data) ? data : []);
+      setRanAt(ts||new Date().toISOString());
       api.agents.activity(businessId).then(d=>setActivity(d.activity||[])).catch(()=>{});
       refreshAccess();
     } catch(e){ setError(e.message); }
@@ -1040,7 +1086,8 @@ function AgentPanel({ businessId, metrics, planInfo, integs }) {
   const implement = async insight => {
     setImplementing(insight.id); setError("");
     try {
-      await api.agents.implement(businessId, insight);
+      const result = await api.agents.implement(businessId, insight);
+      setImplemented(p=>({...p,[insight.id]:result}));
       api.agents.activity(businessId).then(d=>setActivity(d.activity||[])).catch(()=>{});
       refreshAccess();
     } catch(e){ setError(e.message); }
@@ -1097,10 +1144,11 @@ function AgentPanel({ businessId, metrics, planInfo, integs }) {
             <div style={{ ...card("10px 14px"), marginBottom:12, fontSize:12, color:C.muted, fontFamily:FB, borderStyle:"dashed" }}>Add integrations in the Hub tab to get channel-specific insights. Analysis works with any or all channels.</div>
           )}
 
-          <button onClick={runAnalysis} disabled={running||(access&&!access.marketing.allowed)} style={{ ...btn(running?"#9CA3AF":(access&&!access.marketing.allowed)?"#D1D5DB":C.grad), width:"100%", marginBottom:14, display:"flex", alignItems:"center", justifyContent:"center", gap:10, cursor:(access&&!access.marketing.allowed)?"not-allowed":"pointer" }}>
+          <button onClick={runAnalysis} disabled={running||(access&&!access.marketing.allowed)} style={{ ...btn(running?"#9CA3AF":(access&&!access.marketing.allowed)?"#D1D5DB":C.grad), width:"100%", marginBottom:ranAt?6:14, display:"flex", alignItems:"center", justifyContent:"center", gap:10, cursor:(access&&!access.marketing.allowed)?"not-allowed":"pointer" }}>
             {running && <span style={{ width:14,height:14,borderRadius:"50%",border:"2px solid rgba(255,255,255,0.4)",borderTopColor:"#fff",animation:"spin 0.7s linear infinite",flexShrink:0 }}/>}
             {running?"Analyzing your business…":(access&&!access.marketing.allowed)?"Upgrade to run analysis":insights.length?"Re-run analysis":"Run marketing analysis"}
           </button>
+          {ranAt && !running && <div style={{ fontSize:11, color:C.muted, fontFamily:FB, marginBottom:14, textAlign:"center" }}>Last run {new Date(ranAt).toLocaleDateString(undefined,{month:"short",day:"numeric",hour:"2-digit",minute:"2-digit"})}</div>}
 
           {running && (
             <div style={{ ...card("14px"), marginBottom:12, background:C.primaryBg, border:`1px solid ${C.primary}20` }}>
@@ -1115,7 +1163,6 @@ function AgentPanel({ businessId, metrics, planInfo, integs }) {
 
           {insights.length === 0 && !running && (
             <div style={{ ...card("16px"), textAlign:"center", border:"1px dashed "+C.border }}>
-              <div style={{ fontSize:28, marginBottom:8 }}>📊</div>
               <div style={{ fontSize:13, color:C.muted, fontFamily:FB, lineHeight:1.6 }}>No analysis yet. Run one above to get specific recommendations for your connected channels.</div>
             </div>
           )}
@@ -1133,12 +1180,16 @@ function AgentPanel({ businessId, metrics, planInfo, integs }) {
               <div style={{ background:C.okBg, borderRadius:6, padding:"6px 10px", marginBottom:10, fontSize:12, color:C.ok, fontFamily:FB }}>Expected: {insight.expectedImpact}</div>
               <div style={{ display:"flex", gap:8 }}>
                 <button onClick={()=>saveCampaign(insight)} style={{ ...btnO(C.primary,11), flex:1, textAlign:"center" }}>Save as campaign</button>
-                {access && !access.management.allowed ? (
+                {implemented[insight.id] && !implemented[insight.id].liveUrl ? (
+                  <div style={{ flex:1, ...card("6px 10px"), background:C.okBg, border:`1px solid ${C.ok}30`, fontSize:11, color:C.ok, fontFamily:FB, lineHeight:1.4, display:"flex", alignItems:"center" }}>
+                    Action queued — check the agent log and apply the recommendation on your {implemented[insight.id].channel} channel.
+                  </div>
+                ) : access && !access.management.allowed ? (
                   <button onClick={()=>navigate("/pricing")} style={{ ...btn("#D97706","#fff",12), flex:1 }}>Upgrade to implement</button>
                 ) : (
-                  <button onClick={()=>implement(insight)} disabled={!!implementing} style={{ ...btn(implementing===insight.id?"#9CA3AF":C.dark,"#fff",12), flex:1, display:"flex", alignItems:"center", justifyContent:"center", gap:8, opacity:implementing&&implementing!==insight.id?0.5:1 }}>
+                  <button onClick={()=>implement(insight)} disabled={!!implementing} style={{ ...btn(implementing===insight.id?"#9CA3AF":implemented[insight.id]?C.ok:C.dark,"#fff",12), flex:1, display:"flex", alignItems:"center", justifyContent:"center", gap:8, opacity:implementing&&implementing!==insight.id?0.5:1 }}>
                     {implementing===insight.id&&<span style={{ width:12,height:12,borderRadius:"50%",border:"2px solid rgba(255,255,255,0.4)",borderTopColor:"#fff",animation:"spin 0.7s linear infinite" }}/>}
-                    {implementing===insight.id?"Implementing…":"Implement"}
+                    {implementing===insight.id?"Implementing…":implemented[insight.id]?"Done":"Implement"}
                   </button>
                 )}
               </div>
@@ -1159,8 +1210,7 @@ function AgentPanel({ businessId, metrics, planInfo, integs }) {
 
           {campaigns.length === 0 && (
             <div style={{ ...card("16px"), textAlign:"center", border:"1px dashed "+C.border, marginBottom:14 }}>
-              <div style={{ fontSize:28, marginBottom:8 }}>🎯</div>
-              <div style={{ fontSize:12, color:C.muted, fontFamily:FB, lineHeight:1.6 }}>Run an analysis, then hit "Save as campaign" on any insight to track it here.</div>
+              <div style={{ fontSize:12, color:C.muted, fontFamily:FB, lineHeight:1.6 }}>Run an analysis, then hit "Save as campaign" on any insight to track it here. Or add a campaign manually below.</div>
             </div>
           )}
 
@@ -1181,6 +1231,8 @@ function AgentPanel({ businessId, metrics, planInfo, integs }) {
               </div>
             </div>
           ))}
+
+          <AddCampaignForm onAdd={c=>saveCampaigns([c,...campaigns])} />
 
           {activity.length > 0 && (
             <div style={{ ...card("14px 16px"), background:C.dark, marginTop:4 }}>

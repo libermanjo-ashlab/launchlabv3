@@ -65,7 +65,8 @@ export const api = {
     portal:   () => req("POST", "/subscriptions/portal"),
   },
   agents: {
-    runMarketing: bizId         => req("POST", `/agents/${bizId}/marketing/run`),
+    runMarketing:   bizId         => req("POST", `/agents/${bizId}/marketing/run`),
+    savedInsights:  bizId         => req("GET",  `/agents/${bizId}/marketing/insights`),
     implement:    (bizId,insight)=> req("POST", `/agents/${bizId}/management/implement`, { insight }),
     activity:     bizId         => req("GET",  `/agents/${bizId}/activity`),
     access:       bizId         => req("GET",  `/agents/${bizId}/access`),

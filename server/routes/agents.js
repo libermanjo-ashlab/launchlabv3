@@ -67,6 +67,18 @@ router.get("/:businessId/access", requireAuth, async (req, res, next) => {
   } catch(e) { next(e); }
 });
 
+// GET saved marketing insights (persisted from last run)
+router.get("/:businessId/marketing/insights", requireAuth, async (req, res, next) => {
+  try {
+    const biz = await prisma.business.findFirst({ where:{ id:req.params.businessId, userId:req.userId } });
+    if (!biz) return res.status(404).json({ error:"Business not found" });
+    const out = await prisma.businessOutput.findFirst({ where:{ businessId:req.params.businessId, type:"marketing_insights" } });
+    if (!out) return res.json({ insights:[], ranAt:null });
+    try { const d = JSON.parse(out.content); return res.json({ insights: d.insights||[], ranAt: d.ranAt||null }); }
+    catch { return res.json({ insights:[], ranAt:null }); }
+  } catch(e) { next(e); }
+});
+
 router.post("/:businessId/marketing/run", requireAuth, async (req, res, next) => {
   try {
     const { user, effective } = await loadUserAndPlan(req.userId);
@@ -86,7 +98,14 @@ router.post("/:businessId/marketing/run", requireAuth, async (req, res, next) =>
     if (effective.plan === "trial") await bumpUsage(req.params.businessId, "marketingRuns");
     logActivity(req.params.businessId,{ agent:"marketing", action:`Found ${insights.length} insights`, detail:`${insights.filter(i=>i.priority==="high").length} high priority actions identified` });
 
-    res.json({ insights });
+    // Persist insights so they survive page navigation
+    const ranAt = new Date().toISOString();
+    const content = JSON.stringify({ insights, ranAt });
+    const existing = await prisma.businessOutput.findFirst({ where:{ businessId:req.params.businessId, type:"marketing_insights" } });
+    if (existing) await prisma.businessOutput.update({ where:{ id:existing.id }, data:{ content } });
+    else await prisma.businessOutput.create({ data:{ businessId:req.params.businessId, type:"marketing_insights", title:"Marketing Analysis", content } });
+
+    res.json({ insights, ranAt });
   } catch(e) { next(e); }
 });
 
@@ -98,43 +117,56 @@ router.post("/:businessId/management/implement", requireAuth, async (req, res, n
     const check = canImplement(effective, usage);
     if (!check.allowed) return res.status(402).json({ error: check.reason, upgradeRequired:true });
 
-    if (!process.env.NETLIFY_TOKEN) return res.status(503).json({ error:"NETLIFY_TOKEN not set — add it to your Railway environment variables to enable live website updates" });
     const biz = await prisma.business.findFirst({ where:{ id:req.params.businessId, userId:req.userId } });
     if (!biz) return res.status(404).json({ error:"Business not found" });
 
     logActivity(req.params.businessId,{ agent:"management", action:"Implementing insight", detail:insight.recommendation?.slice(0,80) });
 
-    const websiteOut = await prisma.businessOutput.findFirst({ where:{ businessId:req.params.businessId, type:"website" } });
-    if (!websiteOut) return res.status(400).json({ error:"Generate your website first in the Marketing Agent tab" });
+    const isWebsiteInsight = insight.type === "website" || insight.implementationChannel === "website";
 
-    const { html } = await runManagementAgent(biz, insight, websiteOut.content);
-    await prisma.businessOutput.update({ where:{ id:websiteOut.id }, data:{ content:html } });
-    logActivity(req.params.businessId,{ agent:"management", action:"Website updated", detail:"New content generated and ready to deploy" });
+    if (isWebsiteInsight) {
+      // Website deploy path — requires Netlify token and a generated website
+      if (!process.env.NETLIFY_TOKEN) return res.status(503).json({ error:"NETLIFY_TOKEN not configured — add it to Railway environment variables to deploy website changes" });
+      const websiteOut = await prisma.businessOutput.findFirst({ where:{ businessId:req.params.businessId, type:"website" } });
+      if (!websiteOut) return res.status(400).json({ error:"Generate your website in the Tasks tab first, then implement this insight." });
 
-    const token = process.env.NETLIFY_TOKEN;
-    let netlifyIntg = await prisma.integration.findFirst({ where:{ businessId:req.params.businessId, provider:"netlify" } });
-    let siteId, siteUrl;
-    if (netlifyIntg?.status==="connected" && netlifyIntg.metadata) {
-      ({ siteId, siteUrl } = JSON.parse(netlifyIntg.metadata));
-    } else {
-      logActivity(req.params.businessId,{ agent:"management", action:"Creating your live site", detail:"Provisioning Netlify URL for the first time" });
-      const site = await createSite(token, biz.name);
-      siteId = site.siteId; siteUrl = site.siteUrl;
-      await prisma.integration.upsert({
-        where:{ businessId_provider:{ businessId:req.params.businessId, provider:"netlify" } },
-        update:{ status:"connected", metadata:JSON.stringify({ siteId, siteUrl }) },
-        create:{ businessId:req.params.businessId, provider:"netlify", status:"connected", metadata:JSON.stringify({ siteId, siteUrl }) },
-      });
+      const { html } = await runManagementAgent(biz, insight, websiteOut.content);
+      await prisma.businessOutput.update({ where:{ id:websiteOut.id }, data:{ content:html } });
+      logActivity(req.params.businessId,{ agent:"management", action:"Website updated", detail:"New content generated and ready to deploy" });
+
+      const token = process.env.NETLIFY_TOKEN;
+      let netlifyIntg = await prisma.integration.findFirst({ where:{ businessId:req.params.businessId, provider:"netlify" } });
+      let siteId, siteUrl;
+      if (netlifyIntg?.status==="connected" && netlifyIntg.metadata) {
+        ({ siteId, siteUrl } = JSON.parse(netlifyIntg.metadata));
+      } else {
+        logActivity(req.params.businessId,{ agent:"management", action:"Creating your live site", detail:"Provisioning Netlify URL for the first time" });
+        const site = await createSite(token, biz.name);
+        siteId = site.siteId; siteUrl = site.siteUrl;
+        await prisma.integration.upsert({
+          where:{ businessId_provider:{ businessId:req.params.businessId, provider:"netlify" } },
+          update:{ status:"connected", metadata:JSON.stringify({ siteId, siteUrl }) },
+          create:{ businessId:req.params.businessId, provider:"netlify", status:"connected", metadata:JSON.stringify({ siteId, siteUrl }) },
+        });
+      }
+
+      logActivity(req.params.businessId,{ agent:"management", action:"Deploying to web", detail:`Pushing to ${siteUrl}` });
+      const { liveUrl, deployId } = await deploySite(token, siteId, html);
+      await prisma.integration.updateMany({ where:{ businessId:req.params.businessId, provider:"netlify" }, data:{ metadata:JSON.stringify({ siteId, siteUrl, liveUrl, deployId, lastDeployed:new Date().toISOString() }) } });
+      logActivity(req.params.businessId,{ agent:"management", action:"Site live", detail:`Updated at ${liveUrl}` });
+
+      if (effective.plan === "trial") await bumpUsage(req.params.businessId, "managementImplements");
+      return res.json({ success:true, liveUrl, deployId });
     }
 
-    logActivity(req.params.businessId,{ agent:"management", action:"Deploying to web", detail:`Pushing to ${siteUrl}` });
-    const { liveUrl, deployId } = await deploySite(token, siteId, html);
-    await prisma.integration.updateMany({ where:{ businessId:req.params.businessId, provider:"netlify" }, data:{ metadata:JSON.stringify({ siteId, siteUrl, liveUrl, deployId, lastDeployed:new Date().toISOString() }) } });
-    logActivity(req.params.businessId,{ agent:"management", action:"Live", detail:`Site updated at ${liveUrl}` });
+    // Non-website channels (Instagram, email, Google, Calendly, etc.)
+    // Log the action plan and mark as implemented — user executes manually or via future API integrations
+    const channelLabel = insight.implementationChannel || insight.type || "channel";
+    logActivity(req.params.businessId,{ agent:"management", action:`${channelLabel} action queued`, detail: insight.managementAction?.slice(0,100) || insight.recommendation?.slice(0,100) });
+    logActivity(req.params.businessId,{ agent:"management", action:"Ready to act", detail:`Review the recommendation and apply it on ${channelLabel}` });
 
     if (effective.plan === "trial") await bumpUsage(req.params.businessId, "managementImplements");
-
-    res.json({ success:true, liveUrl, deployId });
+    return res.json({ success:true, channel: channelLabel, actionPlan: insight.managementAction || insight.recommendation });
   } catch(e) { next(e); }
 });
 
