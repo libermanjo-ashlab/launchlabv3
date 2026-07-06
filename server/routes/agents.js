@@ -222,6 +222,98 @@ router.post("/:businessId/management/implement", requireAuth, async (req, res, n
   } catch(e) { next(e); }
 });
 
+/**
+ * POST /:businessId/campaigns/breakdown
+ * Break a marketing campaign into concrete sub-tasks and save them to the
+ * Tasks table so they appear on the Tasks page.
+ * Body: { campaign: { id, title, channel, rationale, mode } }
+ */
+router.post("/:businessId/campaigns/breakdown", requireAuth, async (req, res, next) => {
+  try {
+    const { campaign } = req.body;
+    if (!campaign?.title) return res.status(400).json({ error: "campaign.title is required" });
+
+    const biz = await prisma.business.findFirst({ where:{ id:req.params.businessId, userId:req.userId } });
+    if (!biz) return res.status(404).json({ error:"Business not found" });
+
+    let idea = {}; try { idea = JSON.parse(biz.ideaData||"{}"); } catch {}
+
+    const Anthropic = require("@anthropic-ai/sdk");
+    const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+
+    const prompt = `You are a marketing strategist helping break down a marketing campaign into concrete, executable sub-tasks.
+
+Business: "${biz.name}" (${idea.name || "service business"})
+Campaign: "${campaign.title}"
+Channel: ${campaign.channel || "general"}
+Rationale: ${campaign.rationale || ""}
+Execution mode: ${campaign.mode || "manual"}
+
+Break this campaign into 3–6 concrete, actionable tasks. Each task should be specific, completable in 1–3 days, and clearly linked to the campaign goal.
+
+Return a JSON object:
+{
+  "tasks": [
+    {
+      "name": "short task name",
+      "description": "specific action to take, 1–2 sentences",
+      "estimatedTime": "e.g. 30 min",
+      "canAutomate": true or false,
+      "progressUnit": "posts" | "emails" | "replies" | "sessions" | "actions" | null
+    }
+  ],
+  "progressTarget": <total number of measurable units, or null if not applicable>,
+  "progressUnit": "posts" | "emails" | "replies" | "sessions" | "actions" | null
+}`;
+
+    const msg = await client.messages.create({
+      model: "claude-sonnet-4-6", max_tokens: 800,
+      messages: [{ role:"user", content: prompt }],
+    });
+    let parsed = { tasks: [], progressTarget: null, progressUnit: null };
+    try {
+      const text = msg.content[0]?.text || "";
+      const match = text.match(/\{[\s\S]*\}/);
+      if (match) parsed = JSON.parse(match[0]);
+    } catch {}
+
+    // Save tasks to the Tasks table
+    const savedTasks = [];
+    for (let i = 0; i < (parsed.tasks || []).length; i++) {
+      const t = parsed.tasks[i];
+      const task = await prisma.task.create({
+        data: {
+          businessId: req.params.businessId,
+          name:          t.name || `Campaign task ${i+1}`,
+          category:      "campaign",
+          description:   t.description || "",
+          status:        "pending",
+          mode:          campaign.mode === "auto" ? "auto" : campaign.mode === "guided" ? "guided" : "manual",
+          estimatedTime: t.estimatedTime || null,
+          canAutomate:   !!t.canAutomate,
+          steps:         JSON.stringify([{ label: campaign.title, detail: t.description }]),
+          sortOrder:     i,
+        },
+      });
+      savedTasks.push({ ...task, progressUnit: t.progressUnit });
+    }
+
+    logActivity(req.params.businessId, {
+      agent: "marketing",
+      action: "Campaign broken into tasks",
+      detail: `"${campaign.title}" → ${savedTasks.length} tasks created`,
+    });
+
+    res.json({
+      success: true,
+      tasks: savedTasks,
+      taskIds: savedTasks.map(t => t.id),
+      progressTarget: parsed.progressTarget || null,
+      progressUnit:   parsed.progressUnit   || null,
+    });
+  } catch(e) { next(e); }
+});
+
 router.get("/:businessId/deploy-status", requireAuth, async (req, res, next) => {
   try {
     const biz = await prisma.business.findFirst({ where:{ id:req.params.businessId, userId:req.userId } });

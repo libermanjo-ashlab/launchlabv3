@@ -1263,15 +1263,135 @@ function InstagramPanel({ businessId, integs }) {
 
 const CHANNEL_OPTIONS = ["instagram","email","website","google","calendly","twitter","general"];
 
+// ── CampaignCard ─────────────────────────────────────────────────────────────
+
+function CampaignCard({ campaign:c, onModeChange, onStart, onProgressUpdate, onDone, onDelete, businessId, navigate, statusClr, typeLabel }) {
+  const [starting, setStarting] = useState(false);
+  const [running,  setRunning]  = useState(null); // taskId being run
+
+  const mode      = c.mode || "guided";
+  const tasks     = c.tasks || [];
+  const completed = tasks.filter(t=>t.status==="completed").length;
+  const total     = tasks.length;
+  const progCurr  = c.progressCurrent || 0;
+  const progTgt   = c.progressTarget  || 0;
+  const pct       = total > 0 ? Math.round(completed / total * 100) : (progTgt > 0 ? Math.min(100, Math.round(progCurr / progTgt * 100)) : 0);
+  const isLongTerm = progTgt > 0;
+
+  const handleStart = async () => {
+    setStarting(true);
+    await onStart();
+    setStarting(false);
+  };
+
+  const runTask = async (task) => {
+    setRunning(task.id);
+    try {
+      const result = await api.tasks.run(task.id);
+      // Mark task completed in local campaign state + nudge progress
+      if (c.tasks) {
+        const updated = c.tasks.map(t=>t.id===task.id?{...t,status:"completed"}:t);
+        // Parent will re-render via saveCampaigns; update via onProgressUpdate delta
+      }
+      onProgressUpdate(1);
+      alert(`Task done: ${task.name}\n\n${result.output?.slice(0,300)||""}`);
+    } catch(e){ alert(e.message); }
+    setRunning(null);
+  };
+
+  return (
+    <div style={{ ...card("12px 14px"), marginBottom:10, border:`1px solid ${(statusClr[c.status]||"#E2E0DB")}30` }}>
+      {/* Header */}
+      <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", marginBottom:6 }}>
+        <div style={{ fontSize:13, fontWeight:600, fontFamily:FB, flex:1, lineHeight:1.4, paddingRight:8 }}>{c.title}</div>
+        <span style={{ fontSize:9, fontWeight:700, fontFamily:FB, padding:"2px 7px", borderRadius:20, textTransform:"uppercase", letterSpacing:"0.05em", background:(statusClr[c.status]||"#9CA3AF")+"18", color:statusClr[c.status]||"#9CA3AF", flexShrink:0 }}>{c.status}</span>
+      </div>
+      {c.channel && <div style={{ fontSize:11, color:C.primary, fontFamily:FB, marginBottom:4 }}>{typeLabel[c.channel]||c.channel}</div>}
+      {c.rationale && <div style={{ fontSize:12, color:C.muted, fontFamily:FB, lineHeight:1.5, marginBottom:6 }}>{c.rationale}</div>}
+      {c.expectedImpact && <div style={{ background:C.okBg, borderRadius:6, padding:"4px 8px", fontSize:11, color:C.ok, fontFamily:FB, marginBottom:8 }}>Target: {c.expectedImpact}</div>}
+
+      {/* Mode selector (only while planned) */}
+      {c.status === "planned" && (
+        <div style={{ display:"flex", gap:4, marginBottom:10 }}>
+          {MODE_OPTS.map(o=>(
+            <button key={o.value} onClick={()=>onModeChange(o.value)} title={o.desc}
+              style={{ ...btn(mode===o.value?C.primary:"#F4F4F5", mode===o.value?"#fff":C.muted, 10), padding:"4px 10px" }}>{o.label}</button>
+          ))}
+        </div>
+      )}
+
+      {/* Progress bar (when active with tasks or long-term metric) */}
+      {c.status !== "planned" && (total > 0 || isLongTerm) && (
+        <div style={{ marginBottom:10 }}>
+          <div style={{ display:"flex", justifyContent:"space-between", fontSize:10, color:C.muted, fontFamily:FB, marginBottom:4 }}>
+            <span>{isLongTerm ? `${progCurr} / ${progTgt} ${c.progressUnit||"actions"}` : `${completed} / ${total} tasks`}</span>
+            <span>{pct}%</span>
+          </div>
+          <div style={{ height:6, borderRadius:3, background:C.border, overflow:"hidden" }}>
+            <div style={{ height:"100%", width:`${pct}%`, borderRadius:3, background: pct>=100?C.ok:C.primary, transition:"width 0.4s ease" }} />
+          </div>
+        </div>
+      )}
+
+      {/* Task list */}
+      {tasks.length > 0 && (
+        <div style={{ marginBottom:10 }}>
+          {tasks.map((t,ti)=>(
+            <div key={t.id||ti} style={{ display:"flex", alignItems:"center", gap:8, padding:"6px 0", borderBottom:`1px solid ${C.border}`, fontSize:12, fontFamily:FB }}>
+              <div style={{ width:14, height:14, borderRadius:"50%", border:`2px solid ${t.status==="completed"?C.ok:C.border}`, background:t.status==="completed"?C.ok:"transparent", flexShrink:0 }} />
+              <span style={{ flex:1, color:t.status==="completed"?C.muted:C.text, textDecoration:t.status==="completed"?"line-through":"none" }}>{t.name}</span>
+              {t.estimatedTime && <span style={{ fontSize:10, color:C.muted }}>{t.estimatedTime}</span>}
+              {t.status!=="completed" && mode!=="manual" && t.id && (
+                <button onClick={()=>runTask(t)} disabled={!!running} style={{ ...btn(mode==="auto"?C.primary:C.warn,"#fff",10), padding:"3px 8px", flexShrink:0 }}>
+                  {running===t.id?"Running…":mode==="auto"?"Run":"Start"}
+                </button>
+              )}
+              {mode==="manual" && t.status!=="completed" && (
+                <button onClick={()=>navigate("/tasks")} style={{ ...btnO(C.muted,10), padding:"3px 8px", flexShrink:0 }}>View in Tasks</button>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Footer actions */}
+      <div style={{ display:"flex", gap:6, flexWrap:"wrap" }}>
+        {c.status==="planned" && (
+          <button onClick={handleStart} disabled={starting} style={{ ...btn(C.warn,"#fff",10), padding:"4px 12px", display:"flex", gap:4, alignItems:"center" }}>
+            {starting&&<span style={{ width:8,height:8,borderRadius:"50%",border:"1.5px solid rgba(255,255,255,0.4)",borderTopColor:"#fff",animation:"spin 0.7s linear infinite" }}/>}
+            {starting?"Breaking into tasks…":"Start campaign"}
+          </button>
+        )}
+        {c.status==="active" && tasks.length === 0 && (
+          <button onClick={handleStart} disabled={starting} style={{ ...btnO(C.primary,10), padding:"4px 10px" }}>
+            {starting?"Generating tasks…":"Generate tasks"}
+          </button>
+        )}
+        {c.status==="active" && <button onClick={onDone} style={{ ...btn(C.ok,"#fff",10), padding:"4px 10px" }}>Mark done</button>}
+        {c.status==="active" && <button onClick={()=>navigate("/tasks")} style={{ ...btnO(C.primary,10), padding:"4px 10px" }}>All tasks ↗</button>}
+        {c.status==="completed" && <span style={{ fontSize:11, color:C.ok, fontFamily:FB }}>Completed {c.completedAt ? new Date(c.completedAt).toLocaleDateString():"" }</span>}
+        <button onClick={onDelete} style={{ ...btnO(C.err,10), padding:"4px 10px", marginLeft:"auto" }}>Remove</button>
+      </div>
+    </div>
+  );
+}
+
+const MODE_OPTS = [
+  { value:"auto",    label:"Auto",    desc:"Tasks run automatically when in autopilot" },
+  { value:"guided",  label:"Guided",  desc:"Suggests each action, you approve" },
+  { value:"manual",  label:"Manual",  desc:"Plan only — you do the work" },
+];
+
 function AddCampaignForm({ onAdd }) {
   const [open,    setOpen]    = useState(false);
   const [title,   setTitle]   = useState("");
   const [channel, setChannel] = useState("general");
   const [target,  setTarget]  = useState("");
+  const [mode,    setMode]    = useState("guided");
 
   const add = () => {
     if (!title.trim()) return;
-    onAdd({ id:Date.now().toString(), title:title.trim(), channel, expectedImpact:target.trim()||undefined, rationale:"", status:"planned", createdAt:new Date().toISOString() });
+    onAdd({ id:Date.now().toString(), title:title.trim(), channel, expectedImpact:target.trim()||undefined, rationale:"", status:"planned", mode, createdAt:new Date().toISOString() });
     setTitle(""); setTarget(""); setOpen(false);
   };
 
@@ -1290,6 +1410,14 @@ function AddCampaignForm({ onAdd }) {
         <select style={{ ...inp(), appearance:"none" }} value={channel} onChange={e=>setChannel(e.target.value)}>
           {CHANNEL_OPTIONS.map(c=><option key={c} value={c}>{c.charAt(0).toUpperCase()+c.slice(1)}</option>)}
         </select>
+      </div>
+      <div style={{ marginBottom:8 }}>
+        <label style={lbl}>Mode</label>
+        <div style={{ display:"flex", gap:6 }}>
+          {MODE_OPTS.map(o=>(
+            <button key={o.value} onClick={()=>setMode(o.value)} style={{ ...btn(mode===o.value?C.primary:"#F4F4F5", mode===o.value?"#fff":C.muted, 11), flex:1, flexDirection:"column", padding:"6px 8px", lineHeight:1.4 }} title={o.desc}>{o.label}</button>
+          ))}
+        </div>
       </div>
       <div style={{ marginBottom:12 }}>
         <label style={lbl}>Target / success metric (optional)</label>
@@ -1468,7 +1596,7 @@ function AgentPanel({ businessId, metrics, planInfo, integs }) {
   };
 
   const saveCampaign = (insight) => {
-    const c = { id: Date.now().toString(), title: insight.recommendation, rationale: insight.agentObservation, channel: insight.implementationChannel||insight.type, expectedImpact: insight.expectedImpact, status:"planned", createdAt: new Date().toISOString() };
+    const c = { id: Date.now().toString(), title: insight.recommendation, rationale: insight.agentObservation, channel: insight.implementationChannel||insight.type, expectedImpact: insight.expectedImpact, status:"planned", mode:"guided", createdAt: new Date().toISOString() };
     saveCampaigns([c, ...campaigns]);
   };
 
@@ -1585,21 +1713,24 @@ function AgentPanel({ businessId, metrics, planInfo, integs }) {
           )}
 
           {campaigns.map((c,i)=>(
-            <div key={c.id} style={{ ...card("12px 14px"), marginBottom:10, border:`1px solid ${statusClr[c.status]||C.border}18` }}>
-              <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", marginBottom:6 }}>
-                <div style={{ fontSize:13, fontWeight:600, fontFamily:FB, flex:1, lineHeight:1.4, paddingRight:8 }}>{c.title}</div>
-                <span style={{ fontSize:9, fontWeight:700, fontFamily:FB, padding:"2px 7px", borderRadius:20, textTransform:"uppercase", letterSpacing:"0.05em", background:(statusClr[c.status]||C.muted)+"18", color:statusClr[c.status]||C.muted, flexShrink:0 }}>{c.status}</span>
-              </div>
-              {c.channel && <div style={{ fontSize:11, color:C.primary, fontFamily:FB, marginBottom:4 }}>{typeLabel[c.channel]||c.channel}</div>}
-              {c.rationale && <div style={{ fontSize:12, color:C.muted, fontFamily:FB, lineHeight:1.5, marginBottom:8 }}>{c.rationale}</div>}
-              {c.expectedImpact && <div style={{ background:C.okBg, borderRadius:6, padding:"4px 8px", fontSize:11, color:C.ok, fontFamily:FB, marginBottom:8 }}>Target: {c.expectedImpact}</div>}
-              <div style={{ display:"flex", gap:6, flexWrap:"wrap" }}>
-                {c.status==="planned" && <button onClick={()=>markCampaignActive(c.id)} style={{ ...btn(C.warn,"#fff",10), padding:"4px 10px" }}>Start</button>}
-                {c.status==="active"  && <button onClick={()=>markCampaignDone(c.id)} style={{ ...btn(C.ok,"#fff",10), padding:"4px 10px" }}>Mark done</button>}
-                {c.status==="completed" && <span style={{ fontSize:11, color:C.ok, fontFamily:FB }}>✓ Completed {c.completedAt ? new Date(c.completedAt).toLocaleDateString() : ""}</span>}
-                <button onClick={()=>deleteCampaign(c.id)} style={{ ...btnO(C.err,10), padding:"4px 10px", marginLeft:"auto" }}>Remove</button>
-              </div>
-            </div>
+            <CampaignCard key={c.id} campaign={c}
+              onModeChange={(mode)=>saveCampaigns(campaigns.map(x=>x.id===c.id?{...x,mode}:x))}
+              onStart={async()=>{
+                const updated = {...c, status:"active"};
+                saveCampaigns(campaigns.map(x=>x.id===c.id?updated:x));
+                try {
+                  const res = await api.agents.campaignBreakdown(businessId, updated);
+                  saveCampaigns(prev=>prev.map(x=>x.id===c.id?{...x,status:"active",taskIds:res.taskIds,progressTarget:res.progressTarget,progressUnit:res.progressUnit,tasks:res.tasks}:x));
+                } catch(e){ alert("Could not break down campaign: "+e.message); }
+              }}
+              onProgressUpdate={(delta)=>saveCampaigns(campaigns.map(x=>x.id===c.id?{...x,progressCurrent:(x.progressCurrent||0)+delta}:x))}
+              onDone={()=>markCampaignDone(c.id)}
+              onDelete={()=>deleteCampaign(c.id)}
+              businessId={businessId}
+              navigate={navigate}
+              statusClr={statusClr}
+              typeLabel={typeLabel}
+            />
           ))}
 
           <AddCampaignForm onAdd={c=>saveCampaigns([c,...campaigns])} />

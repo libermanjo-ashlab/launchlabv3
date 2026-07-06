@@ -90,9 +90,10 @@ export const api = {
     portal:   () => req("POST", "/subscriptions/portal"),
   },
   agents: {
-    runMarketing:   bizId         => req("POST", `/agents/${bizId}/marketing/run`),
-    savedInsights:  bizId         => req("GET",  `/agents/${bizId}/marketing/insights`),
-    implement:    (bizId,insight)=> req("POST", `/agents/${bizId}/management/implement`, { insight }),
+    runMarketing:      bizId           => req("POST", `/agents/${bizId}/marketing/run`),
+    savedInsights:     bizId           => req("GET",  `/agents/${bizId}/marketing/insights`),
+    implement:       (bizId,insight)  => req("POST", `/agents/${bizId}/management/implement`, { insight }),
+    campaignBreakdown:(bizId,campaign) => req("POST", `/agents/${bizId}/campaigns/breakdown`, { campaign }),
     activity:     bizId         => req("GET",  `/agents/${bizId}/activity`),
     access:       bizId         => req("GET",  `/agents/${bizId}/access`),
     getAutopilot: bizId         => req("GET",  `/agents/${bizId}/autopilot`),
