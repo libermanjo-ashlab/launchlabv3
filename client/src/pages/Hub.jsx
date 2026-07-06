@@ -1284,6 +1284,103 @@ function AddCampaignForm({ onAdd }) {
   );
 }
 
+// ── ImplementResult — renders the result of clicking "Implement" on an insight ─
+
+function ImplementResult({ result, businessId }) {
+  const [imgUrl, setImgUrl] = useState("");
+  const [posting, setPosting] = useState(false);
+  const [postDone, setPostDone] = useState(null);
+
+  if (!result) return null;
+
+  // Instagram: published
+  if (result.channel === "instagram" && result.published && result.permalink) {
+    return (
+      <div style={{ marginTop:10, background:C.okBg, borderRadius:8, padding:"10px 14px", fontSize:12, color:C.ok, fontFamily:FB }}>
+        Posted to Instagram.{" "}
+        <a href={result.permalink} target="_blank" rel="noopener noreferrer" style={{ color:C.ok, fontWeight:700 }}>View post ↗</a>
+      </div>
+    );
+  }
+
+  // Instagram: caption ready, needs image URL
+  if (result.channel === "instagram" && result.caption) {
+    if (postDone) return (
+      <div style={{ marginTop:10, background:C.okBg, borderRadius:8, padding:"10px 14px", fontSize:12, color:C.ok, fontFamily:FB }}>
+        Posted to Instagram.{" "}
+        <a href={postDone.permalink} target="_blank" rel="noopener noreferrer" style={{ color:C.ok, fontWeight:700 }}>View post ↗</a>
+      </div>
+    );
+
+    const publishNow = async () => {
+      if (!imgUrl.trim()) return;
+      setPosting(true);
+      try {
+        const r = await api.instagram.createPost(businessId, imgUrl.trim(), result.caption);
+        setPostDone(r);
+      } catch(e) { alert(e.message); }
+      setPosting(false);
+    };
+
+    return (
+      <div style={{ marginTop:10, ...card("12px 14px"), border:`1px solid #E1306C30` }}>
+        <div style={{ fontSize:11, fontWeight:700, color:"#E1306C", textTransform:"uppercase", letterSpacing:"0.06em", marginBottom:6, fontFamily:FB }}>
+          {result.needsSetup ? "Instagram not set up" : "Caption generated — publish when ready"}
+        </div>
+        {result.needsSetup ? (
+          <div style={{ fontSize:12, color:C.muted, fontFamily:FB }}>Go to Hub → Instagram and add your Access Token + Business Account ID, then click Implement again.</div>
+        ) : (
+          <>
+            <div style={{ fontSize:12, color:C.text, fontFamily:FB, lineHeight:1.6, whiteSpace:"pre-wrap", marginBottom:10, background:"#F5F3FF", borderRadius:6, padding:"8px 10px" }}>{result.caption}</div>
+            <div style={{ marginBottom:8 }}>
+              <label style={lbl}>Image URL to publish <span style={{ color:C.muted, fontWeight:400 }}>(publicly accessible HTTPS link)</span></label>
+              <input style={{ ...inp(), fontSize:12 }} value={imgUrl} onChange={e=>setImgUrl(e.target.value)} placeholder="https://res.cloudinary.com/… or https://i.imgur.com/…" />
+              <div style={{ fontSize:10, color:C.muted, marginTop:4, fontFamily:FB }}>
+                Upload to <a href="https://cloudinary.com" target="_blank" rel="noopener noreferrer" style={{ color:C.primary }}>Cloudinary</a> (free) or <a href="https://imgur.com" target="_blank" rel="noopener noreferrer" style={{ color:C.primary }}>Imgur</a> and paste the direct image link.
+              </div>
+            </div>
+            <button onClick={publishNow} disabled={posting||!imgUrl.trim()} style={{ ...btn("#E1306C","#fff",12), display:"flex", gap:6, alignItems:"center" }}>
+              {posting&&<span style={{ width:10,height:10,borderRadius:"50%",border:"2px solid rgba(255,255,255,0.4)",borderTopColor:"#fff",animation:"spin 0.7s linear infinite" }}/>}
+              {posting?"Publishing…":"Publish to Instagram"}
+            </button>
+          </>
+        )}
+      </div>
+    );
+  }
+
+  // Website: live URL
+  if (result.liveUrl) {
+    return (
+      <div style={{ marginTop:10, background:C.okBg, borderRadius:8, padding:"10px 14px", fontSize:12, color:C.ok, fontFamily:FB }}>
+        Website deployed.{" "}
+        <a href={result.liveUrl} target="_blank" rel="noopener noreferrer" style={{ color:C.ok, fontWeight:700 }}>View live site ↗</a>
+      </div>
+    );
+  }
+
+  // All other channels: show the action plan as steps
+  if (result.actionPlan) {
+    const steps = result.actionPlan.split(/\.\s+/).filter(Boolean);
+    return (
+      <div style={{ marginTop:10, ...card("12px 14px"), border:`1px solid ${C.border}` }}>
+        <div style={{ fontSize:11, fontWeight:700, color:C.muted, textTransform:"uppercase", letterSpacing:"0.06em", marginBottom:8, fontFamily:FB }}>
+          Next steps — {result.channel || "manual"}
+        </div>
+        {steps.map((s,i) => (
+          <div key={i} style={{ display:"flex", gap:8, marginBottom:6, fontSize:12, color:C.text, fontFamily:FB, lineHeight:1.55 }}>
+            <span style={{ minWidth:18, height:18, borderRadius:"50%", background:C.primaryBg, color:C.primary, fontSize:10, fontWeight:700, display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0, marginTop:1 }}>{i+1}</span>
+            <span>{s.trim()}{s.trim().endsWith(".")?"":" ."}</span>
+          </div>
+        ))}
+        <button onClick={()=>navigator.clipboard?.writeText(result.actionPlan)} style={{ ...btnO(C.muted,11), marginTop:6, padding:"4px 12px" }}>Copy plan</button>
+      </div>
+    );
+  }
+
+  return null;
+}
+
 function AgentPanel({ businessId, metrics, planInfo, integs }) {
   const [insights,     setInsights]     = useState([]);
   const [ranAt,        setRanAt]        = useState(null);
@@ -1420,11 +1517,7 @@ function AgentPanel({ businessId, metrics, planInfo, integs }) {
               <div style={{ background:C.okBg, borderRadius:6, padding:"6px 10px", marginBottom:10, fontSize:12, color:C.ok, fontFamily:FB }}>Expected: {insight.expectedImpact}</div>
               <div style={{ display:"flex", gap:8 }}>
                 <button onClick={()=>saveCampaign(insight)} style={{ ...btnO(C.primary,11), flex:1, textAlign:"center" }}>Save as campaign</button>
-                {implemented[insight.id] && !implemented[insight.id].liveUrl ? (
-                  <div style={{ flex:1, ...card("6px 10px"), background:C.okBg, border:`1px solid ${C.ok}30`, fontSize:11, color:C.ok, fontFamily:FB, lineHeight:1.4, display:"flex", alignItems:"center" }}>
-                    Action queued — check the agent log and apply the recommendation on your {implemented[insight.id].channel} channel.
-                  </div>
-                ) : access && !access.management.allowed ? (
+                {access && !access.management.allowed ? (
                   <button onClick={()=>navigate("/pricing")} style={{ ...btn("#D97706","#fff",12), flex:1 }}>Upgrade to implement</button>
                 ) : (
                   <button onClick={()=>implement(insight)} disabled={!!implementing} style={{ ...btn(implementing===insight.id?"#9CA3AF":implemented[insight.id]?C.ok:C.dark,"#fff",12), flex:1, display:"flex", alignItems:"center", justifyContent:"center", gap:8, opacity:implementing&&implementing!==insight.id?0.5:1 }}>
@@ -1433,6 +1526,7 @@ function AgentPanel({ businessId, metrics, planInfo, integs }) {
                   </button>
                 )}
               </div>
+              <ImplementResult result={implemented[insight.id]} businessId={businessId} />
             </div>
           ))}
         </div>
