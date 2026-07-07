@@ -60,37 +60,11 @@ function pickPalette(seed) {
  * @returns {string} SVG markup
  */
 /**
- * Word-wrap text into lines of maxChars each (word-boundary aware).
+ * Build an SVG post image — pure geometry, no text elements.
+ * Text is rendered client-side via Canvas API (browser fonts are always available).
+ * librsvg on Railway has no system fonts, so all <text> elements are omitted here.
  */
-function wrapText(text, maxChars) {
-  if (!text) return [];
-  const words = text.split(/\s+/);
-  const lines = [];
-  let line = "";
-  for (const w of words) {
-    if ((line + " " + w).trim().length > maxChars) {
-      if (line) lines.push(line.trim());
-      line = w;
-    } else {
-      line = (line + " " + w).trim();
-    }
-  }
-  if (line) lines.push(line.trim());
-  return lines;
-}
-
-/**
- * Build an SVG post image.
- * Renders:
- *  - Gradient background
- *  - Geometric accent shapes (stable per business)
- *  - Business name as a small label at bottom-left
- *  - Optional short caption text in a frosted content card
- *
- * Text uses system-generic font stacks (sans-serif). Sharp/librsvg will
- * substitute system fonts — no custom fonts required.
- */
-function buildSvg(businessName, bodyText, seed) {
+function buildSvg(businessName, _bodyText, seed) {
   const W = 1080, H = 1080;
   const [c1, c2] = pickPalette(seed || businessName);
 
@@ -98,7 +72,6 @@ function buildSvg(businessName, bodyText, seed) {
   for (let i = 0; i < businessName.length; i++) rng = (rng * 31 + businessName.charCodeAt(i)) >>> 0;
   const r = (min, max) => { rng = (rng * 1664525 + 1013904223) >>> 0; return min + (rng % (max - min)); };
 
-  // Geometric accents
   const accents = [
     `<circle cx="${r(680,950)}" cy="${r(60,260)}" r="${r(180,280)}" fill="white" fill-opacity="0.06"/>`,
     `<circle cx="${r(80,300)}"  cy="${r(680,900)}" r="${r(100,170)}" fill="white" fill-opacity="0.04"/>`,
@@ -107,26 +80,6 @@ function buildSvg(businessName, bodyText, seed) {
     `<rect x="${r(120,180)}" y="${r(70,130)}" width="16" height="16" rx="3" fill="white" fill-opacity="0.07"/>`,
     `<line x1="${r(820,920)}" y1="${r(680,780)}" x2="${r(880,980)}" y2="${r(800,900)}" stroke="white" stroke-width="2.5" stroke-opacity="0.14" stroke-linecap="round"/>`,
   ];
-
-  // Caption text card (only if bodyText provided and short enough)
-  const textBlock = [];
-  if (bodyText && bodyText.length > 0) {
-    // Take first sentence only, max 80 chars
-    const firstSentence = bodyText.split(/[.!?]/)[0]?.trim() || bodyText;
-    const display = firstSentence.length > 72 ? firstSentence.slice(0, 69) + "…" : firstSentence;
-    const lines = wrapText(display, 24);
-    const cardH = 80 + lines.length * 52;
-    const cardY = 500 - cardH / 2;
-    // Frosted card
-    textBlock.push(`<rect x="80" y="${cardY}" width="920" height="${cardH}" rx="16" fill="white" fill-opacity="0.13"/>`);
-    lines.forEach((line, i) => {
-      textBlock.push(`<text x="540" y="${cardY + 52 + i * 52}" text-anchor="middle" font-family="Arial,Helvetica,sans-serif" font-size="52" font-weight="700" fill="white" fill-opacity="0.92">${line.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;")}</text>`);
-    });
-  }
-
-  // Business name label — bottom left strip
-  const nameLabel = businessName.length > 28 ? businessName.slice(0,25)+"…" : businessName;
-  const nameLabelEl = `<text x="80" y="1020" font-family="Arial,Helvetica,sans-serif" font-size="32" font-weight="600" fill="white" fill-opacity="0.55">${nameLabel.replace(/&/g,"&amp;")}</text>`;
 
   return `<svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg">
   <defs>
@@ -141,9 +94,7 @@ function buildSvg(businessName, bodyText, seed) {
   </defs>
   <rect width="${W}" height="${H}" fill="url(#bg)"/>
   ${accents.join("\n  ")}
-  ${textBlock.join("\n  ")}
   <rect width="${W}" height="${H}" fill="url(#vig)"/>
-  ${nameLabelEl}
 </svg>`;
 }
 

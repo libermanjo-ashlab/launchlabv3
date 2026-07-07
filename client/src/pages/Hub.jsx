@@ -4,6 +4,7 @@ import useStore from "../lib/store";
 import { api } from "../lib/api";
 import { C, FH, FB, btn, btnO, card, inp, lbl, GuidePanel, Logo } from "../components";
 import AgentPanel from "./MarketingAgent";
+import { generatePostImageBlob } from "../lib/postImageCanvas";
 
 // ── GUIDED TOUR ───────────────────────────────────────────────────────────────
 
@@ -1050,7 +1051,7 @@ function UpgradeCard({ reason, navigate }) {
 
 // ── Instagram Panel ───────────────────────────────────────────────────────────
 
-function InstagramPanel({ businessId, integs }) {
+function InstagramPanel({ businessId, businessName, integs }) {
   const igMeta = (() => { try { const i=integs.find(x=>x.provider==="instagram"); return i?.metadata?JSON.parse(i.metadata):{};} catch{return {};} })();
   const hasToken = !!(igMeta.accessToken && igMeta.businessAccountId);
 
@@ -1122,7 +1123,12 @@ function InstagramPanel({ businessId, integs }) {
     try {
       const res = await api.instagram.generateCaption(businessId, "", "authentic");
       setPostCaption(res.caption);
-      if (res.imageUrl) setPostImg(res.imageUrl); // server-generated post image
+      // Generate image client-side (browser fonts always available — no boxes)
+      try {
+        const blob = await generatePostImageBlob(businessName || "Business", res.body || res.caption);
+        const { imageUrl } = await api.instagram.uploadImage(blob);
+        setPostImg(imageUrl);
+      } catch { /* non-fatal: user can upload their own */ }
     } catch(e){ alert(e.message); }
     setGenLoading(false);
   };
@@ -1607,9 +1613,9 @@ export default function Hub() {
               <div style={{ fontFamily:FH, fontWeight:700, fontSize:24, letterSpacing:"-0.04em", marginBottom:4 }}>Marketing Agent</div>
               <p style={{ color:C.muted, fontSize:14, marginBottom:24, fontFamily:FB }}>Analyzes your connected channels and metrics to surface the highest-impact opportunities. Works with any channel — add more in the Hub to broaden coverage.</p>
               {integs.some(i=>i.provider==="instagram") && (
-                <InstagramPanel businessId={businessId} integs={integs} />
+                <InstagramPanel businessId={businessId} businessName={business?.name || ""} integs={integs} />
               )}
-              <AgentPanel businessId={businessId} metrics={metrics} planInfo={planInfo} integs={integs} setTab={setTab}/>
+              <AgentPanel businessId={businessId} businessName={business?.name || ""} metrics={metrics} planInfo={planInfo} integs={integs} setTab={setTab}/>
             </div>
           )}
 

@@ -15,6 +15,7 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { api } from "../lib/api";
 import { C, FH, FB, btn, btnO, card, inp, lbl } from "../components";
+import { generatePostImageBlob } from "../lib/postImageCanvas";
 
 // ── Design helpers ────────────────────────────────────────────────────────────
 
@@ -309,7 +310,7 @@ function SuggestionCard({ suggestion:s, mode, onAddToCampaign, onImplement, impl
 
 // ── Campaign task row ─────────────────────────────────────────────────────────
 
-function CampaignTaskRow({ task:t, mode, channel, businessId, onComplete, onSkip, autoRun, isAutoRunning }) {
+function CampaignTaskRow({ task:t, mode, channel, businessId, businessName, onComplete, onSkip, autoRun, isAutoRunning }) {
   const [running,   setRunning]   = useState(false);
   const [content,   setContent]   = useState(null);
   const [showContent, setShowContent] = useState(false);
@@ -335,7 +336,16 @@ function CampaignTaskRow({ task:t, mode, channel, businessId, onComplete, onSkip
     setRunning(true);
     try {
       const res = await api.agents.taskContent(businessId, t, channel, mode);
-      setContent(res.content);
+      let c = res.content;
+      // For Instagram tasks, replace server-generated image with Canvas-rendered one
+      if (c?.caption && (channel === "instagram" || /instagram/i.test(t.name))) {
+        try {
+          const blob = await generatePostImageBlob(businessName || "Business", c.body || c.caption);
+          const { imageUrl } = await api.instagram.uploadImage(blob);
+          c = { ...c, imageUrl };
+        } catch { /* non-fatal — keep server image if any */ }
+      }
+      setContent(c);
       setShowContent(true);
     } catch(e) { setError(e.message); }
     setRunning(false);
@@ -412,7 +422,7 @@ function CampaignTaskRow({ task:t, mode, channel, businessId, onComplete, onSkip
 
 // ── Campaign Card ─────────────────────────────────────────────────────────────
 
-function CampaignCard({ campaign:c, onUpdate, onDelete, businessId, setTab }) {
+function CampaignCard({ campaign:c, onUpdate, onDelete, businessId, businessName, setTab }) {
   const [expanded,    setExpanded]    = useState(c.status==="active");
   const [starting,    setStarting]    = useState(false);
   const [autoRunning, setAutoRunning] = useState(false);
@@ -515,7 +525,7 @@ function CampaignCard({ campaign:c, onUpdate, onDelete, businessId, setTab }) {
             <div>
               {tasks.map((t,ti)=>(
                 <CampaignTaskRow key={t.id||ti} task={t} mode={mode} channel={c.channel}
-                  businessId={businessId} onComplete={completeTask} onSkip={skipTask}
+                  businessId={businessId} businessName={businessName} onComplete={completeTask} onSkip={skipTask}
                   autoRun={autoRunning} isAutoRunning={autoRunning} />
               ))}
               {tasks.length > 0 && <button onClick={()=>setTab("tasks")} style={{ ...btnO(C.muted,10), padding:"3px 8px", marginTop:6 }}>All tasks ↗</button>}
@@ -637,19 +647,37 @@ function AddCampaignForm({ mode, onAdd }) {
 
 // ── Implement Result (inline post-implement display) ─────────────────────────
 
-function ImplementResult({ result, businessId }) {
-  const [publishing, setPublishing] = useState(false);
-  const [published,  setPublished]  = useState(false);
-  const [copied,     setCopied]     = useState(false);
+function ImplementResult({ result, businessId, businessName }) {
+  const [publishing,  setPublishing]  = useState(false);
+  const [published,   setPublished]   = useState(false);
+  const [copied,      setCopied]      = useState(false);
+  const [localImgUrl, setLocalImgUrl] = useState(null);
+
+  // Generate image client-side when a caption arrives (browser fonts always available)
+  useEffect(() => {
+    if (!result?.caption || !businessName) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const blob = await generatePostImageBlob(businessName, result.body || result.caption);
+        const { imageUrl } = await api.instagram.uploadImage(blob);
+        if (!cancelled) setLocalImgUrl(imageUrl);
+      } catch { /* non-fatal */ }
+    })();
+    return () => { cancelled = true; };
+  }, [result?.caption, businessName]);
+
   if (!result) return null;
+
+  const displayImageUrl = localImgUrl || result.imageUrl;
 
   const copy = (t) => { navigator.clipboard.writeText(t||"").then(()=>{ setCopied(true); setTimeout(()=>setCopied(false),1500); }); };
 
   const publishNow = async () => {
-    if (!result.caption || !result.imageUrl) return;
+    if (!result.caption) return;
     setPublishing(true);
     try {
-      await api.instagram.createPost(businessId, result.imageUrl, result.caption);
+      await api.instagram.createPost(businessId, displayImageUrl || undefined, result.caption);
       setPublished(true);
     } catch(e) { alert(e.message); }
     setPublishing(false);
@@ -677,12 +705,12 @@ function ImplementResult({ result, businessId }) {
     return (
       <div style={{ marginTop:8, background:"#F9FAFB", borderRadius:8, padding:"10px 12px" }}>
         <p style={{ fontSize:11, fontWeight:700, color:C.muted, textTransform:"uppercase", letterSpacing:"0.05em", marginBottom:6, fontFamily:FB }}>Generated content</p>
-        {result.imageUrl && <img src={result.imageUrl} alt="Generated" style={{ width:"100%", borderRadius:6, marginBottom:8, maxHeight:180, objectFit:"cover" }} />}
+        {displayImageUrl && <img src={displayImageUrl} alt="Generated" style={{ width:"100%", borderRadius:6, marginBottom:8, maxHeight:180, objectFit:"cover" }} />}
         <p style={{ fontSize:13, color:C.text, fontFamily:FB, lineHeight:1.6, marginBottom:8 }}>{result.body || result.caption}</p>
         {result.hashtags && <p style={{ fontSize:11, color:C.muted, fontFamily:FB, marginBottom:10 }}>{result.hashtags}</p>}
         <div style={{ display:"flex", gap:6 }}>
           <button onClick={()=>copy(result.caption)} style={{ ...btnO(C.primary,11), flex:1, padding:"5px 10px" }}>{copied?"Copied!":"Copy caption"}</button>
-          {result.imageUrl && <button onClick={publishNow} disabled={publishing} style={{ ...btn(C.primary,"#fff",11), flex:1, padding:"5px 10px" }}>{publishing?"Publishing…":"Publish now"}</button>}
+          {result.caption && <button onClick={publishNow} disabled={publishing} style={{ ...btn(C.primary,"#fff",11), flex:1, padding:"5px 10px" }}>{publishing?"Publishing…":"Publish now"}</button>}
         </div>
       </div>
     );
@@ -714,7 +742,7 @@ function UpgradeCard({ reason, navigate }) {
 
 // ── MAIN AGENT PANEL ──────────────────────────────────────────────────────────
 
-export default function AgentPanel({ businessId, metrics, planInfo, integs, setTab }) {
+export default function AgentPanel({ businessId, businessName, metrics, planInfo, integs, setTab }) {
   const navigate = useNavigate();
 
   // Mode
@@ -1034,7 +1062,7 @@ export default function AgentPanel({ businessId, metrics, planInfo, integs, setT
                         onAddToCampaign={addToCampaigns} onImplement={implement}
                         implementing={implementing} implemented={implemented}
                         access={access} navigate={navigate} />
-                      <ImplementResult result={implemented[s.id]} businessId={businessId} />
+                      <ImplementResult result={implemented[s.id]} businessId={businessId} businessName={businessName} />
                     </div>
                   ))}
                 </div>
@@ -1061,7 +1089,7 @@ export default function AgentPanel({ businessId, metrics, planInfo, integs, setT
                 {agentMode==="auto"?"Auto-queued":"Planned"} ({plannedCampaigns.length})
               </p>
               {plannedCampaigns.map(c=>(
-                <CampaignCard key={c.id} campaign={c} onUpdate={updateCampaign} onDelete={deleteCampaign} businessId={businessId} setTab={setTab} />
+                <CampaignCard key={c.id} campaign={c} onUpdate={updateCampaign} onDelete={deleteCampaign} businessId={businessId} businessName={businessName} setTab={setTab} />
               ))}
             </div>
           )}
@@ -1073,7 +1101,7 @@ export default function AgentPanel({ businessId, metrics, planInfo, integs, setT
                 Active ({activeCampaigns.length})
               </p>
               {activeCampaigns.map(c=>(
-                <CampaignCard key={c.id} campaign={c} onUpdate={updateCampaign} onDelete={deleteCampaign} businessId={businessId} setTab={setTab} />
+                <CampaignCard key={c.id} campaign={c} onUpdate={updateCampaign} onDelete={deleteCampaign} businessId={businessId} businessName={businessName} setTab={setTab} />
               ))}
             </div>
           )}
@@ -1085,7 +1113,7 @@ export default function AgentPanel({ businessId, metrics, planInfo, integs, setT
                 Run Campaigns — tracking to goal ({monitoringCampaigns.length})
               </p>
               {monitoringCampaigns.map(c=>(
-                <CampaignCard key={c.id} campaign={c} onUpdate={updateCampaign} onDelete={deleteCampaign} businessId={businessId} setTab={setTab} />
+                <CampaignCard key={c.id} campaign={c} onUpdate={updateCampaign} onDelete={deleteCampaign} businessId={businessId} businessName={businessName} setTab={setTab} />
               ))}
             </div>
           )}
@@ -1113,7 +1141,7 @@ export default function AgentPanel({ businessId, metrics, planInfo, integs, setT
                 {showArchived?"▲":"▼"} Archived Campaigns ({archivedCampaigns.length})
               </button>
               {showArchived && archivedCampaigns.map(c=>(
-                <CampaignCard key={c.id} campaign={c} onUpdate={updateCampaign} onDelete={deleteCampaign} businessId={businessId} setTab={setTab} />
+                <CampaignCard key={c.id} campaign={c} onUpdate={updateCampaign} onDelete={deleteCampaign} businessId={businessId} businessName={businessName} setTab={setTab} />
               ))}
             </div>
           )}
