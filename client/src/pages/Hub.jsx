@@ -1055,19 +1055,21 @@ function UpgradeCard({ reason, navigate }) {
 
 const PILLAR_SUGGESTIONS = ["value tips", "social proof", "behind the scenes", "offers", "FAQs", "transformations", "client stories", "how-tos"];
 
-function BrandIdentityPanel({ businessId, integs, agentMode }) {
+function BrandIdentityPanel({ businessId }) {
   const [identity, setIdentity] = useState(null);
   const [loading,  setLoading]  = useState(true);
   const [saving,   setSaving]   = useState(false);
   const [populating, setPopulating] = useState(false);
   const [saved,    setSaved]    = useState(false);
   const [expanded, setExpanded] = useState(false);
+  const savedTimerRef = useRef(null);
 
   useEffect(() => {
     api.agents.getBrandIdentity(businessId)
       .then(d => setIdentity(d.identity))
       .catch(() => {})
       .finally(() => setLoading(false));
+    return () => clearTimeout(savedTimerRef.current);
   }, [businessId]);
 
   const field = (key, label, placeholder, multiline) => {
@@ -1092,7 +1094,7 @@ function BrandIdentityPanel({ businessId, integs, agentMode }) {
     try {
       const { identity: saved } = await api.agents.saveBrandIdentity(businessId, identity);
       setIdentity(saved); setSaved(true);
-      setTimeout(() => setSaved(false), 2000);
+      savedTimerRef.current = setTimeout(() => setSaved(false), 2000);
     } catch(e) { alert(e.message); }
     setSaving(false);
   };
@@ -1321,7 +1323,10 @@ function InstagramPanel({ businessId, businessName, integs }) {
         const blob = await generatePostImageBlob(businessName || "Business", res.body || res.caption);
         const { imageUrl } = await api.instagram.uploadImage(blob);
         setPostImg(imageUrl);
-      } catch { /* non-fatal: user can upload their own */ }
+      } catch(imgErr) {
+        // Non-fatal — caption succeeded; user can upload their own image
+        console.warn("Canvas image generation failed:", imgErr.message);
+      }
     } catch(e){ alert(e.message); }
     setGenLoading(false);
   };
@@ -1751,7 +1756,7 @@ export default function Hub() {
               </div>
 
               {/* Brand & Social Identity */}
-              <BrandIdentityPanel businessId={businessId} integs={integs} />
+              <BrandIdentityPanel businessId={businessId} />
 
               {/* Business preferences */}
               <BusinessPrefsCard prefs={prefs} onSave={savePrefs} compact />

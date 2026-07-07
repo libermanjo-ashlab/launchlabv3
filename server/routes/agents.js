@@ -138,11 +138,9 @@ router.post("/:businessId/marketing/run", requireAuth, async (req, res, next) =>
     else await prisma.businessOutput.create({ data:{ businessId:req.params.businessId, type:"marketing_insights", title:"Marketing Analysis", content } });
 
     // Auto-populate brand identity in guided/auto mode (non-blocking)
+    // Reuse integrations and metrics already loaded above — no extra DB round trips
     if (mode !== "manual" && process.env.OPENAI_API_KEY) {
-      const integrations2 = await prisma.integration.findMany({ where:{ businessId:req.params.businessId } });
-      const metricsOut2   = await prisma.businessOutput.findFirst({ where:{ businessId:req.params.businessId, type:"user_metrics" } });
-      let metrics2 = {}; try { metrics2 = JSON.parse(metricsOut2?.content||"{}"); } catch {}
-      populateAndSave(req.params.businessId, biz, JSON.parse(biz.ideaData||"{}"), integrations2, metrics2, reportData.report||null)
+      populateAndSave(req.params.businessId, biz, JSON.parse(biz.ideaData||"{}"), integrations, metrics, reportData.report||null)
         .catch(() => {}); // non-blocking, best-effort
     }
 
@@ -205,9 +203,6 @@ router.post("/:businessId/management/implement", requireAuth, async (req, res, n
     logActivity(req.params.businessId,{ agent:"management", action:`${channelLabel} action starting`, detail: insight.recommendation?.slice(0,100) });
 
     if (channelLabel === "instagram") {
-      // Delegate to Instagram act route logic inline
-      const igRouter = require("./instagram");
-      // We forward by calling the Instagram service directly
       const ig = require("../services/instagram");
       const intg = await prisma.integration.findFirst({ where:{ businessId:req.params.businessId, provider:"instagram" } });
       const meta = intg?.metadata ? JSON.parse(intg.metadata) : {};
@@ -239,21 +234,19 @@ router.post("/:businessId/management/implement", requireAuth, async (req, res, n
 
       // Image via DALL-E 3 (fallback to SVG if no OpenAI key)
       const imgGen = require("../services/imageGen");
+      const appUrl = process.env.APP_URL || process.env.CLIENT_URL || "http://localhost:3000";
       let generatedImageUrl;
       if (process.env.OPENAI_API_KEY) {
         try {
           const imgBuf = await openaiSvc.generatePostImage(biz.name, captionResult.body, brandId2);
           const imageId = imgGen.storeImage(imgBuf);
-          const appUrl = process.env.APP_URL || process.env.CLIENT_URL || "http://localhost:3000";
           generatedImageUrl = `${appUrl}/api/instagram/images/${imageId}`;
         } catch {
           const imageId = await imgGen.generatePostImage(biz.name, context2);
-          const appUrl = process.env.APP_URL || process.env.CLIENT_URL || "http://localhost:3000";
           generatedImageUrl = `${appUrl}/api/instagram/images/${imageId}`;
         }
       } else {
         const imageId = await imgGen.generatePostImage(biz.name, context2);
-        const appUrl = process.env.APP_URL || process.env.CLIENT_URL || "http://localhost:3000";
         generatedImageUrl = `${appUrl}/api/instagram/images/${imageId}`;
       }
 

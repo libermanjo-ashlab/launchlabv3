@@ -62,26 +62,34 @@ function bootstrapFromIdea(business, idea, integrations, metrics) {
   for (const intg of (integrations || [])) {
     let meta = {};
     try { meta = JSON.parse(intg.metadata || "{}"); } catch {}
+    const igFollowers = metrics.social?.instagram || 0;
+    const ttFollowers = metrics.social?.tiktok || 0;
     if (intg.provider === "instagram") {
-      connectedChannels.push({ name: "Instagram", status: "active", strength: `${metrics.social?.instagram || 0} followers`, priority: "high" });
+      const status = igFollowers >= 100 ? "active" : igFollowers > 0 ? "limited" : "limited";
+      connectedChannels.push({ name: "Instagram", status, strength: `${igFollowers} followers`, priority: "high" });
     } else if (intg.provider === "email") {
-      connectedChannels.push({ name: "Email", status: "active", strength: `${meta.provider || "Email"} connected`, priority: "high" });
+      const listSize = meta.listSize || 0;
+      const status = listSize >= 50 ? "active" : listSize > 0 ? "limited" : "limited";
+      connectedChannels.push({ name: "Email", status, strength: `${meta.provider || "Email"} — ${listSize} subscribers`, priority: "high" });
     } else if (intg.provider === "website" || intg.provider === "netlify") {
       connectedChannels.push({ name: "Website", status: "active", strength: "Live", priority: "medium" });
     } else if (intg.provider === "twitter") {
-      connectedChannels.push({ name: "X/Twitter", status: "active", strength: "Connected", priority: "medium" });
+      connectedChannels.push({ name: "X/Twitter", status: "limited", strength: "Connected", priority: "medium" });
     } else if (intg.provider === "google") {
-      connectedChannels.push({ name: "Google Business", status: "active", strength: `${metrics.social?.google_reviews || 0} reviews`, priority: "medium" });
+      const reviews = metrics.social?.google_reviews || 0;
+      connectedChannels.push({ name: "Google Business", status: reviews > 0 ? "active" : "limited", strength: `${reviews} reviews`, priority: "medium" });
     } else if (intg.provider === "tiktok") {
-      connectedChannels.push({ name: "TikTok", status: "active", strength: `${metrics.social?.tiktok || 0} followers`, priority: "high" });
+      const status = ttFollowers >= 100 ? "active" : "limited";
+      connectedChannels.push({ name: "TikTok", status, strength: `${ttFollowers} followers`, priority: "high" });
     }
   }
 
+  const limitedHighPri = connectedChannels.find(c => c.priority === "high" && c.status === "limited");
   const topOpportunity = connectedChannels.length === 0
     ? "Connect Instagram to start building a social presence"
-    : connectedChannels.find(c => c.priority === "high" && c.status !== "active")?.name
-      ? `Activate your ${connectedChannels.find(c => c.priority === "high" && c.status !== "active").name} channel`
-      : "Increase posting consistency across connected channels";
+    : limitedHighPri
+      ? `Grow your ${limitedHighPri.name} — it's connected but needs more consistent activity`
+      : "Increase posting consistency and engagement across connected channels";
 
   return {
     voice,

@@ -161,7 +161,16 @@ router.post("/:businessId/post", requireAuth, async (req, res, next) => {
     if (!imageUrl?.trim()) {
       const appUrl    = process.env.APP_URL || process.env.CLIENT_URL || "http://localhost:3000";
       const brandId   = await getBrandIdentity(req.params.businessId);
-      const captionBody = caption.split("#")[0].trim().slice(0, 300);
+      // Extract body by scanning from the tail for the trailing hashtag block
+      const captionLines = caption.split("\n");
+      let captionHashStart = captionLines.length;
+      for (let i = captionLines.length - 1; i >= 0; i--) {
+        const t = captionLines[i].trim();
+        if (t === "" || /^#\w/.test(t)) continue;
+        captionHashStart = i + 1;
+        break;
+      }
+      const captionBody = captionLines.slice(0, captionHashStart).join("\n").trim().slice(0, 300);
       if (process.env.OPENAI_API_KEY) {
         try {
           const imgBuf  = await openaiSvc.generatePostImage(biz.name, captionBody, brandId);

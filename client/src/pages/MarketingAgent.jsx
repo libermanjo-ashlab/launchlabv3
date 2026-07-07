@@ -655,7 +655,7 @@ function ImplementResult({ result, businessId, businessName }) {
 
   // Generate image client-side when a caption arrives (browser fonts always available)
   useEffect(() => {
-    if (!result?.caption || !businessName) return;
+    if (!result?.caption) return;
     let cancelled = false;
     (async () => {
       try {
@@ -746,7 +746,7 @@ function BrandQAPanel({ businessId }) {
   useEffect(() => {
     api.agents.getBrandIdentity(businessId)
       .then(d => setIdentity(d.identity))
-      .catch(() => {});
+      .catch(() => setIdentity({})); // fallback so panel renders even if fetch fails
   }, [businessId]);
 
   const update = (key, val) => setIdentity(p => ({ ...p, [key]: val }));

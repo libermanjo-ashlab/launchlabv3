@@ -124,7 +124,7 @@ export async function generatePostImageBlob(businessName, captionBody = "") {
 
   // Headline text card — first sentence of the caption (max 64 chars)
   const firstSentence = (captionBody || "").split(/[.!?\n]/)[0]?.trim() || "";
-  const displayText = firstSentence.length > 64 ? firstSentence.slice(0, 61) + "…" : firstSentence;
+  const displayText = firstSentence.length > 64 ? firstSentence.slice(0, 63) + "…" : firstSentence;
 
   if (displayText) {
     const fontSize = 56;
