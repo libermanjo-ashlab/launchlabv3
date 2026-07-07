@@ -4,6 +4,7 @@ const { PrismaClient } = require("@prisma/client");
 const { generateTaskOutput } = require("../services/generators");
 const openaiSvc   = require("../services/openaiService");
 const { getBrandIdentity } = require("../services/brandIdentity");
+const log         = require("../lib/logger");
 
 const prisma = new PrismaClient();
 
@@ -81,10 +82,26 @@ router.put("/:id", requireAuth, async (req, res, next) => {
 
 // POST /api/tasks/:id/run — actually run an auto task (generates real output)
 router.post("/:id/run", requireAuth, async (req, res, next) => {
+  const routeT0 = Date.now();
   try {
     const task = await ownsTask(req.params.id, req.userId);
-    if (!task) return res.status(404).json({ error: "Task not found" });
-    if (task.status === "done") return res.status(400).json({ error: "Task is already complete" });
+    if (!task) {
+      log.warn("TASK", "Task not found or not owned by user", { taskId: req.params.id, userId: req.userId });
+      return res.status(404).json({ error: "Task not found" });
+    }
+    if (task.status === "done") {
+      log.warn("TASK", "Task already done — skipping run", { taskId: task.id, name: task.name });
+      return res.status(400).json({ error: "Task is already complete" });
+    }
+
+    log.info("TASK", "Task run started", {
+      taskId: task.id,
+      name: task.name,
+      category: task.category,
+      mode: task.mode,
+      status: task.status,
+      businessId: task.businessId,
+    });
 
     // Mark as running
     await prisma.task.update({ where: { id: task.id }, data: { status: "running" } });
@@ -95,62 +112,167 @@ router.post("/:id/run", requireAuth, async (req, res, next) => {
     try { intake = JSON.parse(business.intakeData || "{}"); } catch {}
     try { idea   = JSON.parse(business.ideaData   || "{}"); } catch {}
 
+    log.info("TASK", "Business loaded for task run", {
+      taskId: task.id,
+      businessName: business.name,
+      ideaName: idea.name || "(none)",
+    });
+
     // ── Campaign tasks: channel-aware execution ──────────────────────────────────
     let outputData;
     if (task.category === "campaign") {
       const isInstagram = /instagram|ig post|post|social/i.test(task.name + " " + (task.description || ""));
-      console.log(`[Campaign task] id=${task.id} mode=${task.mode} isInstagram=${isInstagram} name="${task.name}"`);
+      log.info("TASK", "Campaign task routing", {
+        taskId: task.id,
+        name: task.name,
+        mode: task.mode,
+        isInstagram,
+        hasOpenAIKey: !!process.env.OPENAI_API_KEY,
+        hasAnthropicKey: !!process.env.ANTHROPIC_API_KEY,
+      });
 
       if (isInstagram) {
         const ig     = require("../services/instagram");
         const imgGen = require("../services/imageGen");
         const intg   = await prisma.integration.findFirst({ where:{ businessId:task.businessId, provider:"instagram" } });
         const meta   = intg?.metadata ? JSON.parse(intg.metadata) : {};
-        console.log(`[Campaign task] Instagram creds present: accessToken=${!!meta.accessToken} businessAccountId=${!!meta.businessAccountId}`);
+
+        log.info("TASK", "Instagram integration check", {
+          taskId: task.id,
+          integrationFound: !!intg,
+          hasAccessToken: !!meta.accessToken,
+          hasBusinessAccountId: !!meta.businessAccountId,
+          autopilot: !!meta.autopilot,
+        });
 
         if (!meta.accessToken || !meta.businessAccountId) {
+          log.warn("TASK", "Instagram not configured — outputting setup instructions", { taskId: task.id });
           outputData = { fields:[
             { label:"Status",    value:"Instagram not configured" },
             { label:"Next step", value:"Add your Access Token and Business Account ID in Hub → Instagram" },
           ]};
         } else {
           const context   = task.description || task.name;
-          const brandId   = await getBrandIdentity(task.businessId);
-          const marketOut = await prisma.businessOutput.findFirst({ where:{ businessId:task.businessId, type:"marketing_insights" } });
-          let marketInsights = ""; try { const md=JSON.parse(marketOut?.content||"{}"); marketInsights=md.report?.marketAnalysis?.summary||""; } catch {}
-          console.log(`[Campaign task] Generating caption + image for "${business.name}" context="${context.slice(0,60)}"`);
+          log.info("TASK", "Loading brand identity and market insights", { taskId: task.id, businessId: task.businessId });
 
+          const brandId   = await getBrandIdentity(task.businessId);
+          log.info("TASK", "Brand identity for task", {
+            taskId: task.id,
+            brandFound: !!brandId,
+            populatedBy: brandId?.populatedBy || "none",
+            hasVoice: !!brandId?.voice,
+            hasPalette: !!brandId?.colorPalette,
+            hasBusinessType: !!brandId?.businessType,
+          });
+
+          const marketOut = await prisma.businessOutput.findFirst({ where:{ businessId:task.businessId, type:"marketing_insights" } });
+          let marketInsights = "";
+          try { const md=JSON.parse(marketOut?.content||"{}"); marketInsights=md.report?.marketAnalysis?.summary||""; } catch {}
+          log.info("TASK", "Market insights loaded", {
+            taskId: task.id,
+            hasMarketInsights: !!marketInsights,
+            insightsLen: marketInsights.length,
+          });
+
+          // ── Caption generation ──────────────────────────────────────────────
           let captionResult;
           if (process.env.OPENAI_API_KEY) {
-            captionResult = await openaiSvc.generateInstagramCaption({ businessName:business.name, businessType:idea.name, context, brandIdentity:brandId, marketInsights });
+            log.info("TASK", "Generating caption via OpenAI GPT-4o", {
+              taskId: task.id,
+              contextSnippet: context.slice(0, 80),
+            });
+            try {
+              captionResult = await openaiSvc.generateInstagramCaption({
+                businessName:business.name, businessType:idea.name, context, brandIdentity:brandId, marketInsights,
+              });
+              log.info("TASK", "OpenAI caption generated", {
+                taskId: task.id,
+                bodyLen: captionResult.body?.length,
+                hashtagsLen: captionResult.hashtags?.length,
+                captionSnippet: captionResult.body?.slice(0, 80),
+              });
+            } catch (captionErr) {
+              log.error("TASK", "OpenAI caption FAILED — falling back to Claude", {
+                taskId: task.id,
+                error: captionErr.message,
+              });
+              let prefs = {}; try { const mm=JSON.parse(business.userMetrics||"{}"); prefs=mm.prefs||{}; } catch {}
+              captionResult = await ig.generateCaption(business.name, idea.name, context, "authentic", prefs);
+              log.info("TASK", "Claude fallback caption generated", { taskId: task.id });
+            }
           } else {
+            log.warn("TASK", "OPENAI_API_KEY not set — using Claude for caption (no brand identity context)", {
+              taskId: task.id,
+              hasAnthropicKey: !!process.env.ANTHROPIC_API_KEY,
+            });
             let prefs = {}; try { const mm=JSON.parse(business.userMetrics||"{}"); prefs=mm.prefs||{}; } catch {}
             captionResult = await ig.generateCaption(business.name, idea.name, context, "authentic", prefs);
+            log.info("TASK", "Claude caption generated", { taskId: task.id });
           }
 
+          // ── Image generation ────────────────────────────────────────────────
           const appUrl = process.env.APP_URL || process.env.CLIENT_URL || "http://localhost:3000";
+          log.info("TASK", "Image generation starting", {
+            taskId: task.id,
+            appUrl,
+            hasOpenAIKey: !!process.env.OPENAI_API_KEY,
+            appUrlSource: process.env.APP_URL ? "APP_URL" : process.env.CLIENT_URL ? "CLIENT_URL" : "default localhost",
+          });
+
           let imageUrl;
+          let imageSource;
           if (process.env.OPENAI_API_KEY) {
+            log.info("TASK", "Attempting DALL-E 3 image generation", { taskId: task.id });
             try {
               const imgBuf = await openaiSvc.generatePostImage(business.name, captionResult.body, brandId);
               const imageId = imgGen.storeImage(imgBuf);
               imageUrl = `${appUrl}/api/instagram/images/${imageId}`;
-            } catch {
+              imageSource = "dalle3";
+              log.info("TASK", "DALL-E 3 image generated and stored", {
+                taskId: task.id, imageId, imageUrl, bytes: imgBuf.length,
+              });
+            } catch (imgErr) {
+              log.error("TASK", "DALL-E 3 FAILED — falling back to SVG", {
+                taskId: task.id,
+                error: imgErr.message,
+                status: imgErr.status,
+              });
               const imageId = await imgGen.generatePostImage(business.name, context);
               imageUrl = `${appUrl}/api/instagram/images/${imageId}`;
+              imageSource = "svg_fallback";
+              log.info("TASK", "SVG fallback image generated", { taskId: task.id, imageId, imageUrl });
             }
           } else {
+            log.warn("TASK", "OPENAI_API_KEY not set — using SVG background image (no text)", { taskId: task.id });
             const imageId = await imgGen.generatePostImage(business.name, context);
             imageUrl = `${appUrl}/api/instagram/images/${imageId}`;
+            imageSource = "svg_no_openai";
+            log.info("TASK", "SVG image generated (no OpenAI)", { taskId: task.id, imageId, imageUrl });
           }
-          console.log(`[Campaign task] Caption generated, imageUrl=${imageUrl}`);
 
+          log.info("TASK", "Caption + image ready", {
+            taskId: task.id,
+            taskMode: task.mode,
+            imageSource,
+            imageUrl,
+            captionLen: captionResult.caption?.length,
+          });
+
+          // ── Post to Instagram (auto mode only) ──────────────────────────────
           if (task.mode === "auto") {
+            log.info("TASK", "Auto mode — attempting Instagram post", {
+              taskId: task.id,
+              imageUrl,
+              captionSnippet: captionResult.body?.slice(0, 60),
+            });
             try {
               const post = await ig.createImagePost(meta.accessToken, meta.businessAccountId, imageUrl, captionResult.caption);
-              console.log(`[Campaign task] Posted to Instagram mediaId=${post.mediaId}`);
+              log.info("TASK", "Instagram post PUBLISHED", {
+                taskId: task.id, mediaId: post.mediaId,
+                permalink: `https://www.instagram.com/p/${post.mediaId}/`,
+              });
               outputData = {
-                channel:"instagram", published:true, imageUrl,
+                channel:"instagram", published:true, imageUrl, imageSource,
                 caption: captionResult.caption, body: captionResult.body, hashtags: captionResult.hashtags,
                 fields:[
                   { label:"Status",   value:"Posted to Instagram" },
@@ -158,9 +280,15 @@ router.post("/:id/run", requireAuth, async (req, res, next) => {
                 ],
               };
             } catch(postErr) {
-              console.error(`[Campaign task] Instagram post failed:`, postErr.message);
+              log.error("TASK", "Instagram post FAILED", {
+                taskId: task.id,
+                error: postErr.friendlyMessage || postErr.message,
+                igCode: postErr.igCode,
+                permissionError: postErr.permissionError,
+                tokenExpired: postErr.tokenExpired,
+              });
               outputData = {
-                channel:"instagram", published:false, imageUrl,
+                channel:"instagram", published:false, imageUrl, imageSource,
                 caption: captionResult.caption, body: captionResult.body, hashtags: captionResult.hashtags,
                 fields:[
                   { label:"Status",   value:"Instagram post failed — review and post manually" },
@@ -169,8 +297,9 @@ router.post("/:id/run", requireAuth, async (req, res, next) => {
               };
             }
           } else {
+            log.info("TASK", "Non-auto mode — returning caption + image for review", { taskId: task.id, taskMode: task.mode });
             outputData = {
-              channel:"instagram", published:false, imageUrl,
+              channel:"instagram", published:false, imageUrl, imageSource,
               caption: captionResult.caption, body: captionResult.body, hashtags: captionResult.hashtags,
               fields:[
                 { label:"Status", value:"Caption + image ready — copy and post" },
@@ -178,10 +307,17 @@ router.post("/:id/run", requireAuth, async (req, res, next) => {
             };
           }
         }
+      } else {
+        log.info("TASK", "Campaign task is not Instagram — routing to generateTaskOutput", {
+          taskId: task.id, name: task.name,
+        });
       }
     }
 
-    if (!outputData) outputData = await generateTaskOutput(task, business, idea, intake);
+    if (!outputData) {
+      log.info("TASK", "Using generic generateTaskOutput", { taskId: task.id, category: task.category });
+      outputData = await generateTaskOutput(task, business, idea, intake);
+    }
 
     // If this is a website generation task, also save to BusinessOutput.
     // Use findFirst → update/create (not a hard-coded ID upsert) so we always
@@ -203,8 +339,23 @@ router.post("/:id/run", requireAuth, async (req, res, next) => {
       data: { status: "done", outputData: JSON.stringify(outputData) },
     });
 
+    log.info("TASK", "Task run complete", {
+      taskId: task.id,
+      ms: Date.now() - routeT0,
+      channel: outputData.channel || "generic",
+      published: outputData.published || false,
+      hasImageUrl: !!outputData.imageUrl,
+      imageSource: outputData.imageSource || "none",
+    });
+
     res.json({ task: { ...updated, steps: JSON.parse(updated.steps || "[]"), outputData } });
   } catch (e) {
+    log.error("TASK", "Task run threw unhandled error", {
+      taskId: req.params.id,
+      ms: Date.now() - routeT0,
+      error: e.message,
+      stack: e.stack?.split("\n").slice(0, 4).join(" | "),
+    });
     // If AI call fails, don't leave task stuck in "running"
     await prisma.task.update({ where: { id: req.params.id }, data: { status: "pending" } }).catch(() => {});
     next(e);

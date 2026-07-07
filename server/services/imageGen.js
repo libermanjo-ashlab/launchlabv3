@@ -4,10 +4,15 @@
  *
  * Images are stored in memory with a 2-hour TTL and served at
  * GET /api/instagram/images/:id (no auth — Instagram's CDN fetches directly).
+ *
+ * NOTE: This produces geometric background images only (no text).
+ * Text is overlaid client-side via the Canvas API (postImageCanvas.js) so
+ * fonts always render correctly — librsvg on Railway has no system fonts.
  */
 
 const sharp  = require("sharp");
 const crypto = require("crypto");
+const log    = require("../lib/logger");
 
 // ── In-memory image store ─────────────────────────────────────────────────────
 
@@ -17,22 +22,33 @@ const TTL_MS = 2 * 60 * 60 * 1000; // 2 hours
 function storeImage(buffer) {
   const id = crypto.randomUUID();
   store.set(id, { buffer, expires: Date.now() + TTL_MS });
-  // Lazy cleanup: remove expired entries every 30 min
+  log.info("IMAGE", "Image stored in memory", { id, bytes: buffer.length, storeSize: store.size });
+  // Lazy cleanup: remove expired entries every 20 images
   if (store.size % 20 === 0) pruneExpired();
   return id;
 }
 
 function getImage(id) {
   const entry = store.get(id);
-  if (!entry || entry.expires < Date.now()) return null;
+  if (!entry) {
+    log.warn("IMAGE", "Image not found in store", { id, storeSize: store.size });
+    return null;
+  }
+  if (entry.expires < Date.now()) {
+    log.warn("IMAGE", "Image expired in store", { id });
+    store.delete(id);
+    return null;
+  }
   return entry.buffer;
 }
 
 function pruneExpired() {
   const now = Date.now();
+  let pruned = 0;
   for (const [id, entry] of store) {
-    if (entry.expires < now) store.delete(id);
+    if (entry.expires < now) { store.delete(id); pruned++; }
   }
+  if (pruned > 0) log.info("IMAGE", "Pruned expired images", { pruned, remaining: store.size });
 }
 
 // ── SVG templates ─────────────────────────────────────────────────────────────
@@ -52,24 +68,21 @@ function pickPalette(seed) {
 }
 
 /**
- * Build an SVG post image using pure geometry — no text, no fonts required.
- * Looks professional and avoids all font-rendering issues across platforms.
- *
- * @param {string} businessName
- * @param {string} [seed] — deterministic palette seed
- * @returns {string} SVG markup
- */
-/**
  * Build an SVG post image — pure geometry, no text elements.
  * Text is rendered client-side via Canvas API (browser fonts are always available).
  * librsvg on Railway has no system fonts, so all <text> elements are omitted here.
+ *
+ * seed includes a random nonce so each post gets unique geometry even for the
+ * same business — previously businessName alone produced identical images every time.
  */
 function buildSvg(businessName, _bodyText, seed) {
   const W = 1080, H = 1080;
   const [c1, c2] = pickPalette(seed || businessName);
 
+  // RNG seeded from the full seed string (includes random nonce → unique per call)
   let rng = 0;
-  for (let i = 0; i < businessName.length; i++) rng = (rng * 31 + businessName.charCodeAt(i)) >>> 0;
+  const seedStr = seed || businessName;
+  for (let i = 0; i < seedStr.length; i++) rng = (rng * 31 + seedStr.charCodeAt(i)) >>> 0;
   const r = (min, max) => { rng = (rng * 1664525 + 1013904223) >>> 0; return min + (rng % (max - min)); };
 
   const accents = [
@@ -101,19 +114,49 @@ function buildSvg(businessName, _bodyText, seed) {
 // ── Public API ────────────────────────────────────────────────────────────────
 
 /**
- * Generate a social post image and return an id that can be served via
- * GET /api/instagram/images/:id.
+ * Generate a social post image (SVG fallback) and return an id that can be
+ * served via GET /api/instagram/images/:id.
+ *
+ * Each call gets a unique random nonce mixed into the seed so the geometry
+ * differs between posts even for the same business.
  *
  * @param {string} businessName
- * @param {string} captionBody  — the body text of the caption (no hashtags)
+ * @param {string} captionBody  — used for palette variety (not rendered as text)
  * @returns {Promise<string>}    image id
  */
 async function generatePostImage(businessName, captionBody) {
-  const svg    = buildSvg(businessName, captionBody || "New post");
-  const buffer = await sharp(Buffer.from(svg))
-    .png({ compressionLevel: 8 })
-    .toBuffer();
-  return storeImage(buffer);
+  // Mix business name with a random nonce so each post gets unique geometry
+  const nonce = crypto.randomBytes(4).toString("hex");
+  const seed  = `${businessName}:${nonce}`;
+
+  log.info("IMAGE", "generatePostImage (SVG fallback) called", {
+    businessName,
+    seed,
+    captionSnippet: (captionBody || "").slice(0, 60),
+  });
+
+  const t0 = Date.now();
+  try {
+    const svg    = buildSvg(businessName, captionBody || "New post", seed);
+    const buffer = await sharp(Buffer.from(svg))
+      .png({ compressionLevel: 8 })
+      .toBuffer();
+
+    const id = storeImage(buffer);
+    log.info("IMAGE", "SVG image generated and stored", {
+      ms: Date.now() - t0,
+      bytes: buffer.length,
+      id,
+    });
+    return id;
+  } catch (err) {
+    log.error("IMAGE", "SVG image generation FAILED", {
+      ms: Date.now() - t0,
+      error: err.message,
+      businessName,
+    });
+    throw err;
+  }
 }
 
 module.exports = { generatePostImage, getImage, storeImage };

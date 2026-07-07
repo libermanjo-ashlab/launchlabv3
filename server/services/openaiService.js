@@ -8,12 +8,19 @@
  */
 
 const OpenAI = require("openai");
+const log    = require("../lib/logger");
 
 // ── Singleton client ──────────────────────────────────────────────────────────
 let _client = null;
 function getClient() {
-  if (!process.env.OPENAI_API_KEY) throw new Error("OPENAI_API_KEY is not set — add it to your Railway environment variables");
-  if (!_client) _client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+  if (!process.env.OPENAI_API_KEY) {
+    log.error("OPENAI", "OPENAI_API_KEY is not set — all OpenAI calls will fail or fall back to Claude/SVG");
+    throw new Error("OPENAI_API_KEY is not set — add it to your Railway environment variables");
+  }
+  if (!_client) {
+    log.info("OPENAI", "Creating singleton OpenAI client");
+    _client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+  }
   return _client;
 }
 
@@ -24,6 +31,16 @@ function getClient() {
  * and market analysis insights.
  */
 async function generateInstagramCaption({ businessName, businessType, context, tone, brandIdentity, marketInsights }) {
+  log.info("CAPTION", "generateInstagramCaption called", {
+    businessName,
+    businessType: businessType || "(none)",
+    contextLen: context?.length || 0,
+    contextSnippet: (context || "").slice(0, 80),
+    hasBrandIdentity: !!brandIdentity,
+    brandVoice: brandIdentity?.voice || "(none)",
+    hasMarketInsights: !!(marketInsights?.length),
+  });
+
   const client = getClient();
 
   const bi = brandIdentity || {};
@@ -45,6 +62,7 @@ async function generateInstagramCaption({ businessName, businessType, context, t
     else if (/story|journey|personal|share|experience|lesson/.test(c)) postType = "personal story";
     else if (/faq|question|ask|wonder|myth|common/.test(c)) postType = "FAQ / myth-bust";
   }
+  log.debug("CAPTION", "Post type detected", { postType, context: (context || "").slice(0, 60) });
 
   const system = `You are an expert social media copywriter who writes captions that educate, build trust, and drive action. You write for the specific business — never generic.`;
 
@@ -73,34 +91,69 @@ NON-NEGOTIABLE RULES:
 - One post only — no alternatives, no headers, no numbering
 - Start directly with the hook — no intro text`;
 
-  const msg = await client.chat.completions.create({
-    model: "gpt-4o",
-    max_tokens: 600,
-    messages: [
-      { role: "system", content: system },
-      { role: "user",   content: user },
-    ],
-  });
+  const t0 = Date.now();
+  try {
+    const msg = await client.chat.completions.create({
+      model: "gpt-4o",
+      max_tokens: 600,
+      messages: [
+        { role: "system", content: system },
+        { role: "user",   content: user },
+      ],
+    });
 
-  const full = msg.choices[0]?.message?.content?.trim() || "";
-  // Split body from hashtag block: find last contiguous block of #hashtag lines
-  const lines = full.split("\n");
-  let hashtagStart = lines.length;
-  for (let i = lines.length - 1; i >= 0; i--) {
-    const trimmed = lines[i].trim();
-    if (trimmed === "" || /^#\w/.test(trimmed)) continue;
-    hashtagStart = i + 1;
-    break;
+    const full = msg.choices[0]?.message?.content?.trim() || "";
+    log.info("CAPTION", "GPT-4o caption received", {
+      ms: Date.now() - t0,
+      fullLen: full.length,
+      tokens: msg.usage?.total_tokens,
+      snippet: full.slice(0, 100),
+    });
+
+    if (!full) {
+      log.warn("CAPTION", "GPT-4o returned empty content", { usage: msg.usage });
+    }
+
+    // Split body from hashtag block: find last contiguous block of #hashtag lines
+    const lines = full.split("\n");
+    let hashtagStart = lines.length;
+    for (let i = lines.length - 1; i >= 0; i--) {
+      const trimmed = lines[i].trim();
+      if (trimmed === "" || /^#\w/.test(trimmed)) continue;
+      hashtagStart = i + 1;
+      break;
+    }
+    const body     = lines.slice(0, hashtagStart).join("\n").trim();
+    const hashtags = lines.slice(hashtagStart).join("\n").trim();
+
+    log.info("CAPTION", "Caption split complete", {
+      bodyLen: body.length,
+      hashtagsLen: hashtags.length,
+      hashtagCount: hashtags.split(/\s+/).filter(h => h.startsWith("#")).length,
+    });
+
+    return { caption: full, body, hashtags };
+  } catch (err) {
+    log.error("CAPTION", "GPT-4o caption FAILED", {
+      ms: Date.now() - t0,
+      error: err.message,
+      status: err.status,
+      businessName,
+    });
+    throw err;
   }
-  const body     = lines.slice(0, hashtagStart).join("\n").trim();
-  const hashtags = lines.slice(hashtagStart).join("\n").trim();
-  return { caption: full, body, hashtags };
 }
 
 /**
  * Generate a caption for a non-Instagram channel (email subject, tweet, etc.).
  */
 async function generateChannelCaption({ businessName, channel, context, brandIdentity }) {
+  log.info("CAPTION", "generateChannelCaption called", {
+    businessName, channel,
+    contextSnippet: (context || "").slice(0, 60),
+    hasBrandIdentity: !!brandIdentity,
+  });
+
   const client = getClient();
   const bi = brandIdentity || {};
   const voice    = bi.voice    || "confident, direct";
@@ -116,17 +169,29 @@ async function generateChannelCaption({ businessName, channel, context, brandIde
   };
 
   const instructions = channelInstructions[channel] || channelInstructions.general;
+  const t0 = Date.now();
 
-  const msg = await client.chat.completions.create({
-    model: "gpt-4o",
-    max_tokens: 300,
-    messages: [
-      { role: "system", content: `You are a concise copywriter for ${businessName}. Voice: ${voice}. Write only the requested content — no explanations or labels.` },
-      { role: "user",   content: `${instructions}\n\nBusiness: ${businessName}\nContext/angle: ${context || "general brand awareness"}\n${audience ? `Target audience: ${audience}` : ""}\n${unique ? `Unique angle: ${unique}` : ""}` },
-    ],
-  });
+  try {
+    const msg = await client.chat.completions.create({
+      model: "gpt-4o",
+      max_tokens: 300,
+      messages: [
+        { role: "system", content: `You are a concise copywriter for ${businessName}. Voice: ${voice}. Write only the requested content — no explanations or labels.` },
+        { role: "user",   content: `${instructions}\n\nBusiness: ${businessName}\nContext/angle: ${context || "general brand awareness"}\n${audience ? `Target audience: ${audience}` : ""}\n${unique ? `Unique angle: ${unique}` : ""}` },
+      ],
+    });
 
-  return msg.choices[0]?.message?.content?.trim() || "";
+    const text = msg.choices[0]?.message?.content?.trim() || "";
+    log.info("CAPTION", "Channel caption received", {
+      channel, ms: Date.now() - t0, len: text.length, tokens: msg.usage?.total_tokens,
+    });
+    return text;
+  } catch (err) {
+    log.error("CAPTION", "Channel caption FAILED", {
+      channel, ms: Date.now() - t0, error: err.message, status: err.status,
+    });
+    throw err;
+  }
 }
 
 // ── Image generation ──────────────────────────────────────────────────────────
@@ -142,7 +207,6 @@ function buildImagePrompt(businessName, captionBody, brandIdentity) {
   const voice        = bi.voice        || "professional";
   const unique       = bi.uniqueAngle  || "";
   const pillars      = Array.isArray(bi.contentPillars) ? bi.contentPillars[0] || "" : "";
-  // businessType comes from the idea.name passed in during population
   const bizType      = bi.businessType || bi.businessCategory || "service business";
 
   // Extract the core concept from caption (first sentence, before any hashtag)
@@ -192,27 +256,79 @@ OUTPUT: A single, publication-ready social media image that feels premium and br
  * Downloads the image and returns a Buffer stored in our memory store.
  */
 async function generatePostImage(businessName, captionBody, brandIdentity) {
+  log.info("IMAGE", "generatePostImage (DALL-E 3) called", {
+    businessName,
+    captionSnippet: (captionBody || "").slice(0, 80),
+    hasBrandIdentity: !!brandIdentity,
+    brandType: brandIdentity?.businessType || "(none)",
+    palette: brandIdentity?.colorPalette || "(default)",
+  });
+
   const client = getClient();
   const prompt = buildImagePrompt(businessName, captionBody, brandIdentity);
 
-  const response = await client.images.generate({
-    model:   "dall-e-3",
-    prompt,
-    size:    "1024x1024",
-    quality: "standard",
-    n:       1,
-  });
+  log.debug("IMAGE", "DALL-E 3 prompt built", { promptLen: prompt.length, promptSnippet: prompt.slice(0, 200) });
 
-  const imageUrl = response.data[0]?.url;
-  if (!imageUrl) throw new Error("DALL-E 3 returned no image URL");
+  const t0 = Date.now();
+  let imageUrl;
+  try {
+    const response = await client.images.generate({
+      model:   "dall-e-3",
+      prompt,
+      size:    "1024x1024",
+      quality: "standard",
+      n:       1,
+    });
+
+    imageUrl = response.data[0]?.url;
+    log.info("IMAGE", "DALL-E 3 generation complete", {
+      ms: Date.now() - t0,
+      hasUrl: !!imageUrl,
+      urlPrefix: imageUrl ? imageUrl.slice(0, 60) : "NONE",
+    });
+
+    if (!imageUrl) {
+      log.error("IMAGE", "DALL-E 3 returned no URL in response", { responseData: JSON.stringify(response.data).slice(0, 200) });
+      throw new Error("DALL-E 3 returned no image URL");
+    }
+  } catch (err) {
+    log.error("IMAGE", "DALL-E 3 generation FAILED", {
+      ms: Date.now() - t0,
+      error: err.message,
+      status: err.status,
+      code: err.code,
+      businessName,
+    });
+    throw err;
+  }
 
   // Download immediately — DALL-E URLs expire after ~1 hour
-  const imgRes = await fetch(imageUrl);
-  if (!imgRes.ok) {
-    throw new Error(`Failed to download DALL-E image (HTTP ${imgRes.status}). URL may have expired — retry the request.`);
+  log.info("IMAGE", "Downloading DALL-E image buffer", { urlPrefix: imageUrl.slice(0, 60) });
+  const t1 = Date.now();
+  try {
+    const imgRes = await fetch(imageUrl);
+    if (!imgRes.ok) {
+      log.error("IMAGE", "DALL-E image download FAILED", {
+        httpStatus: imgRes.status,
+        ms: Date.now() - t1,
+        urlPrefix: imageUrl.slice(0, 60),
+      });
+      throw new Error(`Failed to download DALL-E image (HTTP ${imgRes.status}). URL may have expired — retry the request.`);
+    }
+    const arrayBuf = await imgRes.arrayBuffer();
+    const buf = Buffer.from(arrayBuf);
+    log.info("IMAGE", "DALL-E image downloaded successfully", {
+      ms: Date.now() - t1,
+      bytes: buf.length,
+    });
+    return buf;
+  } catch (err) {
+    log.error("IMAGE", "DALL-E image download threw", {
+      ms: Date.now() - t1,
+      error: err.message,
+    });
+    throw err;
   }
-  const arrayBuf = await imgRes.arrayBuffer();
-  return Buffer.from(arrayBuf);
 }
 
 // ── Brand identity population ─────────────────────────────────────────────────
@@ -257,6 +373,14 @@ function buildChannelLines(integrations, metrics) {
  * from all available business data (integrations, metrics, market report, idea).
  */
 async function populateBrandIdentityFromData(business, idea, integrations, metrics, marketReport) {
+  log.info("BRAND", "populateBrandIdentityFromData called", {
+    businessName: business.name,
+    ideaName: idea.name || "(none)",
+    integrationCount: (integrations || []).length,
+    integrationProviders: (integrations || []).map(i => i.provider).join(","),
+    hasMarketReport: !!marketReport,
+  });
+
   const client = getClient();
   const intgs  = integrations || [];
 
@@ -307,15 +431,43 @@ Return valid JSON with EXACTLY these fields (no extras, no markdown):
   "postingRecommendation": "specific cadence + content mix (e.g. '4x/week: 50% educational tips, 30% client results, 20% direct offers')"
 }`;
 
-  const msg = await client.chat.completions.create({
-    model: "gpt-4o",
-    max_tokens: 1500,
-    response_format: { type: "json_object" },
-    messages: [{ role: "user", content: prompt }],
-  });
+  const t0 = Date.now();
+  try {
+    const msg = await client.chat.completions.create({
+      model: "gpt-4o",
+      max_tokens: 1500,
+      response_format: { type: "json_object" },
+      messages: [{ role: "user", content: prompt }],
+    });
 
-  const raw = msg.choices[0]?.message?.content || "{}";
-  try { return JSON.parse(raw); } catch { return {}; }
+    const raw = msg.choices[0]?.message?.content || "{}";
+    log.info("BRAND", "Brand identity GPT-4o response received", {
+      ms: Date.now() - t0,
+      tokens: msg.usage?.total_tokens,
+      rawLen: raw.length,
+    });
+
+    try {
+      const parsed = JSON.parse(raw);
+      log.info("BRAND", "Brand identity parsed successfully", {
+        fields: Object.keys(parsed).join(","),
+        businessType: parsed.businessType || "(missing)",
+        voice: parsed.voice || "(missing)",
+      });
+      return parsed;
+    } catch (parseErr) {
+      log.error("BRAND", "Brand identity JSON parse failed", { error: parseErr.message, raw: raw.slice(0, 200) });
+      return {};
+    }
+  } catch (err) {
+    log.error("BRAND", "Brand identity GPT-4o FAILED", {
+      ms: Date.now() - t0,
+      error: err.message,
+      status: err.status,
+      businessName: business.name,
+    });
+    throw err;
+  }
 }
 
 module.exports = {

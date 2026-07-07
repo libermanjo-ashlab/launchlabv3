@@ -334,35 +334,51 @@ function CampaignTaskRow({ task:t, mode, channel, businessId, businessName, onCo
   const isDone = t.status === "completed" || t.status === "done";
 
   const runTask = async () => {
+    console.log(`[TASK:runTask] Starting — taskId=${t.id} taskName="${t.name}" mode=${mode} channel=${channel}`);
     setRunning(true); setError("");
     try {
       const result = await api.tasks.run(t.id);
       const output = result.task?.outputData;
+      console.log(`[TASK:runTask] Server response — channel=${output?.channel} imageSource=${output?.imageSource} published=${output?.published} hasImageUrl=${!!output?.imageUrl} imageUrl=${output?.imageUrl || "none"} captionLen=${output?.caption?.length || 0}`);
       if (output?.imageUrl || output?.channel) setContent(output);
       else if (output?.fields) setContent({ type:"fields", fields:output.fields });
       setShowContent(true);
       onComplete(t.id);
-    } catch(e) { setError(e.message); }
+    } catch(e) {
+      console.error(`[TASK:runTask] FAILED — taskId=${t.id} error="${e.message}"`);
+      setError(e.message);
+    }
     setRunning(false);
   };
 
   const getContent = async () => {
     if (content) { setShowContent(s=>!s); return; }
+    console.log(`[TASK:getContent] Starting — taskName="${t.name}" channel=${channel} mode=${mode} businessId=${businessId}`);
     setRunning(true);
     try {
       const res = await api.agents.taskContent(businessId, t, channel, mode);
       let c = res.content;
+      console.log(`[TASK:getContent] Server response — channel=${c?.channel} imageSource=${c?.imageSource} hasImageUrl=${!!c?.imageUrl} captionLen=${c?.caption?.length || 0}`);
+
       // For Instagram tasks, replace server-generated image with Canvas-rendered one
       if (c?.caption && (channel === "instagram" || /instagram/i.test(t.name))) {
+        console.log(`[TASK:getContent] Generating Canvas image — businessName="${businessName || "Business"}" captionLen=${(c.body || c.caption)?.length}`);
         try {
           const blob = await generatePostImageBlob(businessName || "Business", c.body || c.caption);
+          console.log(`[TASK:getContent] Canvas blob generated — size=${blob.size} type=${blob.type}`);
           const { imageUrl } = await api.instagram.uploadImage(blob);
-          c = { ...c, imageUrl };
-        } catch(imgErr) { console.warn("Canvas image upload failed:", imgErr.message); }
+          console.log(`[TASK:getContent] Canvas image uploaded — imageUrl=${imageUrl}`);
+          c = { ...c, imageUrl, imageSource: "canvas" };
+        } catch(imgErr) {
+          console.error(`[TASK:getContent] Canvas image FAILED — ${imgErr.message}. Keeping server image: ${c.imageUrl || "none"}`);
+        }
       }
       setContent(c);
       setShowContent(true);
-    } catch(e) { setError(e.message); }
+    } catch(e) {
+      console.error(`[TASK:getContent] FAILED — taskName="${t.name}" error="${e.message}"`);
+      setError(e.message);
+    }
     setRunning(false);
   };
 
@@ -451,13 +467,24 @@ function CampaignCard({ campaign:c, onUpdate, onDelete, businessId, businessName
   const statusColor = STAT_CLR[c.status] || C.muted;
 
   const startCampaign = async () => {
+    console.log(`[CAMPAIGN:startCampaign] Starting — campaignId=${c.id} title="${c.title}" channel=${c.channel} mode=${mode}`);
     setStarting(true);
     try {
       const res = await api.agents.campaignBreakdown(businessId, {...c, status:"active"});
+      console.log(`[CAMPAIGN:startCampaign] Breakdown complete — taskCount=${res.tasks?.length} taskIds=${JSON.stringify(res.taskIds?.slice(0,3))} progressTarget=${res.progressTarget} progressUnit=${res.progressUnit}`);
+      if (!res.tasks?.length) {
+        console.warn(`[CAMPAIGN:startCampaign] WARNING — breakdown returned 0 tasks! campaign="${c.title}"`);
+      }
       const updated = { ...c, status:"active", tasks:res.tasks, taskIds:res.taskIds, progressTarget:res.progressTarget, progressUnit:res.progressUnit, startedAt:new Date().toISOString() };
       onUpdate(updated);
-      if (mode==="auto") setTimeout(()=>runTasksAuto(updated), 300);
-    } catch(e) { alert("Could not start campaign: "+e.message); }
+      if (mode==="auto") {
+        console.log(`[CAMPAIGN:startCampaign] Auto mode — scheduling runTasksAuto in 300ms`);
+        setTimeout(()=>runTasksAuto(updated), 300);
+      }
+    } catch(e) {
+      console.error(`[CAMPAIGN:startCampaign] FAILED — campaignId=${c.id} error="${e.message}"`);
+      alert("Could not start campaign: "+e.message);
+    }
     setStarting(false);
   };
 
@@ -465,22 +492,40 @@ function CampaignCard({ campaign:c, onUpdate, onDelete, businessId, businessName
     abortRef.current = false;
     setAutoRunning(true);
     const taskList = camp.tasks || [];
+    console.log(`[AUTOPILOT:runTasksAuto] Starting — campaignId=${camp.id} title="${camp.title}" taskCount=${taskList.length} mode=${mode}`);
+
+    if (taskList.length === 0) {
+      console.warn(`[AUTOPILOT:runTasksAuto] No tasks found in campaign — did campaignBreakdown return tasks? campaignId=${camp.id}`);
+    }
+
     for (const task of taskList) {
-      if (abortRef.current) break;
-      if (task.status==="completed"||task.status==="done") continue;
+      if (abortRef.current) {
+        console.log(`[AUTOPILOT:runTasksAuto] Aborted before task taskId=${task.id}`);
+        break;
+      }
+      if (task.status==="completed"||task.status==="done") {
+        console.log(`[AUTOPILOT:runTasksAuto] Skipping already-done task — taskId=${task.id} name="${task.name}"`);
+        continue;
+      }
+      console.log(`[AUTOPILOT:runTasksAuto] Running task — taskId=${task.id} name="${task.name}"`);
       try {
-        await api.tasks.run(task.id);
+        const result = await api.tasks.run(task.id);
+        const output = result.task?.outputData;
+        console.log(`[AUTOPILOT:runTasksAuto] Task complete — taskId=${task.id} channel=${output?.channel} published=${output?.published} imageSource=${output?.imageSource} imageUrl=${output?.imageUrl || "none"}`);
         onUpdate(prev => prev.id===camp.id ? {
           ...prev,
-          tasks: (prev.tasks||[]).map(t=>t.id===task.id?{...t,status:"completed"}:t),
+          tasks: (prev.tasks||[]).map(t=>t.id===task.id?{...t,status:"completed",outputData:output}:t),
           progressCurrent: (prev.progressCurrent||0)+1,
         } : prev);
         await new Promise(r=>setTimeout(r,400));
-      } catch { }
+      } catch(taskErr) {
+        console.error(`[AUTOPILOT:runTasksAuto] Task FAILED — taskId=${task.id} name="${task.name}" error="${taskErr.message}"`);
+      }
     }
     setAutoRunning(false);
     // Move to monitoring after auto-run
     if (!abortRef.current) {
+      console.log(`[AUTOPILOT:runTasksAuto] All tasks processed — moving campaign to monitoring. campaignId=${camp.id}`);
       onUpdate(prev => prev.id===camp.id ? {...prev, status:"monitoring"} : prev);
     }
   };
@@ -672,12 +717,18 @@ function ImplementResult({ result, businessId, businessName }) {
   useEffect(() => {
     if (!result?.caption) return;
     let cancelled = false;
+    const effectiveName = businessName || "Business";
+    console.log(`[IMPLEMENT:canvas] Starting Canvas image generation — businessName="${effectiveName}" captionLen=${(result.body || result.caption)?.length} serverImageSource=${result.imageSource || "unknown"} serverImageUrl=${result.imageUrl || "none"}`);
     (async () => {
       try {
-        const blob = await generatePostImageBlob(businessName || "Business", result.body || result.caption);
+        const blob = await generatePostImageBlob(effectiveName, result.body || result.caption);
+        console.log(`[IMPLEMENT:canvas] Blob generated — size=${blob.size} type=${blob.type}`);
         const { imageUrl } = await api.instagram.uploadImage(blob);
+        console.log(`[IMPLEMENT:canvas] Upload complete — imageUrl=${imageUrl}`);
         if (!cancelled) setLocalImgUrl(imageUrl);
-      } catch(imgErr) { console.warn("Canvas image generation failed:", imgErr.message); }
+      } catch(imgErr) {
+        console.error(`[IMPLEMENT:canvas] Canvas/upload FAILED — "${imgErr.message}". Will display server image: ${result.imageUrl || "none"}`);
+      }
     })();
     return () => { cancelled = true; };
   }, [result?.caption, businessName]);
@@ -889,9 +940,11 @@ export default function AgentPanel({ businessId, businessName, metrics, planInfo
   },[agentMode]);
 
   const runAnalysis = async () => {
+    console.log(`[AGENT:runAnalysis] Starting — businessId=${businessId} agentMode=${agentMode}`);
     setRunning(true); setError("");
     try {
       const data = await api.agents.runMarketing(businessId, agentMode);
+      console.log(`[AGENT:runAnalysis] Complete — insightCount=${data.insights?.length || 0} hasReport=${!!data.report} hasOverview=${!!data.overview} mode=${data.mode}`);
       setInsights(data.insights||[]);
       setReport(data.report||null);
       setOverview(data.overview||null);
@@ -920,18 +973,26 @@ export default function AgentPanel({ businessId, businessName, metrics, planInfo
           if (newCampaigns.length) saveCampaigns(p=>[...newCampaigns,...p]);
         }
       }
-    } catch(e) { setError(e.message); }
+    } catch(e) {
+      console.error(`[AGENT:runAnalysis] FAILED — error="${e.message}"`);
+      setError(e.message);
+    }
     setRunning(false);
   };
 
   const implement = async (insight) => {
+    console.log(`[AGENT:implement] Starting — insightId=${insight.id} channel=${insight.implementationChannel||insight.type} title="${(insight.title||insight.recommendation||"").slice(0,60)}" agentMode=${agentMode}`);
     setImplementing(insight.id); setError("");
     try {
       const result = await api.agents.implement(businessId, insight, agentMode);
+      console.log(`[AGENT:implement] Complete — channel=${result.channel} published=${result.published} imageSource=${result.imageSource} hasImageUrl=${!!result.imageUrl} imageUrl=${result.imageUrl || "none"} captionLen=${result.caption?.length || 0}`);
       setImplemented(p=>({...p,[insight.id]:result}));
       api.agents.activity(businessId).then(d=>setActivity(d.activity||[])).catch(()=>{});
       refreshAccess();
-    } catch(e) { setError(e.message); }
+    } catch(e) {
+      console.error(`[AGENT:implement] FAILED — insightId=${insight.id} error="${e.message}"`);
+      setError(e.message);
+    }
     setImplementing(null);
   };
 

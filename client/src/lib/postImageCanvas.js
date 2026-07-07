@@ -72,14 +72,20 @@ function wrapLines(ctx, text, maxWidth, maxLines) {
  * @returns {Promise<Blob>}
  */
 export async function generatePostImageBlob(businessName, captionBody = "") {
+  // Mix businessName with a random nonce so each post gets unique geometry
+  // (previously seeded by businessName alone → identical image every time)
+  const nonce = Math.random().toString(36).slice(2, 8);
+  const seed  = `${businessName}:${nonce}`;
+  console.log(`[CANVAS] generatePostImageBlob — businessName="${businessName}" nonce=${nonce} captionBodyLen=${captionBody?.length}`);
+
   const W = 1080, H = 1080;
   const canvas = document.createElement("canvas");
   canvas.width = W;
   canvas.height = H;
   const ctx = canvas.getContext("2d");
-  const r = seededRng(businessName);
+  const r = seededRng(seed);
 
-  // Gradient background
+  // Gradient background — palette picked from business name (stable brand color)
   const [c1, c2] = pickPalette(businessName);
   const grad = ctx.createLinearGradient(0, 0, W, H);
   grad.addColorStop(0, c1);

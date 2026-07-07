@@ -9,6 +9,7 @@
  */
 
 const { PrismaClient } = require("@prisma/client");
+const log    = require("../lib/logger");
 const prisma = new PrismaClient();
 
 const OUTPUT_TYPE = "brand_identity";
@@ -19,8 +20,25 @@ async function getBrandIdentity(businessId) {
   const out = await prisma.businessOutput.findFirst({
     where: { businessId, type: OUTPUT_TYPE },
   });
-  if (!out) return null;
-  try { return JSON.parse(out.content); } catch { return null; }
+  if (!out) {
+    log.warn("BRAND", "No brand identity found in DB — caller should bootstrap", { businessId });
+    return null;
+  }
+  try {
+    const data = JSON.parse(out.content);
+    log.info("BRAND", "Brand identity loaded from DB", {
+      businessId,
+      populatedBy: data.populatedBy || "unknown",
+      populatedAt: data.populatedAt || "unknown",
+      hasVoice: !!data.voice,
+      hasPalette: !!data.colorPalette,
+      hasBusinessType: !!data.businessType,
+    });
+    return data;
+  } catch (err) {
+    log.error("BRAND", "Brand identity JSON parse failed", { businessId, error: err.message });
+    return null;
+  }
 }
 
 async function saveBrandIdentity(businessId, data) {
@@ -119,11 +137,21 @@ function bootstrapFromIdea(business, idea, integrations, metrics) {
  * Fully populate brand identity using GPT-4o, then save.
  */
 async function populateAndSave(businessId, business, idea, integrations, metrics, marketReport) {
+  log.info("BRAND", "populateAndSave triggered — running GPT-4o brand identity synthesis", {
+    businessId, businessName: business.name,
+  });
   const { populateBrandIdentityFromData } = require("./openaiService");
   const data = await populateBrandIdentityFromData(business, idea, integrations, metrics, marketReport);
   data.populatedBy  = "market_analysis";
   data.populatedAt  = new Date().toISOString();
-  return saveBrandIdentity(businessId, data);
+  const saved = await saveBrandIdentity(businessId, data);
+  log.info("BRAND", "Brand identity saved", {
+    businessId, businessName: business.name,
+    businessType: saved.businessType || "(missing)",
+    voice: saved.voice || "(missing)",
+    palette: saved.colorPalette || "(missing)",
+  });
+  return saved;
 }
 
 module.exports = { getBrandIdentity, saveBrandIdentity, bootstrapFromIdea, populateAndSave };
