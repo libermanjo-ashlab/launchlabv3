@@ -121,17 +121,22 @@ router.post("/:id/run", requireAuth, async (req, res, next) => {
     // ── Campaign tasks: channel-aware execution ──────────────────────────────────
     let outputData;
     if (task.category === "campaign") {
-      // Read channel from task steps (stored at breakdown time), fall back to regex on name/description
+      // Read channel + shouldPublish from task steps (stored at breakdown time)
       let stepsData = [];
       try { stepsData = JSON.parse(task.steps || "[]"); } catch {}
       const taskChannel = stepsData[0]?.channel || "";
       const isInstagram = taskChannel === "instagram" || /instagram|ig post|reel|social post/i.test(task.name + " " + (task.description || ""));
+      // Only actually post for the "Publish" step — prep tasks generate content only
+      const shouldPublish = stepsData[0]?.shouldPublish !== undefined
+        ? stepsData[0].shouldPublish
+        : /\bpublish\b|\bpost\s+(to|on)\s+instagram\b|\bgo\s+live\b|\bpublish\s+the\s+post\b/i.test(task.name + " " + (task.description || ""));
       log.info("TASK", "Campaign task routing", {
         taskId: task.id,
         name: task.name,
         mode: task.mode,
         taskChannel: taskChannel || "(none)",
         isInstagram,
+        shouldPublish,
         hasOpenAIKey: !!process.env.OPENAI_API_KEY,
         hasAnthropicKey: !!process.env.ANTHROPIC_API_KEY,
       });
@@ -263,9 +268,11 @@ router.post("/:id/run", requireAuth, async (req, res, next) => {
             captionLen: captionResult.caption?.length,
           });
 
-          // ── Post to Instagram (auto mode only) ──────────────────────────────
-          if (task.mode === "auto") {
-            log.info("TASK", "Auto mode — attempting Instagram post", {
+          // ── Post to Instagram (auto mode + shouldPublish tasks only) ──────────
+          log.info("TASK", "Post gate check", { taskId: task.id, taskMode: task.mode, shouldPublish, imageSource });
+
+          if (task.mode === "auto" && shouldPublish) {
+            log.info("TASK", "Auto + shouldPublish — attempting Instagram post", {
               taskId: task.id,
               imageUrl,
               captionSnippet: captionResult.body?.slice(0, 60),
@@ -282,6 +289,7 @@ router.post("/:id/run", requireAuth, async (req, res, next) => {
                 fields:[
                   { label:"Status",   value:"Posted to Instagram" },
                   { label:"Media ID", value:post.mediaId },
+                  ...(imageSource !== "dalle3" ? [{ label:"Image",  value:`${imageSource} — add OPENAI_API_KEY to Railway for AI-generated images` }] : []),
                 ],
               };
             } catch(postErr) {
@@ -302,12 +310,19 @@ router.post("/:id/run", requireAuth, async (req, res, next) => {
               };
             }
           } else {
-            log.info("TASK", "Non-auto mode — returning caption + image for review", { taskId: task.id, taskMode: task.mode });
+            // Prep tasks (define concept, write caption, create visual) or guided/manual mode
+            const statusLabel = task.mode === "auto"
+              ? "Content ready (prep step — publish task will post)"
+              : "Caption + image ready — copy and post";
+            log.info("TASK", "Non-publish task — returning caption + image for review", {
+              taskId: task.id, taskMode: task.mode, shouldPublish,
+            });
             outputData = {
               channel:"instagram", published:false, imageUrl, imageSource,
               caption: captionResult.caption, body: captionResult.body, hashtags: captionResult.hashtags,
               fields:[
-                { label:"Status", value:"Caption + image ready — copy and post" },
+                { label:"Status",  value:statusLabel },
+                ...(imageSource !== "dalle3" ? [{ label:"Image",   value:`${imageSource} — add OPENAI_API_KEY to Railway for AI-generated images` }] : []),
               ],
             };
           }

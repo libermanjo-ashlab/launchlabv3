@@ -330,6 +330,8 @@ function CampaignTaskRow({ task:t, mode, channel, businessId, businessName, onCo
   const [content,   setContent]   = useState(null);
   const [showContent, setShowContent] = useState(false);
   const [error,     setError]     = useState("");
+  const [posting,   setPosting]   = useState(false);
+  const [postMsg,   setPostMsg]   = useState("");
 
   const isDone = t.status === "completed" || t.status === "done";
 
@@ -444,6 +446,32 @@ function CampaignTaskRow({ task:t, mode, channel, businessId, businessName, onCo
             </div>
           ) : (
             <ContentPreviewBlock content={content} channel={channel} mode={mode} />
+          )}
+          {/* Guided mode: Post to Instagram button after content generated */}
+          {mode === "guided" && channel === "instagram" && (content?.caption || content?.body) && content?.imageUrl && !content?.published && (
+            <div style={{ marginTop:8 }}>
+              <button onClick={async () => {
+                setPosting(true); setPostMsg("");
+                try {
+                  const res = await api.instagram.createPost(businessId, content.imageUrl, content.caption || content.body);
+                  if (res.success) {
+                    setPostMsg(`✓ Posted! ${res.permalink || ""}`);
+                    setContent(p => ({ ...p, published: true }));
+                    onComplete(t.id);
+                  } else {
+                    setPostMsg("Post failed — check Instagram connection");
+                  }
+                } catch(postErr) {
+                  setPostMsg(`Error: ${postErr.message}`);
+                }
+                setPosting(false);
+              }} disabled={posting}
+                style={{ ...btn(posting?"#9CA3AF":C.primary,"#fff",11), padding:"5px 12px", display:"flex", alignItems:"center", gap:6 }}>
+                {posting && <span style={{ ...spin(), width:10, height:10, borderWidth:1.5 }}/>}
+                {posting ? "Posting…" : "Post to Instagram"}
+              </button>
+              {postMsg && <div style={{ fontSize:11, color:postMsg.startsWith("✓")?C.ok:C.err, fontFamily:FB, marginTop:4 }}>{postMsg}</div>}
+            </div>
           )}
         </div>
       )}
@@ -1013,7 +1041,12 @@ export default function AgentPanel({ businessId, businessName, metrics, planInfo
   };
 
   const updateCampaign = (updated) => {
-    saveCampaigns(p => p.map(c => c.id===updated.id ? updated : c));
+    if (typeof updated === "function") {
+      // runTasksAuto passes a functional updater: fn(campaign) => campaign
+      saveCampaigns(p => p.map(c => updated(c)));
+    } else {
+      saveCampaigns(p => p.map(c => c.id===updated.id ? updated : c));
+    }
   };
   const deleteCampaign = (id) => saveCampaigns(p=>p.filter(c=>c.id!==id));
 

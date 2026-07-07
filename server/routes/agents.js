@@ -411,7 +411,12 @@ Return a JSON object:
           mode:          campaign.mode === "auto" ? "auto" : campaign.mode === "guided" ? "guided" : "manual",
           estimatedTime: t.estimatedTime || null,
           canAutomate:   !!t.canAutomate,
-          steps:         JSON.stringify([{ label: campaign.title, detail: t.description, channel: campaign.channel || "general" }]),
+          steps:         JSON.stringify([{
+            label:         campaign.title,
+            detail:        t.description,
+            channel:       campaign.channel || "general",
+            shouldPublish: campaign.channel === "instagram" && /\bpublish\b|\bpost\s+(to|on)\s+instagram\b|\bgo\s+live\b|\bpublish\s+the\s+post\b/i.test((t.name || "") + " " + (t.description || "")),
+          }]),
           sortOrder:     i,
         },
       });
