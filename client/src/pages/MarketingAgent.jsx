@@ -729,6 +729,65 @@ function ImplementResult({ result, businessId, businessName }) {
   return null;
 }
 
+// ── Brand Identity Q&A (manual mode prompts) ─────────────────────────────────
+
+const BRAND_QA = [
+  { key:"voice",          q:"What is your brand voice?",              ph:"e.g. educational, direct, no-fluff" },
+  { key:"targetAudience", q:"Who is your target customer?",           ph:"e.g. freelancers aged 25-35 who struggle with pricing" },
+  { key:"contentPillars", q:"What topics do you post about?",         ph:"e.g. tips, client wins, behind the scenes", isArray:true },
+  { key:"uniqueAngle",    q:"What makes your content different?",     ph:"e.g. we show real revenue numbers, not vague results" },
+];
+
+function BrandQAPanel({ businessId }) {
+  const [identity, setIdentity] = useState(null);
+  const [saving,   setSaving]   = useState(false);
+  const [saved,    setSaved]    = useState(false);
+
+  useEffect(() => {
+    api.agents.getBrandIdentity(businessId)
+      .then(d => setIdentity(d.identity))
+      .catch(() => {});
+  }, [businessId]);
+
+  const update = (key, val) => setIdentity(p => ({ ...p, [key]: val }));
+
+  const save = async () => {
+    if (!identity) return;
+    setSaving(true);
+    try {
+      const { identity: saved } = await api.agents.saveBrandIdentity(businessId, identity);
+      setIdentity(saved); setSaved(true);
+      setTimeout(() => setSaved(false), 2000);
+    } catch {}
+    setSaving(false);
+  };
+
+  if (!identity) return null;
+
+  return (
+    <div style={{ ...card("12px 14px"), marginBottom:12, border:`1px solid ${C.border}` }}>
+      <div style={{ fontSize:11, fontWeight:700, color:C.muted, textTransform:"uppercase", letterSpacing:"0.06em", marginBottom:10, fontFamily:FB }}>Brand prompts</div>
+      {BRAND_QA.map(({ key, q, ph, isArray }) => (
+        <div key={key} style={{ marginBottom:10 }}>
+          <div style={{ fontSize:12, fontWeight:600, color:C.text, fontFamily:FB, marginBottom:3 }}>{q}</div>
+          <input
+            style={{ width:"100%", padding:"6px 10px", fontSize:12, fontFamily:FB, borderRadius:8, border:`1px solid ${C.border}`, background:C.bg, color:C.text, boxSizing:"border-box", outline:"none" }}
+            value={isArray ? (Array.isArray(identity[key]) ? identity[key].join(", ") : identity[key] || "") : (identity[key] || "")}
+            onChange={e => update(key, isArray ? e.target.value.split(",").map(s => s.trim()).filter(Boolean) : e.target.value)}
+            placeholder={ph}
+            onBlur={save}
+          />
+        </div>
+      ))}
+      <div style={{ display:"flex", justifyContent:"flex-end" }}>
+        <button onClick={save} disabled={saving} style={{ ...btnO(C.primary,11), padding:"3px 10px" }}>
+          {saved ? "Saved ✓" : saving ? "Saving…" : "Save answers"}
+        </button>
+      </div>
+    </div>
+  );
+}
+
 // ── Upgrade prompt ────────────────────────────────────────────────────────────
 
 function UpgradeCard({ reason, navigate }) {
@@ -942,6 +1001,8 @@ export default function AgentPanel({ businessId, businessName, metrics, planInfo
           {/* ── MANUAL MODE ── */}
           {agentMode==="manual" && (
             <>
+              {/* Brand prompts replace AI analysis in manual mode */}
+              <BrandQAPanel businessId={businessId} />
               {overview ? (
                 <div>
                   <div style={{ ...card("12px 14px"), background:C.primaryBg, border:`1px solid ${C.primary}20`, marginBottom:12 }}>

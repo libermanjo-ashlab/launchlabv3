@@ -19,8 +19,10 @@ const requireAuth = require("../middleware/auth");
 const multer      = require("multer");
 const sharp       = require("sharp");
 const { PrismaClient } = require("@prisma/client");
-const ig      = require("../services/instagram");
-const imgGen  = require("../services/imageGen");
+const ig         = require("../services/instagram");
+const imgGen     = require("../services/imageGen");
+const openaiSvc  = require("../services/openaiService");
+const { getBrandIdentity } = require("../services/brandIdentity");
 
 const prisma  = new PrismaClient();
 const upload  = multer({ storage: multer.memoryStorage(), limits: { fileSize: 20 * 1024 * 1024 } });
@@ -157,10 +159,22 @@ router.post("/:businessId/post", requireAuth, async (req, res, next) => {
 
     // Auto-generate image if none provided
     if (!imageUrl?.trim()) {
-      let idea = {}; try { idea = JSON.parse(biz.ideaData || "{}"); } catch {}
-      const appUrl = process.env.APP_URL || process.env.CLIENT_URL || "http://localhost:3000";
-      const imageId = await imgGen.generatePostImage(biz.name, caption.split("#")[0].trim().slice(0, 200));
-      imageUrl = `${appUrl}/api/instagram/images/${imageId}`;
+      const appUrl    = process.env.APP_URL || process.env.CLIENT_URL || "http://localhost:3000";
+      const brandId   = await getBrandIdentity(req.params.businessId);
+      const captionBody = caption.split("#")[0].trim().slice(0, 300);
+      if (process.env.OPENAI_API_KEY) {
+        try {
+          const imgBuf  = await openaiSvc.generatePostImage(biz.name, captionBody, brandId);
+          const imageId = imgGen.storeImage(imgBuf);
+          imageUrl = `${appUrl}/api/instagram/images/${imageId}`;
+        } catch {
+          const imageId = await imgGen.generatePostImage(biz.name, captionBody);
+          imageUrl = `${appUrl}/api/instagram/images/${imageId}`;
+        }
+      } else {
+        const imageId = await imgGen.generatePostImage(biz.name, captionBody);
+        imageUrl = `${appUrl}/api/instagram/images/${imageId}`;
+      }
     }
 
     const result = await ig.createImagePost(meta.accessToken, meta.businessAccountId, imageUrl.trim(), caption.trim());
@@ -174,24 +188,32 @@ router.post("/:businessId/post", requireAuth, async (req, res, next) => {
 
 // POST /api/instagram/:businessId/generate-caption
 // Body: { context, tone }
-// Returns caption + a pre-generated imageUrl hosted on this server.
+// Returns caption. Image is generated client-side (browser Canvas) for correct font rendering.
 router.post("/:businessId/generate-caption", requireAuth, async (req, res, next) => {
   try {
     const { biz } = await getIgCreds(req.params.businessId, req.userId);
     let idea = {}; try { idea = JSON.parse(biz.ideaData || "{}"); } catch {}
 
-    const metricsOut = await prisma.businessOutput.findFirst({ where: { businessId: req.params.businessId, type: "user_metrics" } });
-    let prefs = {};
-    try { const m = JSON.parse(metricsOut?.content || "{}"); prefs = m.prefs || {}; } catch {}
-
     const { context, tone } = req.body;
-    const [captionResult, imageId] = await Promise.all([
-      ig.generateCaption(biz.name, idea.name, context, tone, prefs),
-      imgGen.generatePostImage(biz.name, context || "New post"),
-    ]);
+    const brandId    = await getBrandIdentity(req.params.businessId);
+    const marketOut  = await prisma.businessOutput.findFirst({ where: { businessId: req.params.businessId, type: "marketing_insights" } });
+    let marketInsights = "";
+    try { const md = JSON.parse(marketOut?.content || "{}"); marketInsights = md.report?.marketAnalysis?.summary || ""; } catch {}
 
-    const appUrl = process.env.APP_URL || process.env.CLIENT_URL || "http://localhost:3000";
-    res.json({ ...captionResult, imageUrl: `${appUrl}/api/instagram/images/${imageId}`, imageId });
+    let captionResult;
+    if (process.env.OPENAI_API_KEY) {
+      captionResult = await openaiSvc.generateInstagramCaption({
+        businessName: biz.name, businessType: idea.name, context, tone,
+        brandIdentity: brandId, marketInsights,
+      });
+    } else {
+      const metricsOut = await prisma.businessOutput.findFirst({ where: { businessId: req.params.businessId, type: "user_metrics" } });
+      let prefs = {}; try { const m = JSON.parse(metricsOut?.content || "{}"); prefs = m.prefs || {}; } catch {}
+      captionResult = await ig.generateCaption(biz.name, idea.name, context, tone, prefs);
+    }
+
+    // Return caption only — client generates image via Canvas API (no server-side font issues)
+    res.json({ ...captionResult });
   } catch(e) { if (e.igCode) return igErrorResponse(res, e); next(e); }
 });
 

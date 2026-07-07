@@ -104,6 +104,9 @@ export const api = {
     setAutopilot: (bizId,enabled)=> req("POST", `/agents/${bizId}/autopilot`, { enabled }),
     deployStatus: bizId         => req("GET",  `/agents/${bizId}/deploy-status`),
     resetUsage:   bizId         => req("DELETE", `/agents/${bizId}/usage`),
+    getBrandIdentity:      bizId            => req("GET",  `/agents/${bizId}/brand-identity`),
+    saveBrandIdentity:     (bizId,identity) => req("PUT",  `/agents/${bizId}/brand-identity`, { identity }),
+    populateBrandIdentity: bizId            => req("POST", `/agents/${bizId}/brand-identity/populate`),
   },
   metrics: {
     get:     bizId          => req("GET", `/metrics/${bizId}`),

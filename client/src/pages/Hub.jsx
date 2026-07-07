@@ -1051,6 +1051,199 @@ function UpgradeCard({ reason, navigate }) {
 
 // ── Instagram Panel ───────────────────────────────────────────────────────────
 
+// ── Brand & Social Identity Panel ─────────────────────────────────────────────
+
+const PILLAR_SUGGESTIONS = ["value tips", "social proof", "behind the scenes", "offers", "FAQs", "transformations", "client stories", "how-tos"];
+
+function BrandIdentityPanel({ businessId, integs, agentMode }) {
+  const [identity, setIdentity] = useState(null);
+  const [loading,  setLoading]  = useState(true);
+  const [saving,   setSaving]   = useState(false);
+  const [populating, setPopulating] = useState(false);
+  const [saved,    setSaved]    = useState(false);
+  const [expanded, setExpanded] = useState(false);
+
+  useEffect(() => {
+    api.agents.getBrandIdentity(businessId)
+      .then(d => setIdentity(d.identity))
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }, [businessId]);
+
+  const field = (key, label, placeholder, multiline) => {
+    const val = identity?.[key] || "";
+    return (
+      <div key={key}>
+        <label style={lbl}>{label}</label>
+        {multiline
+          ? <textarea style={{ ...inp(), minHeight:56, resize:"vertical" }} value={val}
+              onChange={e => setIdentity(p => ({...p, [key]: e.target.value}))}
+              placeholder={placeholder} />
+          : <input style={inp()} value={val}
+              onChange={e => setIdentity(p => ({...p, [key]: e.target.value}))}
+              placeholder={placeholder} />
+        }
+      </div>
+    );
+  };
+
+  const save = async () => {
+    setSaving(true);
+    try {
+      const { identity: saved } = await api.agents.saveBrandIdentity(businessId, identity);
+      setIdentity(saved); setSaved(true);
+      setTimeout(() => setSaved(false), 2000);
+    } catch(e) { alert(e.message); }
+    setSaving(false);
+  };
+
+  const populate = async () => {
+    setPopulating(true);
+    try {
+      const { identity: filled } = await api.agents.populateBrandIdentity(businessId);
+      setIdentity(filled);
+    } catch(e) { alert(e.message); }
+    setPopulating(false);
+  };
+
+  const presence = identity?.channelPresence;
+  const connectedChannels = presence?.channels || [];
+  const STATUS_CLR = { active: C.ok, limited: C.warn, absent: C.muted };
+
+  if (loading) return <div style={{ ...card(), marginBottom:20, color:C.muted, fontSize:13, fontFamily:FB }}>Loading brand identity…</div>;
+
+  return (
+    <div style={{ ...card("16px 18px"), marginBottom:20 }}>
+      <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:8 }}>
+        <div>
+          <div style={{ fontFamily:FH, fontWeight:700, fontSize:15 }}>Brand &amp; Social Identity</div>
+          <div style={{ fontSize:12, color:C.muted, fontFamily:FB, marginTop:2 }}>
+            {identity?.populatedBy === "market_analysis" ? "AI-analyzed from your channels + market data"
+             : identity?.populatedBy === "user" ? "User-defined"
+             : "Auto-filled from your business idea"}
+            {identity?.populatedAt ? ` · ${new Date(identity.populatedAt).toLocaleDateString()}` : ""}
+          </div>
+        </div>
+        <div style={{ display:"flex", gap:8, alignItems:"center" }}>
+          <button onClick={populate} disabled={populating}
+            style={{ ...btnO(C.primary, 11), padding:"5px 12px", display:"flex", alignItems:"center", gap:5 }}>
+            {populating && <span style={{ width:10, height:10, borderRadius:"50%", border:`1.5px solid ${C.primary}40`, borderTopColor:C.primary, animation:"spin 0.8s linear infinite", display:"inline-block" }} />}
+            {populating ? "Analyzing…" : "AI Fill"}
+          </button>
+          <button onClick={() => setExpanded(e => !e)} style={{ ...btnO(C.muted, 11), padding:"5px 12px" }}>
+            {expanded ? "Collapse" : "Edit"}
+          </button>
+        </div>
+      </div>
+
+      {/* Channel presence summary — always visible */}
+      {presence && (
+        <div style={{ marginBottom: expanded ? 16 : 0 }}>
+          <div style={{ fontSize:12, color:C.muted, fontFamily:FB, lineHeight:1.65, marginBottom:8 }}>{presence.summary}</div>
+          {connectedChannels.length > 0 && (
+            <div style={{ display:"flex", gap:8, flexWrap:"wrap", marginBottom:8 }}>
+              {connectedChannels.map(ch => (
+                <div key={ch.name} style={{ display:"flex", alignItems:"center", gap:5, background:C.surface, border:`1px solid ${C.border}`, borderRadius:20, padding:"3px 10px" }}>
+                  <span style={{ width:7, height:7, borderRadius:"50%", background:STATUS_CLR[ch.status] || C.muted, flexShrink:0 }} />
+                  <span style={{ fontSize:11, fontFamily:FB, fontWeight:600 }}>{ch.name}</span>
+                  <span style={{ fontSize:11, color:C.muted, fontFamily:FB }}>{ch.strength}</span>
+                </div>
+              ))}
+            </div>
+          )}
+          {presence.topOpportunity && (
+            <div style={{ background:C.primaryBg, border:`1px solid ${C.primary}20`, borderRadius:8, padding:"6px 10px", fontSize:12, color:C.primary, fontFamily:FB }}>
+              Opportunity: {presence.topOpportunity}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Editable fields — collapsed by default */}
+      {expanded && (
+        <div style={{ marginTop:16 }}>
+          <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:12, marginBottom:12 }}>
+            {field("voice", "Brand voice", "e.g. educational, direct, no-fluff")}
+            {field("tone", "Tone", "e.g. warm but professional, confidence-first")}
+          </div>
+          {field("targetAudience", "Target audience", "Who is your ideal customer? What's their main pain point?", true)}
+          <div style={{ marginTop:12, marginBottom:4 }}>
+            <label style={lbl}>Content pillars (select up to 4)</label>
+            <div style={{ display:"flex", gap:6, flexWrap:"wrap", marginTop:4 }}>
+              {PILLAR_SUGGESTIONS.map(p => {
+                const active = (identity?.contentPillars || []).includes(p);
+                return (
+                  <button key={p} onClick={() => {
+                    const cur = identity?.contentPillars || [];
+                    const next = active ? cur.filter(x=>x!==p) : cur.length<4 ? [...cur,p] : cur;
+                    setIdentity(id => ({...id, contentPillars: next}));
+                  }} style={{ ...( active ? btn(C.primary,"#fff",11) : btnO(C.muted,11) ), padding:"3px 10px" }}>{p}</button>
+                );
+              })}
+            </div>
+          </div>
+          <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:12, marginTop:12 }}>
+            {field("colorPalette", "Color palette", "e.g. deep purple, warm gold, white")}
+            {field("uniqueAngle", "Unique angle", "What makes your content different from competitors?")}
+          </div>
+          {field("visualStyle", "Visual style", "Describe the aesthetic — clean, bold, minimal, warm, dark…", true)}
+          {field("competitorAccounts", "Competitor / inspiration accounts", "@handle1, @handle2 — accounts to study")}
+          {field("postingRecommendation", "Posting recommendation", "e.g. 4x/week: 60% tips, 30% social proof, 10% offers")}
+
+          <div style={{ display:"flex", justifyContent:"flex-end", marginTop:16 }}>
+            <button onClick={save} disabled={saving}
+              style={{ ...btn(saving ? "#9CA3AF" : C.primary, "#fff", 13), padding:"8px 20px" }}>
+              {saved ? "Saved ✓" : saving ? "Saving…" : "Save changes"}
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── Business Preferences (reused in Overview + Management) ────────────────────
+
+function BusinessPrefsCard({ prefs, onSave, compact }) {
+  return (
+    <div style={{ ...card("16px 18px"), marginBottom:24 }}>
+      <div style={{ fontFamily:FH, fontWeight:600, fontSize:15, marginBottom:4 }}>Business preferences</div>
+      <p style={{ fontSize:12, color:C.muted, marginBottom:16, fontFamily:FB }}>
+        {compact ? "Shapes all agent advice and output." : "Tell the agent who you are targeting and where you are in your journey. This shapes all advice and output."}
+      </p>
+      <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:12, marginBottom:12 }}>
+        <div>
+          <label style={lbl}>Target audience</label>
+          <select style={{ ...inp(), appearance:"none" }} value={prefs.audience} onChange={e=>onSave({...prefs,audience:e.target.value})}>
+            <option value="local">Local (city / region)</option>
+            <option value="national">National</option>
+            <option value="global">Global / online</option>
+            <option value="niche">Niche community</option>
+          </select>
+        </div>
+        <div>
+          <label style={lbl}>Business stage</label>
+          <select style={{ ...inp(), appearance:"none" }} value={prefs.stage} onChange={e=>onSave({...prefs,stage:e.target.value})}>
+            <option value="starting">Just starting out</option>
+            <option value="growing">Growing — have first clients</option>
+            <option value="scaling">Scaling up</option>
+            <option value="established">Established</option>
+          </select>
+        </div>
+      </div>
+      <div style={{ marginBottom:12 }}>
+        <label style={lbl}>Target market description (optional)</label>
+        <input style={inp()} value={prefs.targetMarket||""} onChange={e=>onSave({...prefs,targetMarket:e.target.value})} placeholder="e.g. small business owners in the US, college students, fitness enthusiasts" />
+      </div>
+      <div>
+        <label style={lbl}>Current goals (optional)</label>
+        <input style={inp()} value={prefs.goals||""} onChange={e=>onSave({...prefs,goals:e.target.value})} placeholder="e.g. reach 100 clients by Q3, expand to a second city, launch a course" />
+      </div>
+      <div style={{ fontSize:11, color:C.muted, marginTop:10, fontFamily:FB }}>Preferences are saved automatically and used by all agents and the guide chat.</div>
+    </div>
+  );
+}
+
 function InstagramPanel({ businessId, businessName, integs }) {
   const igMeta = (() => { try { const i=integs.find(x=>x.provider==="instagram"); return i?.metadata?JSON.parse(i.metadata):{};} catch{return {};} })();
   const hasToken = !!(igMeta.accessToken && igMeta.businessAccountId);
@@ -1557,6 +1750,12 @@ export default function Hub() {
                 ))}
               </div>
 
+              {/* Brand & Social Identity */}
+              <BrandIdentityPanel businessId={businessId} integs={integs} />
+
+              {/* Business preferences */}
+              <BusinessPrefsCard prefs={prefs} onSave={savePrefs} compact />
+
               {/* Business summary */}
               <div style={{ display:"grid", gridTemplateColumns:"2fr 1fr", gap:14 }}>
                 <div style={card()}>
@@ -1627,39 +1826,8 @@ export default function Hub() {
 
               <AutopilotCard businessId={businessId} planInfo={planInfo} navigate={navigate} />
 
-              {/* Business Preferences */}
-              <div style={{ ...card("16px 18px"), marginBottom:24 }}>
-                <div style={{ fontFamily:FH, fontWeight:600, fontSize:15, marginBottom:4 }}>Business preferences</div>
-                <p style={{ fontSize:12, color:C.muted, marginBottom:16, fontFamily:FB }}>Tell the agent who you are targeting and where you are in your journey. This shapes all advice and output.</p>
-                <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:12, marginBottom:12 }}>
-                  <div>
-                    <label style={lbl}>Target audience</label>
-                    <select style={{ ...inp(), appearance:"none" }} value={prefs.audience} onChange={e=>savePrefs({...prefs,audience:e.target.value})}>
-                      <option value="local">Local (city / region)</option>
-                      <option value="national">National</option>
-                      <option value="global">Global / online</option>
-                      <option value="niche">Niche community</option>
-                    </select>
-                  </div>
-                  <div>
-                    <label style={lbl}>Business stage</label>
-                    <select style={{ ...inp(), appearance:"none" }} value={prefs.stage} onChange={e=>savePrefs({...prefs,stage:e.target.value})}>
-                      <option value="starting">Just starting out</option>
-                      <option value="growing">Growing — have first clients</option>
-                      <option value="scaling">Scaling up</option>
-                      <option value="established">Established</option>
-                    </select>
-                  </div>
-                </div>
-                <div style={{ marginBottom:12 }}>
-                  <label style={lbl}>Target market description (optional)</label>
-                  <input style={inp()} value={prefs.targetMarket||""} onChange={e=>savePrefs({...prefs,targetMarket:e.target.value})} placeholder="e.g. small business owners in the US, college students, fitness enthusiasts" />
-                </div>
-                <div>
-                  <label style={lbl}>Current goals (optional)</label>
-                  <input style={inp()} value={prefs.goals||""} onChange={e=>savePrefs({...prefs,goals:e.target.value})} placeholder="e.g. reach 100 clients by Q3, expand to a second city, launch a course" />
-                </div>
-                <div style={{ fontSize:11, color:C.muted, marginTop:10, fontFamily:FB }}>Preferences are saved automatically and used by all agents and the guide chat.</div>
+              <div style={{ ...card("12px 16px"), marginBottom:16, background:C.surface, border:`1px solid ${C.border}` }}>
+                <div style={{ fontSize:12, color:C.muted, fontFamily:FB }}>Business preferences and brand identity are now in <button onClick={()=>setTab("overview")} style={{ background:"none", border:"none", color:C.primary, cursor:"pointer", fontSize:12, fontFamily:FB, padding:0 }}>Overview →</button></div>
               </div>
 
               <div style={{ ...card("16px 18px"), marginBottom:24, background:C.primaryBg, border:`1px solid ${C.primary}15` }}>

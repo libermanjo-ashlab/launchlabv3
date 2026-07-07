@@ -9,6 +9,8 @@ const { runEnhancedMarketingAgent, runBasicOverview, generateChannelContent } = 
 const { createSite, deploySite } = require("../services/netlify");
 const { runAutopilotIteration } = require("../services/autopilotLoop");
 const { getEffectivePlan, canRunMarketing, canImplement, canUseAutopilot } = require("../services/plans");
+const { getBrandIdentity, saveBrandIdentity, bootstrapFromIdea, populateAndSave } = require("../services/brandIdentity");
+const openaiSvc = require("../services/openaiService");
 
 const prisma = new PrismaClient();
 const activityLog   = {};
@@ -135,6 +137,15 @@ router.post("/:businessId/marketing/run", requireAuth, async (req, res, next) =>
     if (existing) await prisma.businessOutput.update({ where:{ id:existing.id }, data:{ content } });
     else await prisma.businessOutput.create({ data:{ businessId:req.params.businessId, type:"marketing_insights", title:"Marketing Analysis", content } });
 
+    // Auto-populate brand identity in guided/auto mode (non-blocking)
+    if (mode !== "manual" && process.env.OPENAI_API_KEY) {
+      const integrations2 = await prisma.integration.findMany({ where:{ businessId:req.params.businessId } });
+      const metricsOut2   = await prisma.businessOutput.findFirst({ where:{ businessId:req.params.businessId, type:"user_metrics" } });
+      let metrics2 = {}; try { metrics2 = JSON.parse(metricsOut2?.content||"{}"); } catch {}
+      populateAndSave(req.params.businessId, biz, JSON.parse(biz.ideaData||"{}"), integrations2, metrics2, reportData.report||null)
+        .catch(() => {}); // non-blocking, best-effort
+    }
+
     res.json(reportData);
   } catch(e) { next(e); }
 });
@@ -209,21 +220,43 @@ router.post("/:businessId/management/implement", requireAuth, async (req, res, n
       // Use agent mode from request; fall back to integration's autopilot flag
       const igAutopilot = mode === "auto" || (mode !== "guided" && mode !== "manual" && !!(meta.autopilot));
 
-      // Generate caption + branded image in parallel
+      // Load brand identity + business context
       let idea2 = {}; try { idea2 = JSON.parse(biz.ideaData||"{}"); } catch {}
-      const metricsOut2 = await prisma.businessOutput.findFirst({ where:{ businessId:req.params.businessId, type:"user_metrics" } });
-      let prefs2 = {}; try { const mm=JSON.parse(metricsOut2?.content||"{}"); prefs2=mm.prefs||{}; } catch {}
+      const brandId2  = await getBrandIdentity(req.params.businessId);
+      const marketOut2= await prisma.businessOutput.findFirst({ where:{ businessId:req.params.businessId, type:"marketing_insights" } });
+      let marketInsights2 = ""; try { const md=JSON.parse(marketOut2?.content||"{}"); marketInsights2=(md.report?.marketAnalysis?.summary||md.overview?.summary||""); } catch {}
 
-      const imgGen = require("../services/imageGen");
       const context2 = insight.recommendation || insight.agentObservation;
-      const [captionResult, imageId] = await Promise.all([
-        ig.generateCaption(biz.name, idea2.name, context2, "authentic", prefs2),
-        imgGen.generatePostImage(biz.name, context2),
-      ]);
+
+      // Caption via OpenAI (GPT-4o), fallback to Claude
+      let captionResult;
+      if (process.env.OPENAI_API_KEY) {
+        captionResult = await openaiSvc.generateInstagramCaption({ businessName:biz.name, businessType:idea2.name, context:context2, brandIdentity:brandId2, marketInsights:marketInsights2 });
+      } else {
+        captionResult = await ig.generateCaption(biz.name, idea2.name, context2, "authentic", {});
+      }
       logActivity(req.params.businessId,{ agent:"management", action:"Caption generated", detail:captionResult.body?.slice(0,80) });
 
-      const appUrl = process.env.APP_URL || process.env.CLIENT_URL || "http://localhost:3000";
-      const generatedImageUrl = `${appUrl}/api/instagram/images/${imageId}`;
+      // Image via DALL-E 3 (fallback to SVG if no OpenAI key)
+      const imgGen = require("../services/imageGen");
+      let generatedImageUrl;
+      if (process.env.OPENAI_API_KEY) {
+        try {
+          const imgBuf = await openaiSvc.generatePostImage(biz.name, captionResult.body, brandId2);
+          const imageId = imgGen.storeImage(imgBuf);
+          const appUrl = process.env.APP_URL || process.env.CLIENT_URL || "http://localhost:3000";
+          generatedImageUrl = `${appUrl}/api/instagram/images/${imageId}`;
+        } catch {
+          const imageId = await imgGen.generatePostImage(biz.name, context2);
+          const appUrl = process.env.APP_URL || process.env.CLIENT_URL || "http://localhost:3000";
+          generatedImageUrl = `${appUrl}/api/instagram/images/${imageId}`;
+        }
+      } else {
+        const imageId = await imgGen.generatePostImage(biz.name, context2);
+        const appUrl = process.env.APP_URL || process.env.CLIENT_URL || "http://localhost:3000";
+        generatedImageUrl = `${appUrl}/api/instagram/images/${imageId}`;
+      }
+
       const igResult = { success:true, channel:"instagram", caption:captionResult.caption, body:captionResult.body, hashtags:captionResult.hashtags, imageUrl:generatedImageUrl, autopilot:igAutopilot };
 
       if (igAutopilot) {
@@ -344,6 +377,60 @@ Return a JSON object:
   } catch(e) { next(e); }
 });
 
+// ── Brand Identity ────────────────────────────────────────────────────────────
+
+/** GET /:businessId/brand-identity — fetch saved brand identity */
+router.get("/:businessId/brand-identity", requireAuth, async (req, res, next) => {
+  try {
+    const biz = await prisma.business.findFirst({ where:{ id:req.params.businessId, userId:req.userId } });
+    if (!biz) return res.status(404).json({ error:"Business not found" });
+    let identity = await getBrandIdentity(req.params.businessId);
+    // Bootstrap from idea if nothing saved yet
+    if (!identity) {
+      let idea = {}; try { idea = JSON.parse(biz.ideaData||"{}"); } catch {}
+      const integrations = await prisma.integration.findMany({ where:{ businessId:req.params.businessId } });
+      const metricsOut   = await prisma.businessOutput.findFirst({ where:{ businessId:req.params.businessId, type:"user_metrics" } });
+      let metrics = {}; try { metrics = JSON.parse(metricsOut?.content||"{}"); } catch {}
+      identity = bootstrapFromIdea(biz, idea, integrations, metrics);
+    }
+    res.json({ identity });
+  } catch(e) { next(e); }
+});
+
+/** PUT /:businessId/brand-identity — user saves manual edits */
+router.put("/:businessId/brand-identity", requireAuth, async (req, res, next) => {
+  try {
+    const biz = await prisma.business.findFirst({ where:{ id:req.params.businessId, userId:req.userId } });
+    if (!biz) return res.status(404).json({ error:"Business not found" });
+    const updates = req.body.identity || req.body;
+    const saved = await saveBrandIdentity(req.params.businessId, { ...updates, populatedBy:"user" });
+    res.json({ identity: saved });
+  } catch(e) { next(e); }
+});
+
+/** POST /:businessId/brand-identity/populate — AI-populate from all channel data */
+router.post("/:businessId/brand-identity/populate", requireAuth, async (req, res, next) => {
+  try {
+    const biz = await prisma.business.findFirst({ where:{ id:req.params.businessId, userId:req.userId } });
+    if (!biz) return res.status(404).json({ error:"Business not found" });
+    let idea = {}; try { idea = JSON.parse(biz.ideaData||"{}"); } catch {}
+    const integrations = await prisma.integration.findMany({ where:{ businessId:req.params.businessId } });
+    const metricsOut   = await prisma.businessOutput.findFirst({ where:{ businessId:req.params.businessId, type:"user_metrics" } });
+    let metrics = {}; try { metrics = JSON.parse(metricsOut?.content||"{}"); } catch {}
+    const marketOut    = await prisma.businessOutput.findFirst({ where:{ businessId:req.params.businessId, type:"marketing_insights" } });
+    let marketReport = null; try { const md = JSON.parse(marketOut?.content||"{}"); marketReport = md.report || md; } catch {}
+    if (!process.env.OPENAI_API_KEY) {
+      // Fall back to discovery bootstrap if OpenAI not configured
+      const identity = bootstrapFromIdea(biz, idea, integrations, metrics);
+      await saveBrandIdentity(req.params.businessId, identity);
+      return res.json({ identity });
+    }
+    const identity = await populateAndSave(req.params.businessId, biz, idea, integrations, metrics, marketReport);
+    logActivity(req.params.businessId, { agent:"marketing", action:"Brand identity updated", detail:"AI-analyzed all connected channels and market data" });
+    res.json({ identity });
+  } catch(e) { next(e); }
+});
+
 // ── Marketing Notes (sticky notes) ───────────────────────────────────────────
 
 async function getNotesRecord(bizId) {
@@ -418,7 +505,38 @@ router.post("/:businessId/campaigns/task-content", requireAuth, async (req, res,
     if (!task) return res.status(400).json({ error:"task required" });
     const biz = await prisma.business.findFirst({ where:{ id:req.params.businessId, userId:req.userId } });
     if (!biz) return res.status(404).json({ error:"Business not found" });
-    const content = await generateChannelContent(biz, task, channel || task.channel || "general", mode || "guided");
+
+    const ch = channel || task.channel || "general";
+    const brandId = await getBrandIdentity(req.params.businessId);
+    const marketOut = await prisma.businessOutput.findFirst({ where:{ businessId:req.params.businessId, type:"marketing_insights" } });
+    let marketInsights = ""; try { const md=JSON.parse(marketOut?.content||"{}"); marketInsights=md.report?.marketAnalysis?.summary||""; } catch {}
+
+    // Instagram tasks: use OpenAI caption + DALL-E image
+    if (ch === "instagram" && process.env.OPENAI_API_KEY) {
+      let idea = {}; try { idea = JSON.parse(biz.ideaData||"{}"); } catch {}
+      const captionResult = await openaiSvc.generateInstagramCaption({
+        businessName: biz.name, businessType: idea.name,
+        context: task.name, brandIdentity: brandId, marketInsights,
+      });
+      const imgGen = require("../services/imageGen");
+      let imageUrl;
+      try {
+        const imgBuf = await openaiSvc.generatePostImage(biz.name, captionResult.body, brandId);
+        const imageId = imgGen.storeImage(imgBuf);
+        const appUrl  = process.env.APP_URL || process.env.CLIENT_URL || "http://localhost:3000";
+        imageUrl = `${appUrl}/api/instagram/images/${imageId}`;
+      } catch { imageUrl = null; }
+      return res.json({ content: { channel:"instagram", caption:captionResult.caption, body:captionResult.body, hashtags:captionResult.hashtags, imageUrl } });
+    }
+
+    // Other channels: OpenAI or fallback to existing Claude-based generator
+    if (process.env.OPENAI_API_KEY && ch !== "general") {
+      let idea = {}; try { idea = JSON.parse(biz.ideaData||"{}"); } catch {}
+      const text = await openaiSvc.generateChannelCaption({ businessName:biz.name, channel:ch, context:task.name, brandIdentity:brandId });
+      return res.json({ content: { channel:ch, caption:text, body:text } });
+    }
+
+    const content = await generateChannelContent(biz, task, ch, mode || "guided");
     res.json({ content });
   } catch(e) { next(e); }
 });
