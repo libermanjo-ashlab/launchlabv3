@@ -228,13 +228,14 @@ router.post("/:id/run", requireAuth, async (req, res, next) => {
 
           let imageUrl;
           let imageSource;
+          let dalleError = null; // surfaced to client in fields[] so user doesn't need Railway logs
 
           if (clientImageUrl) {
             imageUrl   = clientImageUrl;
             imageSource = "canvas";
             log.info("TASK", "Using client-provided Canvas imageUrl", { taskId: task.id, imageUrl });
           } else if (process.env.OPENAI_API_KEY) {
-            log.info("TASK", "Attempting DALL-E 3 image generation", { taskId: task.id, appUrl });
+            log.info("TASK", "Attempting DALL-E 3 image generation", { taskId: task.id, appUrl, keyPrefix: process.env.OPENAI_API_KEY.slice(0, 7) });
             try {
               const imgBuf = await openaiSvc.generatePostImage(business.name, captionResult.body, brandId);
               const imageId = imgGen.storeImage(imgBuf);
@@ -244,10 +245,12 @@ router.post("/:id/run", requireAuth, async (req, res, next) => {
                 taskId: task.id, imageId, imageUrl, bytes: imgBuf.length,
               });
             } catch (imgErr) {
+              dalleError = imgErr.message || String(imgErr);
               log.error("TASK", "DALL-E 3 FAILED — falling back to SVG", {
                 taskId: task.id,
-                error: imgErr.message,
+                error: dalleError,
                 status: imgErr.status,
+                code: imgErr.code,
               });
               const imageId = await imgGen.generatePostImage(business.name, context);
               imageUrl = `${appUrl}/api/instagram/images/${imageId}`;
@@ -291,7 +294,7 @@ router.post("/:id/run", requireAuth, async (req, res, next) => {
                 fields:[
                   { label:"Status",   value:"Posted to Instagram" },
                   { label:"Media ID", value:post.mediaId },
-                  ...(imageSource !== "dalle3" ? [{ label:"Image",  value:`${imageSource} — add OPENAI_API_KEY to Railway for AI-generated images` }] : []),
+                  ...(dalleError ? [{ label:"Image error", value:`DALL-E failed: ${dalleError}` }] : []),
                 ],
               };
             } catch(postErr) {
@@ -324,7 +327,7 @@ router.post("/:id/run", requireAuth, async (req, res, next) => {
               caption: captionResult.caption, body: captionResult.body, hashtags: captionResult.hashtags,
               fields:[
                 { label:"Status",  value:statusLabel },
-                ...(imageSource !== "dalle3" ? [{ label:"Image",   value:`${imageSource} — add OPENAI_API_KEY to Railway for AI-generated images` }] : []),
+                ...(dalleError ? [{ label:"Image error", value:`DALL-E failed: ${dalleError}` }] : []),
               ],
             };
           }

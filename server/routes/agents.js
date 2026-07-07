@@ -630,6 +630,7 @@ router.post("/:businessId/campaigns/task-content", requireAuth, async (req, res,
 
       let imageUrl;
       let imageSource;
+      let dalleError = null;
       try {
         const imgBuf = await openaiSvc.generatePostImage(biz.name, captionResult.body, brandId);
         const imageId = imgGen.storeImage(imgBuf);
@@ -637,9 +638,12 @@ router.post("/:businessId/campaigns/task-content", requireAuth, async (req, res,
         imageSource = "dalle3";
         log.info("CONTENT", "DALL-E 3 image stored for task-content", { imageId, imageUrl, ms: Date.now() - t0 });
       } catch (imgErr) {
-        log.error("CONTENT", "DALL-E 3 FAILED for task-content — imageUrl will be null (client Canvas will fill in)", {
-          error: imgErr.message,
+        dalleError = imgErr.message || String(imgErr);
+        log.error("CONTENT", "DALL-E 3 FAILED for task-content", {
+          error: dalleError,
           status: imgErr.status,
+          code: imgErr.code,
+          keyPrefix: process.env.OPENAI_API_KEY ? process.env.OPENAI_API_KEY.slice(0, 7) : "NOT_SET",
         });
         imageUrl = null;
         imageSource = "dalle3_failed";
@@ -649,8 +653,9 @@ router.post("/:businessId/campaigns/task-content", requireAuth, async (req, res,
         ms: Date.now() - t0,
         imageSource,
         hasImageUrl: !!imageUrl,
+        dalleError: dalleError || "none",
       });
-      return res.json({ content: { channel:"instagram", caption:captionResult.caption, body:captionResult.body, hashtags:captionResult.hashtags, imageUrl, imageSource } });
+      return res.json({ content: { channel:"instagram", caption:captionResult.caption, body:captionResult.body, hashtags:captionResult.hashtags, imageUrl, imageSource, dalleError } });
     }
 
     // Instagram without OpenAI key — Claude fallback + null image (client Canvas fills in)

@@ -216,13 +216,18 @@ function ContentPreviewBlock({ content, channel, mode }) {
     );
   }
 
-  // OpenAI Instagram caption output: { caption, body, hashtags, imageUrl }
+  // OpenAI Instagram caption output: { caption, body, hashtags, imageUrl, dalleError }
   if (content.caption || content.body) {
     return (
       <div style={{ background:"#F0FDF4", border:`1px solid ${C.ok}20`, borderRadius:8, padding:"10px 12px", marginTop:8 }}>
         <p style={{ fontSize:11, fontWeight:700, color:C.ok, textTransform:"uppercase", letterSpacing:"0.05em", marginBottom:6, fontFamily:FB }}>
           {mode==="auto"?"Auto-generated post":"Generated post — copy and use"}
         </p>
+        {content.dalleError && (
+          <div style={{ background:"#FEF2F2", border:"1px solid #FECACA", borderRadius:6, padding:"6px 10px", marginBottom:8, fontSize:11, color:C.err, fontFamily:FB }}>
+            <strong>Image error:</strong> {content.dalleError}
+          </div>
+        )}
         {content.imageUrl && <img src={content.imageUrl} alt="Post" style={{ width:"100%", borderRadius:6, marginBottom:8, maxHeight:200, objectFit:"cover" }} />}
         <p style={{ fontSize:13, color:"#374151", fontFamily:FB, lineHeight:1.6, marginBottom:6 }}>{content.body || content.caption}</p>
         {content.hashtags && <p style={{ fontSize:11, color:C.muted, fontFamily:FB, marginBottom:8 }}>{content.hashtags}</p>}
@@ -366,6 +371,7 @@ function CampaignTaskRow({ task:t, mode, channel, businessId, businessName, onCo
       const res = await api.agents.taskContent(businessId, t, channel, mode);
       let c = res.content;
       console.log(`[TASK:getContent] Server response — channel=${c?.channel} imageSource=${c?.imageSource} hasImageUrl=${!!c?.imageUrl} captionLen=${c?.caption?.length || 0}`);
+      if (c?.dalleError) console.error(`[TASK:getContent] DALL-E error: ${c.dalleError}`);
 
       // For Instagram tasks, replace server-generated image with Canvas-rendered one
       if (c?.caption && (channel === "instagram" || /instagram/i.test(t.name))) {
