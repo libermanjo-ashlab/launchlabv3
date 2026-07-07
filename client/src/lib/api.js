@@ -38,7 +38,7 @@ export const api = {
     create: (bizId,b)     => req("POST",   `/tasks/business/${bizId}`, b),
     update: (id,b)        => req("PUT",    `/tasks/${id}`, b),
     delete: id            => req("DELETE", `/tasks/${id}`),
-    run:    id            => req("POST",   `/tasks/${id}/run`),
+    run:    (id, body={}) => req("POST",   `/tasks/${id}/run`, body),
     bulk:   (bizId,tasks) => req("POST",   `/tasks/business/${bizId}/bulk`, { tasks }),
   },
   generate: {

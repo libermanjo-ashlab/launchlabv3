@@ -333,8 +333,10 @@ function CampaignTaskRow({ task:t, mode, channel, businessId, businessName, onCo
   const [posting,   setPosting]   = useState(false);
   const [postMsg,   setPostMsg]   = useState("");
 
-  const isDone   = t.status === "completed" || t.status === "done";
-  const isFailed = t.status === "failed";
+  const isDone     = t.status === "completed" || t.status === "done";
+  const isFailed   = t.status === "failed";
+  const isSkipped  = t.status === "skipped";
+  const isVideoTask = t.steps?.[0]?.isVideoTask || /\bfilm\b|\brecord\b|\bshoot\b/i.test(t.name);
   // Extract error detail from task outputData (set by server when IG post fails)
   const taskErrMsg = t.outputData?.fields?.find(f => f.label === "Error")?.value || "";
 
@@ -390,13 +392,15 @@ function CampaignTaskRow({ task:t, mode, channel, businessId, businessName, onCo
   return (
     <div style={{ padding:"7px 0", borderBottom:`1px solid ${C.border}` }}>
       <div style={{ display:"flex", alignItems:"center", gap:8 }}>
-        <div style={{ width:14, height:14, borderRadius:"50%", border:`2px solid ${isFailed?C.err:isDone?C.ok:C.border}`, background:isFailed?C.err:isDone?C.ok:"transparent", flexShrink:0, display:"flex", alignItems:"center", justifyContent:"center" }}>
+        <div style={{ width:14, height:14, borderRadius:"50%", border:`2px solid ${isFailed?C.err:isDone?C.ok:isSkipped?"#F59E0B":C.border}`, background:isFailed?C.err:isDone?C.ok:isSkipped?"#F59E0B":"transparent", flexShrink:0, display:"flex", alignItems:"center", justifyContent:"center" }}>
           {isDone && <span style={{ color:"#fff", fontSize:9, fontWeight:700 }}>✓</span>}
           {isFailed && <span style={{ color:"#fff", fontSize:9, fontWeight:700 }}>✗</span>}
+          {isSkipped && <span style={{ color:"#fff", fontSize:9, fontWeight:700 }}>!</span>}
         </div>
-        <span style={{ flex:1, fontSize:12, fontFamily:FB, color:isFailed?C.err:isDone?C.muted:C.text, textDecoration:isDone?"line-through":"none" }}>{t.name}</span>
-        {t.estimatedTime && !isDone && !isFailed && <span style={{ fontSize:10, color:C.muted, fontFamily:FB, flexShrink:0 }}>{t.estimatedTime}</span>}
+        <span style={{ flex:1, fontSize:12, fontFamily:FB, color:isFailed?C.err:isDone?C.muted:isSkipped?C.warn:C.text, textDecoration:isDone?"line-through":"none" }}>{t.name}</span>
+        {t.estimatedTime && !isDone && !isFailed && !isSkipped && <span style={{ fontSize:10, color:C.muted, fontFamily:FB, flexShrink:0 }}>{t.estimatedTime}</span>}
         {isFailed && <span style={{ fontSize:10, color:C.err, fontFamily:FB, flexShrink:0 }}>failed</span>}
+        {isSkipped && isVideoTask && <span style={{ fontSize:10, color:C.warn, fontFamily:FB, flexShrink:0 }}>do manually</span>}
 
         {isFailed && (
           <button onClick={runTask} disabled={running}
@@ -405,7 +409,14 @@ function CampaignTaskRow({ task:t, mode, channel, businessId, businessName, onCo
           </button>
         )}
 
-        {!isDone && !isFailed && (
+        {isSkipped && isVideoTask && (
+          <button onClick={()=>onComplete(t.id)}
+            style={{ ...btn(C.ok,"#fff",10), padding:"3px 8px", flexShrink:0 }}>
+            Mark done
+          </button>
+        )}
+
+        {!isDone && !isFailed && !isSkipped && (
           <div style={{ display:"flex", gap:4, flexShrink:0 }}>
             {mode==="auto" && t.id && (
               <button onClick={runTask} disabled={running||isAutoRunning}
@@ -537,11 +548,14 @@ function CampaignCard({ campaign:c, onUpdate, onDelete, businessId, businessName
     abortRef.current = false;
     setAutoRunning(true);
     const taskList = camp.tasks || [];
-    console.log(`[AUTOPILOT:runTasksAuto] Starting — campaignId=${camp.id} title="${camp.title}" taskCount=${taskList.length} mode=${mode}`);
+    const campChannel = camp.channel || "general";
+    console.log(`[AUTOPILOT:runTasksAuto] Starting — campaignId=${camp.id} title="${camp.title}" taskCount=${taskList.length} mode=${mode} channel=${campChannel}`);
 
     if (taskList.length === 0) {
       console.warn(`[AUTOPILOT:runTasksAuto] No tasks found in campaign — did campaignBreakdown return tasks? campaignId=${camp.id}`);
     }
+
+    let lastCaption = null; // carry caption from prep tasks to publish task
 
     for (const task of taskList) {
       if (abortRef.current) {
@@ -552,10 +566,52 @@ function CampaignCard({ campaign:c, onUpdate, onDelete, businessId, businessName
         console.log(`[AUTOPILOT:runTasksAuto] Skipping already-done task — taskId=${task.id} name="${task.name}"`);
         continue;
       }
+      // Manual tasks (video/film steps) require human action — skip in autopilot
+      if (task.mode === "manual") {
+        console.log(`[AUTOPILOT:runTasksAuto] Skipping manual task (requires human action) — taskId=${task.id} name="${task.name}"`);
+        onUpdate(prev => prev.id===camp.id ? {
+          ...prev,
+          tasks: (prev.tasks||[]).map(t=>t.id===task.id?{...t,status:"skipped",outputData:{ fields:[{label:"Note",value:"This step requires you to do it manually. Mark done when complete."}] }}:t),
+        } : prev);
+        continue;
+      }
       console.log(`[AUTOPILOT:runTasksAuto] Running task — taskId=${task.id} name="${task.name}"`);
       try {
-        const result = await api.tasks.run(task.id);
-        const output = result.task?.outputData;
+        // For Instagram publish tasks: pre-generate Canvas image so the post has real text
+        let runBody = {};
+        const isPublishTask = campChannel === "instagram" && /\bpublish\b|\bpost\s+(to|on)\s+instagram\b|\bpost\s+the\b|\bgo\s+live\b/i.test(task.name);
+        if (isPublishTask && lastCaption) {
+          console.log(`[AUTOPILOT:runTasksAuto] Pre-generating Canvas image for publish task — caption="${lastCaption.slice(0, 60)}"`);
+          try {
+            const blob = await generatePostImageBlob(businessName || "Business", lastCaption);
+            const { imageUrl: uploadedUrl } = await api.instagram.uploadImage(blob);
+            runBody.imageUrl = uploadedUrl;
+            console.log(`[AUTOPILOT:runTasksAuto] Canvas image pre-uploaded — imageUrl=${uploadedUrl}`);
+          } catch(canvasErr) {
+            console.warn(`[AUTOPILOT:runTasksAuto] Canvas pre-upload failed — ${canvasErr.message}. Server will use SVG.`);
+          }
+        }
+
+        const result = await api.tasks.run(task.id, runBody);
+        let output = result.task?.outputData;
+
+        // Track caption for subsequent tasks
+        if (output?.caption || output?.body) {
+          lastCaption = output.body || output.caption;
+        }
+
+        // For Instagram prep tasks with no canvas image yet: generate one client-side for display
+        if (campChannel === "instagram" && output?.caption && !runBody.imageUrl) {
+          try {
+            const blob = await generatePostImageBlob(businessName || "Business", output.body || output.caption);
+            const { imageUrl: canvasUrl } = await api.instagram.uploadImage(blob);
+            output = { ...output, imageUrl: canvasUrl, imageSource: "canvas" };
+            console.log(`[AUTOPILOT:runTasksAuto] Canvas display image generated for prep task "${task.name}" — url=${canvasUrl}`);
+          } catch(displayErr) {
+            console.warn(`[AUTOPILOT:runTasksAuto] Canvas display image failed for "${task.name}" — ${displayErr.message}`);
+          }
+        }
+
         const igFailed = output?.channel === "instagram" && output?.published === false;
         const errField = output?.fields?.find(f => f.label === "Error");
         console.log(`[AUTOPILOT:runTasksAuto] Task complete — taskId=${task.id} channel=${output?.channel} published=${output?.published} imageSource=${output?.imageSource} imageUrl=${output?.imageUrl || "none"}`);

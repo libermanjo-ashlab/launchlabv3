@@ -401,6 +401,14 @@ Return a JSON object:
     const savedTasks = [];
     for (let i = 0; i < (parsed.tasks || []).length; i++) {
       const t = parsed.tasks[i];
+      // Video/reel tasks require human action — never run automatically
+      const isVideoTask = /\bfilm\b|\brecord\b|\bshoot\b|\bedit\s+(and|the)\b|\bvoiceover\b|\bscreencast\b/i.test((t.name || "") + " " + (t.description || ""));
+      const taskMode = isVideoTask
+        ? "manual"
+        : campaign.mode === "auto" ? "auto"
+        : campaign.mode === "guided" ? "guided"
+        : "manual";
+
       const task = await prisma.task.create({
         data: {
           businessId: req.params.businessId,
@@ -408,14 +416,15 @@ Return a JSON object:
           category:      "campaign",
           description:   t.description || "",
           status:        "pending",
-          mode:          campaign.mode === "auto" ? "auto" : campaign.mode === "guided" ? "guided" : "manual",
+          mode:          taskMode,
           estimatedTime: t.estimatedTime || null,
-          canAutomate:   !!t.canAutomate,
+          canAutomate:   !!t.canAutomate && !isVideoTask,
           steps:         JSON.stringify([{
             label:         campaign.title,
             detail:        t.description,
             channel:       campaign.channel || "general",
-            shouldPublish: campaign.channel === "instagram" && /\bpublish\b|\bpost\s+(to|on)\s+instagram\b|\bgo\s+live\b|\bpublish\s+the\s+post\b/i.test((t.name || "") + " " + (t.description || "")),
+            isVideoTask,
+            shouldPublish: !isVideoTask && campaign.channel === "instagram" && /\bpublish\b|\bpost\s+(to|on)\s+instagram\b|\bgo\s+live\b|\bpublish\s+the\s+post\b|\bpost\s+the\b/i.test((t.name || "") + " " + (t.description || "")),
           }]),
           sortOrder:     i,
         },

@@ -221,18 +221,20 @@ router.post("/:id/run", requireAuth, async (req, res, next) => {
           }
 
           // ── Image generation ────────────────────────────────────────────────
+          // Client can pre-generate a Canvas image and pass imageUrl in the request
+          // body to bypass server-side generation (and get text-on-image for free).
+          const clientImageUrl = req.body?.imageUrl;
           const appUrl = log.getAppUrl();
-          log.info("TASK", "Image generation starting", {
-            taskId: task.id,
-            appUrl,
-            hasOpenAIKey: !!process.env.OPENAI_API_KEY,
-            appUrlSource: process.env.APP_URL ? "APP_URL" : process.env.CLIENT_URL ? "CLIENT_URL" : "default localhost",
-          });
 
           let imageUrl;
           let imageSource;
-          if (process.env.OPENAI_API_KEY) {
-            log.info("TASK", "Attempting DALL-E 3 image generation", { taskId: task.id });
+
+          if (clientImageUrl) {
+            imageUrl   = clientImageUrl;
+            imageSource = "canvas";
+            log.info("TASK", "Using client-provided Canvas imageUrl", { taskId: task.id, imageUrl });
+          } else if (process.env.OPENAI_API_KEY) {
+            log.info("TASK", "Attempting DALL-E 3 image generation", { taskId: task.id, appUrl });
             try {
               const imgBuf = await openaiSvc.generatePostImage(business.name, captionResult.body, brandId);
               const imageId = imgGen.storeImage(imgBuf);
