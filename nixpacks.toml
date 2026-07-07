@@ -5,9 +5,11 @@ nixPkgs = ["nodejs_20", "npm-9_x"]
 cmds = [
   "npm ci --prefix server --legacy-peer-deps",
   "npm ci --prefix client --legacy-peer-deps",
-  "(cd server && npx prisma generate)",
-  "npm run build --prefix client"
+  "(cd server && npx prisma generate)"
 ]
+
+[phases.build]
+cmds = ["npm run build --prefix client"]
 
 [start]
 cmd = "sleep 3 && (cd server && npx prisma migrate deploy) && node server/index.js"
