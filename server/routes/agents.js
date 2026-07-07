@@ -401,9 +401,12 @@ Return a JSON object:
     const savedTasks = [];
     for (let i = 0; i < (parsed.tasks || []).length; i++) {
       const t = parsed.tasks[i];
-      // Video/reel tasks require human action — never run automatically
+      // Tasks requiring human action — video production and social engagement
+      // (Instagram Graph API can't follow users, like others' posts, or send DMs)
       const isVideoTask = /\bfilm\b|\brecord\b|\bshoot\b|\bedit\s+(and|the)\b|\bvoiceover\b|\bscreencast\b/i.test((t.name || "") + " " + (t.description || ""));
-      const taskMode = isVideoTask
+      const isEngagementTask = /\bengage\s+with\b|\bfollow\s+(\d+|targeted|accounts)\b|\blike\s+\d+\b|\bcomment\s+on\b|\bdm\b|\bdirect\s+message\b|\bmanually\s+(engage|follow|like)\b/i.test((t.name || "") + " " + (t.description || ""));
+      const isManualTask = isVideoTask || isEngagementTask;
+      const taskMode = isManualTask
         ? "manual"
         : campaign.mode === "auto" ? "auto"
         : campaign.mode === "guided" ? "guided"
@@ -418,13 +421,14 @@ Return a JSON object:
           status:        "pending",
           mode:          taskMode,
           estimatedTime: t.estimatedTime || null,
-          canAutomate:   !!t.canAutomate && !isVideoTask,
+          canAutomate:   !!t.canAutomate && !isManualTask,
           steps:         JSON.stringify([{
             label:         campaign.title,
             detail:        t.description,
             channel:       campaign.channel || "general",
             isVideoTask,
-            shouldPublish: !isVideoTask && campaign.channel === "instagram" && /\bpublish\b|\bpost\s+(to|on)\s+instagram\b|\bgo\s+live\b|\bpublish\s+the\s+post\b|\bpost\s+the\b/i.test((t.name || "") + " " + (t.description || "")),
+            isEngagementTask,
+            shouldPublish: !isManualTask && campaign.channel === "instagram" && /\bpublish\b|\bpost\s+(to|on)\s+instagram\b|\bgo\s+live\b|\bpublish\s+the\s+post\b|\bpost\s+the\b/i.test((t.name || "") + " " + (t.description || "")),
           }]),
           sortOrder:     i,
         },

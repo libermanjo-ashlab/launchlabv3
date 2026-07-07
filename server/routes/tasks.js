@@ -316,11 +316,16 @@ router.post("/:id/run", requireAuth, async (req, res, next) => {
             }
           } else {
             // Prep tasks (define concept, write caption, create visual) or guided/manual mode
-            const statusLabel = task.mode === "auto"
+            // If task name looks like a publish step but shouldPublish=false, surface diagnostic
+            const looksLikePublish = /\bpublish\b|\bpost\s+(to|on)\s+instagram\b|\bgo\s+live\b/i.test(task.name);
+            const statusLabel = task.mode === "auto" && looksLikePublish && !shouldPublish
+              ? `Publish gate blocked — shouldPublish=${shouldPublish} taskMode=${task.mode} stepsHasShouldPublish=${stepsData[0]?.shouldPublish}`
+              : task.mode === "auto"
               ? "Content ready (prep step — publish task will post)"
               : "Caption + image ready — copy and post";
             log.info("TASK", "Non-publish task — returning caption + image for review", {
               taskId: task.id, taskMode: task.mode, shouldPublish,
+              stepsData: JSON.stringify(stepsData[0]?.shouldPublish),
             });
             outputData = {
               channel:"instagram", published:false, imageUrl, imageSource,

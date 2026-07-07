@@ -342,6 +342,8 @@ function CampaignTaskRow({ task:t, mode, channel, businessId, businessName, onCo
   const isFailed   = t.status === "failed";
   const isSkipped  = t.status === "skipped";
   const isVideoTask = t.steps?.[0]?.isVideoTask || /\bfilm\b|\brecord\b|\bshoot\b/i.test(t.name);
+  const isEngagementTask = t.steps?.[0]?.isEngagementTask || /\bengage\s+with\b|\bfollow\s+(\d+|targeted|accounts)\b|\bcomment\s+on\b|\blike\s+\d+\b/i.test(t.name);
+  const isManualTask = isVideoTask || isEngagementTask;
   // Extract error detail from task outputData (set by server when IG post fails)
   const taskErrMsg = t.outputData?.fields?.find(f => f.label === "Error")?.value || "";
 
@@ -406,7 +408,7 @@ function CampaignTaskRow({ task:t, mode, channel, businessId, businessName, onCo
         <span style={{ flex:1, fontSize:12, fontFamily:FB, color:isFailed?C.err:isDone?C.muted:isSkipped?C.warn:C.text, textDecoration:isDone?"line-through":"none" }}>{t.name}</span>
         {t.estimatedTime && !isDone && !isFailed && !isSkipped && <span style={{ fontSize:10, color:C.muted, fontFamily:FB, flexShrink:0 }}>{t.estimatedTime}</span>}
         {isFailed && <span style={{ fontSize:10, color:C.err, fontFamily:FB, flexShrink:0 }}>failed</span>}
-        {isSkipped && isVideoTask && <span style={{ fontSize:10, color:C.warn, fontFamily:FB, flexShrink:0 }}>do manually</span>}
+        {isSkipped && isManualTask && <span style={{ fontSize:10, color:C.warn, fontFamily:FB, flexShrink:0 }}>do manually</span>}
 
         {isFailed && (
           <button onClick={runTask} disabled={running}
@@ -415,7 +417,7 @@ function CampaignTaskRow({ task:t, mode, channel, businessId, businessName, onCo
           </button>
         )}
 
-        {isSkipped && isVideoTask && (
+        {isSkipped && isManualTask && (
           <button onClick={()=>onComplete(t.id)}
             style={{ ...btn(C.ok,"#fff",10), padding:"3px 8px", flexShrink:0 }}>
             Mark done
@@ -532,7 +534,7 @@ function CampaignCard({ campaign:c, onUpdate, onDelete, businessId, businessName
     console.log(`[CAMPAIGN:startCampaign] Starting — campaignId=${c.id} title="${c.title}" channel=${c.channel} mode=${mode}`);
     setStarting(true);
     try {
-      const res = await api.agents.campaignBreakdown(businessId, {...c, status:"active"});
+      const res = await api.agents.campaignBreakdown(businessId, {...c, mode, status:"active"});
       console.log(`[CAMPAIGN:startCampaign] Breakdown complete — taskCount=${res.tasks?.length} taskIds=${JSON.stringify(res.taskIds?.slice(0,3))} progressTarget=${res.progressTarget} progressUnit=${res.progressUnit}`);
       if (!res.tasks?.length) {
         console.warn(`[CAMPAIGN:startCampaign] WARNING — breakdown returned 0 tasks! campaign="${c.title}"`);
