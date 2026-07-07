@@ -221,20 +221,17 @@ router.post("/:id/run", requireAuth, async (req, res, next) => {
           }
 
           // ── Image generation ────────────────────────────────────────────────
-          // Client can pre-generate a Canvas image and pass imageUrl in the request
-          // body to bypass server-side generation (and get text-on-image for free).
+          // Priority order: DALL-E 3 → clientImageUrl (canvas pre-upload) → SVG.
+          // clientImageUrl is kept as a fallback so publish tasks still get a
+          // text-overlay image when DALL-E is unavailable.
           const clientImageUrl = req.body?.imageUrl;
           const appUrl = log.getAppUrl();
 
           let imageUrl;
           let imageSource;
-          let dalleError = null; // surfaced to client in fields[] so user doesn't need Railway logs
+          let dalleError = null;
 
-          if (clientImageUrl) {
-            imageUrl   = clientImageUrl;
-            imageSource = "canvas";
-            log.info("TASK", "Using client-provided Canvas imageUrl", { taskId: task.id, imageUrl });
-          } else if (process.env.OPENAI_API_KEY) {
+          if (process.env.OPENAI_API_KEY) {
             log.info("TASK", "Attempting DALL-E 3 image generation", { taskId: task.id, appUrl, keyPrefix: process.env.OPENAI_API_KEY.slice(0, 7) });
             try {
               const imgBuf = await openaiSvc.generatePostImage(business.name, captionResult.body, brandId);
@@ -246,17 +243,28 @@ router.post("/:id/run", requireAuth, async (req, res, next) => {
               });
             } catch (imgErr) {
               dalleError = imgErr.message || String(imgErr);
-              log.error("TASK", "DALL-E 3 FAILED — falling back to SVG", {
+              log.error("TASK", "DALL-E 3 FAILED", {
                 taskId: task.id,
                 error: dalleError,
                 status: imgErr.status,
                 code: imgErr.code,
               });
-              const imageId = await imgGen.generatePostImage(business.name, context);
-              imageUrl = `${appUrl}/api/instagram/images/${imageId}`;
-              imageSource = "svg_fallback";
-              log.info("TASK", "SVG fallback image generated", { taskId: task.id, imageId, imageUrl });
+              // Fall back to canvas pre-upload if client provided one, else SVG
+              if (clientImageUrl) {
+                imageUrl    = clientImageUrl;
+                imageSource = "canvas";
+                log.info("TASK", "Using client canvas as DALL-E fallback", { taskId: task.id, imageUrl });
+              } else {
+                const imageId = await imgGen.generatePostImage(business.name, context);
+                imageUrl = `${appUrl}/api/instagram/images/${imageId}`;
+                imageSource = "svg_fallback";
+                log.info("TASK", "SVG fallback image generated", { taskId: task.id, imageId, imageUrl });
+              }
             }
+          } else if (clientImageUrl) {
+            imageUrl    = clientImageUrl;
+            imageSource = "canvas";
+            log.info("TASK", "OPENAI_API_KEY not set — using client Canvas imageUrl", { taskId: task.id, imageUrl });
           } else {
             log.warn("TASK", "OPENAI_API_KEY not set — using SVG background image (no text)", { taskId: task.id });
             const imageId = await imgGen.generatePostImage(business.name, context);
@@ -291,6 +299,7 @@ router.post("/:id/run", requireAuth, async (req, res, next) => {
               outputData = {
                 channel:"instagram", published:true, imageUrl, imageSource,
                 caption: captionResult.caption, body: captionResult.body, hashtags: captionResult.hashtags,
+                dalleError,
                 fields:[
                   { label:"Status",   value:"Posted to Instagram" },
                   { label:"Media ID", value:post.mediaId },
@@ -308,9 +317,11 @@ router.post("/:id/run", requireAuth, async (req, res, next) => {
               outputData = {
                 channel:"instagram", published:false, imageUrl, imageSource,
                 caption: captionResult.caption, body: captionResult.body, hashtags: captionResult.hashtags,
+                dalleError,
                 fields:[
                   { label:"Status",   value:"Instagram post failed — review and post manually" },
                   { label:"Error",    value:postErr.friendlyMessage || postErr.message },
+                  ...(dalleError ? [{ label:"Image error", value:`DALL-E failed: ${dalleError}` }] : []),
                 ],
               };
             }
@@ -330,6 +341,7 @@ router.post("/:id/run", requireAuth, async (req, res, next) => {
             outputData = {
               channel:"instagram", published:false, imageUrl, imageSource,
               caption: captionResult.caption, body: captionResult.body, hashtags: captionResult.hashtags,
+              dalleError,
               fields:[
                 { label:"Status",  value:statusLabel },
                 ...(dalleError ? [{ label:"Image error", value:`DALL-E failed: ${dalleError}` }] : []),
