@@ -2,6 +2,8 @@ const router      = require("express").Router();
 const requireAuth = require("../middleware/auth");
 const { PrismaClient } = require("@prisma/client");
 const { generateTaskOutput } = require("../services/generators");
+const openaiSvc   = require("../services/openaiService");
+const { getBrandIdentity } = require("../services/brandIdentity");
 
 const prisma = new PrismaClient();
 
@@ -100,10 +102,10 @@ router.post("/:id/run", requireAuth, async (req, res, next) => {
       console.log(`[Campaign task] id=${task.id} mode=${task.mode} isInstagram=${isInstagram} name="${task.name}"`);
 
       if (isInstagram) {
-        const ig   = require("../services/instagram");
+        const ig     = require("../services/instagram");
         const imgGen = require("../services/imageGen");
-        const intg = await prisma.integration.findFirst({ where:{ businessId:task.businessId, provider:"instagram" } });
-        const meta = intg?.metadata ? JSON.parse(intg.metadata) : {};
+        const intg   = await prisma.integration.findFirst({ where:{ businessId:task.businessId, provider:"instagram" } });
+        const meta   = intg?.metadata ? JSON.parse(intg.metadata) : {};
         console.log(`[Campaign task] Instagram creds present: accessToken=${!!meta.accessToken} businessAccountId=${!!meta.businessAccountId}`);
 
         if (!meta.accessToken || !meta.businessAccountId) {
@@ -112,45 +114,68 @@ router.post("/:id/run", requireAuth, async (req, res, next) => {
             { label:"Next step", value:"Add your Access Token and Business Account ID in Hub → Instagram" },
           ]};
         } else {
-          let prefs = {}; try { const mm=JSON.parse(business.userMetrics||"{}"); prefs=mm.prefs||{}; } catch {}
-          const context = task.description || task.name;
+          const context   = task.description || task.name;
+          const brandId   = await getBrandIdentity(task.businessId);
+          const marketOut = await prisma.businessOutput.findFirst({ where:{ businessId:task.businessId, type:"marketing_insights" } });
+          let marketInsights = ""; try { const md=JSON.parse(marketOut?.content||"{}"); marketInsights=md.report?.marketAnalysis?.summary||""; } catch {}
           console.log(`[Campaign task] Generating caption + image for "${business.name}" context="${context.slice(0,60)}"`);
-          const [captionResult, imageId] = await Promise.all([
-            ig.generateCaption(business.name, idea.name, context, "authentic", prefs),
-            imgGen.generatePostImage(business.name, context),
-          ]);
+
+          let captionResult;
+          if (process.env.OPENAI_API_KEY) {
+            captionResult = await openaiSvc.generateInstagramCaption({ businessName:business.name, businessType:idea.name, context, brandIdentity:brandId, marketInsights });
+          } else {
+            let prefs = {}; try { const mm=JSON.parse(business.userMetrics||"{}"); prefs=mm.prefs||{}; } catch {}
+            captionResult = await ig.generateCaption(business.name, idea.name, context, "authentic", prefs);
+          }
+
           const appUrl = process.env.APP_URL || process.env.CLIENT_URL || "http://localhost:3000";
-          const imageUrl = `${appUrl}/api/instagram/images/${imageId}`;
+          let imageUrl;
+          if (process.env.OPENAI_API_KEY) {
+            try {
+              const imgBuf = await openaiSvc.generatePostImage(business.name, captionResult.body, brandId);
+              const imageId = imgGen.storeImage(imgBuf);
+              imageUrl = `${appUrl}/api/instagram/images/${imageId}`;
+            } catch {
+              const imageId = await imgGen.generatePostImage(business.name, context);
+              imageUrl = `${appUrl}/api/instagram/images/${imageId}`;
+            }
+          } else {
+            const imageId = await imgGen.generatePostImage(business.name, context);
+            imageUrl = `${appUrl}/api/instagram/images/${imageId}`;
+          }
           console.log(`[Campaign task] Caption generated, imageUrl=${imageUrl}`);
 
           if (task.mode === "auto") {
             try {
               const post = await ig.createImagePost(meta.accessToken, meta.businessAccountId, imageUrl, captionResult.caption);
               console.log(`[Campaign task] Posted to Instagram mediaId=${post.mediaId}`);
-              outputData = { fields:[
-                { label:"Status",   value:"Posted to Instagram" },
-                { label:"Caption",  value:captionResult.body },
-                { label:"Hashtags", value:captionResult.hashtags },
-                { label:"Media ID", value:post.mediaId },
-              ], imageUrl, channel:"instagram", published:true };
+              outputData = {
+                channel:"instagram", published:true, imageUrl,
+                caption: captionResult.caption, body: captionResult.body, hashtags: captionResult.hashtags,
+                fields:[
+                  { label:"Status",   value:"Posted to Instagram" },
+                  { label:"Media ID", value:post.mediaId },
+                ],
+              };
             } catch(postErr) {
               console.error(`[Campaign task] Instagram post failed:`, postErr.message);
-              outputData = { fields:[
-                { label:"Status",   value:"Instagram post failed" },
-                { label:"Error",    value:postErr.friendlyMessage || postErr.message },
-                { label:"Caption",  value:captionResult.body },
-                { label:"Image",    value:imageUrl },
-                { label:"Next step",value:"Review and post manually from Hub → Marketing → Instagram" },
-              ], imageUrl, channel:"instagram", published:false };
+              outputData = {
+                channel:"instagram", published:false, imageUrl,
+                caption: captionResult.caption, body: captionResult.body, hashtags: captionResult.hashtags,
+                fields:[
+                  { label:"Status",   value:"Instagram post failed — review and post manually" },
+                  { label:"Error",    value:postErr.friendlyMessage || postErr.message },
+                ],
+              };
             }
           } else {
-            outputData = { fields:[
-              { label:"Status",   value:"Caption + image ready — review and post" },
-              { label:"Caption",  value:captionResult.body },
-              { label:"Hashtags", value:captionResult.hashtags },
-              { label:"Image URL",value:imageUrl },
-              { label:"Next step",value:"Go to Hub → Marketing → Instagram → Create Post to publish" },
-            ], imageUrl, channel:"instagram", published:false };
+            outputData = {
+              channel:"instagram", published:false, imageUrl,
+              caption: captionResult.caption, body: captionResult.body, hashtags: captionResult.hashtags,
+              fields:[
+                { label:"Status", value:"Caption + image ready — copy and post" },
+              ],
+            };
           }
         }
       }

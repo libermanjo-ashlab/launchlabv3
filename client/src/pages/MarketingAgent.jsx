@@ -216,6 +216,21 @@ function ContentPreviewBlock({ content, channel, mode }) {
     );
   }
 
+  // OpenAI Instagram caption output: { caption, body, hashtags, imageUrl }
+  if (content.caption || content.body) {
+    return (
+      <div style={{ background:"#F0FDF4", border:`1px solid ${C.ok}20`, borderRadius:8, padding:"10px 12px", marginTop:8 }}>
+        <p style={{ fontSize:11, fontWeight:700, color:C.ok, textTransform:"uppercase", letterSpacing:"0.05em", marginBottom:6, fontFamily:FB }}>
+          {mode==="auto"?"Auto-generated post":"Generated post — copy and use"}
+        </p>
+        {content.imageUrl && <img src={content.imageUrl} alt="Post" style={{ width:"100%", borderRadius:6, marginBottom:8, maxHeight:200, objectFit:"cover" }} />}
+        <p style={{ fontSize:13, color:"#374151", fontFamily:FB, lineHeight:1.6, marginBottom:6 }}>{content.body || content.caption}</p>
+        {content.hashtags && <p style={{ fontSize:11, color:C.muted, fontFamily:FB, marginBottom:8 }}>{content.hashtags}</p>}
+        <button onClick={()=>copyText(content.caption||"")} style={{ ...btnO(C.ok,10), padding:"3px 8px" }}>{copied?"Copied!":"Copy caption"}</button>
+      </div>
+    );
+  }
+
   return (
     <div style={{ background:"#F0FDF4", border:`1px solid ${C.ok}20`, borderRadius:8, padding:"10px 12px", marginTop:8 }}>
       <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:6 }}>
@@ -343,7 +358,7 @@ function CampaignTaskRow({ task:t, mode, channel, businessId, businessName, onCo
           const blob = await generatePostImageBlob(businessName || "Business", c.body || c.caption);
           const { imageUrl } = await api.instagram.uploadImage(blob);
           c = { ...c, imageUrl };
-        } catch { /* non-fatal — keep server image if any */ }
+        } catch(imgErr) { console.warn("Canvas image upload failed:", imgErr.message); }
       }
       setContent(c);
       setShowContent(true);
@@ -659,10 +674,10 @@ function ImplementResult({ result, businessId, businessName }) {
     let cancelled = false;
     (async () => {
       try {
-        const blob = await generatePostImageBlob(businessName, result.body || result.caption);
+        const blob = await generatePostImageBlob(businessName || "Business", result.body || result.caption);
         const { imageUrl } = await api.instagram.uploadImage(blob);
         if (!cancelled) setLocalImgUrl(imageUrl);
-      } catch { /* non-fatal */ }
+      } catch(imgErr) { console.warn("Canvas image generation failed:", imgErr.message); }
     })();
     return () => { cancelled = true; };
   }, [result?.caption, businessName]);
