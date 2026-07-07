@@ -128,15 +128,15 @@ export async function generatePostImageBlob(businessName, captionBody = "") {
 
   const fontStack = '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif';
 
-  // Headline text card — first sentence of the caption (max 64 chars)
+  // Headline text card — first sentence of the caption (max 200 chars, wraps up to 4 lines)
   const firstSentence = (captionBody || "").split(/[.!?\n]/)[0]?.trim() || "";
-  const displayText = firstSentence.length > 64 ? firstSentence.slice(0, 63) + "…" : firstSentence;
+  const displayText = firstSentence.length > 200 ? firstSentence.slice(0, 197) + "…" : firstSentence;
 
   if (displayText) {
-    const fontSize = 56;
+    const fontSize = 52;
     ctx.font = `bold ${fontSize}px ${fontStack}`;
 
-    const lines = wrapLines(ctx, displayText, 840, 3);
+    const lines = wrapLines(ctx, displayText, 880, 4);
     const lineH = Math.round(fontSize * 1.35);
     const padV = 52;
     const cardH = padV * 2 + lines.length * lineH;

@@ -333,7 +333,10 @@ function CampaignTaskRow({ task:t, mode, channel, businessId, businessName, onCo
   const [posting,   setPosting]   = useState(false);
   const [postMsg,   setPostMsg]   = useState("");
 
-  const isDone = t.status === "completed" || t.status === "done";
+  const isDone   = t.status === "completed" || t.status === "done";
+  const isFailed = t.status === "failed";
+  // Extract error detail from task outputData (set by server when IG post fails)
+  const taskErrMsg = t.outputData?.fields?.find(f => f.label === "Error")?.value || "";
 
   const runTask = async () => {
     console.log(`[TASK:runTask] Starting — taskId=${t.id} taskName="${t.name}" mode=${mode} channel=${channel}`);
@@ -387,13 +390,22 @@ function CampaignTaskRow({ task:t, mode, channel, businessId, businessName, onCo
   return (
     <div style={{ padding:"7px 0", borderBottom:`1px solid ${C.border}` }}>
       <div style={{ display:"flex", alignItems:"center", gap:8 }}>
-        <div style={{ width:14, height:14, borderRadius:"50%", border:`2px solid ${isDone?C.ok:C.border}`, background:isDone?C.ok:"transparent", flexShrink:0, display:"flex", alignItems:"center", justifyContent:"center" }}>
+        <div style={{ width:14, height:14, borderRadius:"50%", border:`2px solid ${isFailed?C.err:isDone?C.ok:C.border}`, background:isFailed?C.err:isDone?C.ok:"transparent", flexShrink:0, display:"flex", alignItems:"center", justifyContent:"center" }}>
           {isDone && <span style={{ color:"#fff", fontSize:9, fontWeight:700 }}>✓</span>}
+          {isFailed && <span style={{ color:"#fff", fontSize:9, fontWeight:700 }}>✗</span>}
         </div>
-        <span style={{ flex:1, fontSize:12, fontFamily:FB, color:isDone?C.muted:C.text, textDecoration:isDone?"line-through":"none" }}>{t.name}</span>
-        {t.estimatedTime && !isDone && <span style={{ fontSize:10, color:C.muted, fontFamily:FB, flexShrink:0 }}>{t.estimatedTime}</span>}
+        <span style={{ flex:1, fontSize:12, fontFamily:FB, color:isFailed?C.err:isDone?C.muted:C.text, textDecoration:isDone?"line-through":"none" }}>{t.name}</span>
+        {t.estimatedTime && !isDone && !isFailed && <span style={{ fontSize:10, color:C.muted, fontFamily:FB, flexShrink:0 }}>{t.estimatedTime}</span>}
+        {isFailed && <span style={{ fontSize:10, color:C.err, fontFamily:FB, flexShrink:0 }}>failed</span>}
 
-        {!isDone && (
+        {isFailed && (
+          <button onClick={runTask} disabled={running}
+            style={{ ...btn(running?"#9CA3AF":C.err,"#fff",10), padding:"3px 8px", flexShrink:0 }}>
+            {running?"Retrying…":"Retry"}
+          </button>
+        )}
+
+        {!isDone && !isFailed && (
           <div style={{ display:"flex", gap:4, flexShrink:0 }}>
             {mode==="auto" && t.id && (
               <button onClick={runTask} disabled={running||isAutoRunning}
@@ -432,6 +444,11 @@ function CampaignTaskRow({ task:t, mode, channel, businessId, businessName, onCo
       </div>
 
       {error && <div style={{ fontSize:11, color:C.err, fontFamily:FB, marginTop:4 }}>{error}</div>}
+      {isFailed && taskErrMsg && (
+        <div style={{ fontSize:11, color:C.err, fontFamily:FB, marginTop:4, marginLeft:22 }}>
+          Post failed: {taskErrMsg}
+        </div>
+      )}
 
       {showContent && content && (
         <div style={{ marginTop:6, marginLeft:22 }}>
@@ -539,10 +556,17 @@ function CampaignCard({ campaign:c, onUpdate, onDelete, businessId, businessName
       try {
         const result = await api.tasks.run(task.id);
         const output = result.task?.outputData;
+        const igFailed = output?.channel === "instagram" && output?.published === false;
+        const errField = output?.fields?.find(f => f.label === "Error");
         console.log(`[AUTOPILOT:runTasksAuto] Task complete — taskId=${task.id} channel=${output?.channel} published=${output?.published} imageSource=${output?.imageSource} imageUrl=${output?.imageUrl || "none"}`);
+        if (igFailed && errField) {
+          console.error(`[AUTOPILOT:runTasksAuto] Instagram post FAILED for task "${task.name}" — error="${errField.value}"`);
+        }
+        // Mark as "failed" when IG post was attempted but returned published:false with an error
+        const taskStatus = igFailed && errField ? "failed" : "completed";
         onUpdate(prev => prev.id===camp.id ? {
           ...prev,
-          tasks: (prev.tasks||[]).map(t=>t.id===task.id?{...t,status:"completed",outputData:output}:t),
+          tasks: (prev.tasks||[]).map(t=>t.id===task.id?{...t,status:taskStatus,outputData:output}:t),
           progressCurrent: (prev.progressCurrent||0)+1,
         } : prev);
         await new Promise(r=>setTimeout(r,400));
