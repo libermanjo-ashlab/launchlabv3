@@ -121,11 +121,16 @@ router.post("/:id/run", requireAuth, async (req, res, next) => {
     // ── Campaign tasks: channel-aware execution ──────────────────────────────────
     let outputData;
     if (task.category === "campaign") {
-      const isInstagram = /instagram|ig post|post|social/i.test(task.name + " " + (task.description || ""));
+      // Read channel from task steps (stored at breakdown time), fall back to regex on name/description
+      let stepsData = [];
+      try { stepsData = JSON.parse(task.steps || "[]"); } catch {}
+      const taskChannel = stepsData[0]?.channel || "";
+      const isInstagram = taskChannel === "instagram" || /instagram|ig post|reel|social post/i.test(task.name + " " + (task.description || ""));
       log.info("TASK", "Campaign task routing", {
         taskId: task.id,
         name: task.name,
         mode: task.mode,
+        taskChannel: taskChannel || "(none)",
         isInstagram,
         hasOpenAIKey: !!process.env.OPENAI_API_KEY,
         hasAnthropicKey: !!process.env.ANTHROPIC_API_KEY,
@@ -211,7 +216,7 @@ router.post("/:id/run", requireAuth, async (req, res, next) => {
           }
 
           // ── Image generation ────────────────────────────────────────────────
-          const appUrl = process.env.APP_URL || process.env.CLIENT_URL || "http://localhost:3000";
+          const appUrl = log.getAppUrl();
           log.info("TASK", "Image generation starting", {
             taskId: task.id,
             appUrl,

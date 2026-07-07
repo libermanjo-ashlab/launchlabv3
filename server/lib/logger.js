@@ -45,3 +45,12 @@ const log = {
 };
 
 module.exports = log;
+
+/**
+ * Returns the public app URL with any trailing slash removed.
+ * APP_URL set to "https://example.com/" was producing "//api/..." double-slash URLs.
+ */
+module.exports.getAppUrl = function getAppUrl() {
+  const raw = process.env.APP_URL || process.env.CLIENT_URL || "http://localhost:3000";
+  return raw.replace(/\/+$/, "");
+};

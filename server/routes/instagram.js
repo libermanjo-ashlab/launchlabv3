@@ -23,6 +23,7 @@ const ig         = require("../services/instagram");
 const imgGen     = require("../services/imageGen");
 const openaiSvc  = require("../services/openaiService");
 const { getBrandIdentity } = require("../services/brandIdentity");
+const log    = require("../lib/logger");
 
 const prisma  = new PrismaClient();
 const upload  = multer({ storage: multer.memoryStorage(), limits: { fileSize: 20 * 1024 * 1024 } });
@@ -48,7 +49,7 @@ router.post("/images/upload", requireAuth, upload.single("image"), async (req, r
       .png({ compressionLevel: 8 })
       .toBuffer();
     const id = imgGen.storeImage(buf);
-    const appUrl = process.env.APP_URL || process.env.CLIENT_URL || "http://localhost:3000";
+    const appUrl = require("../lib/logger").getAppUrl();
     res.json({ imageUrl: `${appUrl}/api/instagram/images/${id}`, imageId: id });
   } catch(e) { next(e); }
 });
@@ -152,14 +153,23 @@ router.post("/:businessId/comments/:commentId/hide", requireAuth, async (req, re
 // Body: { caption, imageUrl? }
 // If imageUrl is omitted, a branded post image is generated automatically.
 router.post("/:businessId/post", requireAuth, async (req, res, next) => {
+  const t0 = Date.now();
   try {
     const { biz, meta } = await getIgCreds(req.params.businessId, req.userId);
     let { imageUrl, caption } = req.body;
+
+    log.info("IMAGE", "POST /:businessId/post — entry", {
+      businessId: req.params.businessId,
+      hasCaption: !!caption?.trim(),
+      hasImageUrl: !!imageUrl?.trim(),
+      captionLen: caption?.length,
+    });
+
     if (!caption?.trim()) return res.status(400).json({ error: "caption is required" });
 
     // Auto-generate image if none provided
     if (!imageUrl?.trim()) {
-      const appUrl    = process.env.APP_URL || process.env.CLIENT_URL || "http://localhost:3000";
+      const appUrl    = log.getAppUrl();
       const brandId   = await getBrandIdentity(req.params.businessId);
       // Extract body by scanning from the tail for the trailing hashtag block
       const captionLines = caption.split("\n");
@@ -173,26 +183,48 @@ router.post("/:businessId/post", requireAuth, async (req, res, next) => {
       const captionBody = captionLines.slice(0, captionHashStart).join("\n").trim().slice(0, 300);
       if (process.env.OPENAI_API_KEY) {
         try {
+          log.info("IMAGE", "Attempting DALL-E 3 for post route", { businessName: biz.name });
           const imgBuf  = await openaiSvc.generatePostImage(biz.name, captionBody, brandId);
           const imageId = imgGen.storeImage(imgBuf);
           imageUrl = `${appUrl}/api/instagram/images/${imageId}`;
-        } catch {
+          log.info("IMAGE", "DALL-E 3 image ready for post route", { imageId, imageUrl });
+        } catch(imgErr) {
+          log.warn("IMAGE", "DALL-E 3 FAILED for post route — SVG fallback", { error: imgErr.message });
           const imageId = await imgGen.generatePostImage(biz.name, captionBody);
           imageUrl = `${appUrl}/api/instagram/images/${imageId}`;
         }
       } else {
+        log.warn("IMAGE", "No OPENAI_API_KEY — SVG fallback for post route", { businessName: biz.name });
         const imageId = await imgGen.generatePostImage(biz.name, captionBody);
         imageUrl = `${appUrl}/api/instagram/images/${imageId}`;
       }
     }
 
+    log.info("IMAGE", "Calling ig.createImagePost", {
+      imageUrl: imageUrl?.slice(0, 100),
+      captionLen: caption?.length,
+      businessAccountId: meta.businessAccountId?.slice(0, 8) + "...",
+    });
+
     const result = await ig.createImagePost(meta.accessToken, meta.businessAccountId, imageUrl.trim(), caption.trim());
+
+    log.info("IMAGE", "Instagram post published", { mediaId: result.mediaId, ms: Date.now() - t0 });
+
     res.json({
       success: true,
       mediaId: result.mediaId,
       permalink: `https://www.instagram.com/p/${result.mediaId}/`,
     });
-  } catch(e) { if (e.igCode) return igErrorResponse(res, e); next(e); }
+  } catch(e) {
+    log.error("IMAGE", "POST /:businessId/post FAILED", {
+      error: e.message,
+      igCode: e.igCode,
+      stack: e.stack?.split("\n")[1],
+      ms: Date.now() - t0,
+    });
+    if (e.igCode) return igErrorResponse(res, e);
+    next(e);
+  }
 });
 
 // POST /api/instagram/:businessId/generate-caption
@@ -272,7 +304,7 @@ router.post("/:businessId/act", requireAuth, async (req, res, next) => {
 
     // ── Generate caption + image for post actions ───────────────────────────
     if (wantsPost) {
-      const appUrl = process.env.APP_URL || process.env.CLIENT_URL || "http://localhost:3000";
+      const appUrl = require("../lib/logger").getAppUrl();
       const context = insight.recommendation || insight.agentObservation;
 
       const [captionResult, imageId] = await Promise.all([

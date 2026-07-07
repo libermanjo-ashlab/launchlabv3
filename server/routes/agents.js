@@ -270,7 +270,7 @@ router.post("/:businessId/management/implement", requireAuth, async (req, res, n
 
       // Image via DALL-E 3 (fallback to SVG if no OpenAI key)
       const imgGen = require("../services/imageGen");
-      const appUrl = process.env.APP_URL || process.env.CLIENT_URL || "http://localhost:3000";
+      const appUrl = log.getAppUrl();
       log.info("IMPLEMENT", "Image generation starting", {
         hasOpenAIKey: !!process.env.OPENAI_API_KEY,
         appUrl,
@@ -411,7 +411,7 @@ Return a JSON object:
           mode:          campaign.mode === "auto" ? "auto" : campaign.mode === "guided" ? "guided" : "manual",
           estimatedTime: t.estimatedTime || null,
           canAutomate:   !!t.canAutomate,
-          steps:         JSON.stringify([{ label: campaign.title, detail: t.description }]),
+          steps:         JSON.stringify([{ label: campaign.title, detail: t.description, channel: campaign.channel || "general" }]),
           sortOrder:     i,
         },
       });
@@ -608,7 +608,7 @@ router.post("/:businessId/campaigns/task-content", requireAuth, async (req, res,
       }
 
       const imgGen = require("../services/imageGen");
-      const appUrl  = process.env.APP_URL || process.env.CLIENT_URL || "http://localhost:3000";
+      const appUrl  = log.getAppUrl();
       log.info("CONTENT", "Attempting DALL-E 3 image for task-content", {
         appUrl,
         appUrlSource: process.env.APP_URL ? "APP_URL" : process.env.CLIENT_URL ? "CLIENT_URL" : "default localhost",
