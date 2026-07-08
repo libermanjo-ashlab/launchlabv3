@@ -107,6 +107,7 @@ export const api = {
     getBrandIdentity:      bizId            => req("GET",  `/agents/${bizId}/brand-identity`),
     saveBrandIdentity:     (bizId,identity) => req("PUT",  `/agents/${bizId}/brand-identity`, { identity }),
     populateBrandIdentity: bizId            => req("POST", `/agents/${bizId}/brand-identity/populate`),
+    contentLab:            (bizId,body)     => req("POST", `/agents/${bizId}/content-lab`, body),
   },
   metrics: {
     get:     bizId          => req("GET", `/metrics/${bizId}`),

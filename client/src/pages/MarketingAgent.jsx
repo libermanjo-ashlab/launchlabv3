@@ -981,6 +981,167 @@ function UpgradeCard({ reason, navigate }) {
   );
 }
 
+// ── Content Lab (debug / test content generation) ────────────────────────────
+
+const CHANNEL_OPTS = [
+  { value:"instagram", label:"Instagram",   hasImage:true  },
+  { value:"twitter",   label:"X / Twitter", hasImage:true  },
+  { value:"linkedin",  label:"LinkedIn",    hasImage:true  },
+  { value:"tiktok",    label:"TikTok",      hasImage:true  },
+  { value:"email",     label:"Email",       hasImage:false },
+  { value:"general",   label:"General",     hasImage:true  },
+];
+const TONE_OPTS = ["professional","educational","bold","casual","inspirational","direct"];
+const SRC_BADGE = { dalle3:"DALL-E 3", canvas:"Canvas", svg_fallback:"SVG (DALL-E failed)", svg_no_openai:"SVG (no key)", null:"—" };
+const SRC_CLR   = { dalle3:C.ok, canvas:C.warn, svg_fallback:C.err, svg_no_openai:C.muted };
+
+function ContentLab({ businessId, businessName }) {
+  const [open,     setOpen]     = useState(true);
+  const [channel,  setChannel]  = useState("instagram");
+  const [context,  setContext]  = useState("");
+  const [tone,     setTone]     = useState("professional");
+  const [loading,  setLoading]  = useState(false);
+  const [result,   setResult]   = useState(null);
+  const [error,    setError]    = useState("");
+
+  const generate = async () => {
+    if (!context.trim()) return;
+    setLoading(true); setError(""); setResult(null);
+    try {
+      const data = await api.agents.contentLab(businessId, { channel, context: context.trim(), tone });
+      setResult(data);
+    } catch(e) {
+      setError(e.message);
+    }
+    setLoading(false);
+  };
+
+  const hasImage = CHANNEL_OPTS.find(o=>o.value===channel)?.hasImage;
+
+  return (
+    <div style={{ ...card("0"), marginBottom:14, overflow:"hidden" }}>
+      {/* Header */}
+      <button onClick={()=>setOpen(o=>!o)} style={{
+        width:"100%", background:"none", border:"none", cursor:"pointer",
+        display:"flex", alignItems:"center", justifyContent:"space-between",
+        padding:"10px 14px", borderBottom: open ? `1px solid ${C.border}` : "none",
+      }}>
+        <span style={{ fontFamily:FH, fontWeight:700, fontSize:14 }}>
+          Content Lab
+          <span style={{ fontSize:10, color:C.muted, fontWeight:400, marginLeft:8, fontFamily:FB }}>test & debug content generation</span>
+        </span>
+        <span style={{ fontSize:10, color:C.muted, fontFamily:FB }}>{open?"▲":"▼"}</span>
+      </button>
+
+      {open && (
+        <div style={{ padding:"12px 14px" }}>
+          {/* Controls row */}
+          <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:8, marginBottom:8 }}>
+            <div>
+              <div style={{ ...lbl(10), marginBottom:3 }}>Channel</div>
+              <select value={channel} onChange={e=>setChannel(e.target.value)} style={{ ...inp({ fontSize:12 }), width:"100%" }}>
+                {CHANNEL_OPTS.map(o=><option key={o.value} value={o.value}>{o.label}</option>)}
+              </select>
+            </div>
+            <div>
+              <div style={{ ...lbl(10), marginBottom:3 }}>Tone</div>
+              <select value={tone} onChange={e=>setTone(e.target.value)} style={{ ...inp({ fontSize:12 }), width:"100%" }}>
+                {TONE_OPTS.map(t=><option key={t} value={t}>{t.charAt(0).toUpperCase()+t.slice(1)}</option>)}
+              </select>
+            </div>
+          </div>
+
+          <div style={{ marginBottom:8 }}>
+            <div style={{ ...lbl(10), marginBottom:3 }}>Post topic / context</div>
+            <textarea
+              value={context}
+              onChange={e=>setContext(e.target.value)}
+              placeholder="e.g. 'How to automate your email follow-ups using AI tools' — or paste a headline"
+              rows={2}
+              style={{ ...inp({ fontSize:12 }), width:"100%", resize:"vertical" }}
+            />
+          </div>
+
+          <button onClick={generate} disabled={loading || !context.trim()} style={{
+            ...btn(loading?"#9CA3AF":C.primary,"#fff",12), padding:"7px 16px",
+            display:"flex", alignItems:"center", gap:6, marginBottom:12,
+          }}>
+            {loading && <div style={spin()} />}
+            {loading ? "Generating…" : `Generate ${hasImage?"image + ":""}content`}
+          </button>
+
+          {/* Error */}
+          {error && (
+            <div style={{ ...card("8px 12px"), background:C.errBg, border:`1px solid #DC262630`, marginBottom:10, fontSize:12, color:C.err, fontFamily:FB }}>
+              {error}
+            </div>
+          )}
+
+          {/* Result */}
+          {result && (
+            <div>
+              {/* DALL-E error banner */}
+              {result.dalleError && (
+                <div style={{ ...card("8px 12px"), background:"#FEF2F2", border:"1px solid #FECACA", marginBottom:10, fontSize:12, color:C.err, fontFamily:FB }}>
+                  <strong>DALL-E failed:</strong> {result.dalleError}
+                  <div style={{ fontSize:10, color:"#9CA3AF", marginTop:4 }}>
+                    Common fixes: add billing at platform.openai.com · check OPENAI_API_KEY in Railway · ensure DALL-E 3 is enabled for this API key
+                  </div>
+                </div>
+              )}
+
+              {/* Caption error */}
+              {result.captionError && (
+                <div style={{ ...card("8px 12px"), background:"#FFFBEB", border:"1px solid #FDE68A", marginBottom:10, fontSize:12, color:"#92400E", fontFamily:FB }}>
+                  <strong>OpenAI caption failed (Claude fallback used):</strong> {result.captionError}
+                </div>
+              )}
+
+              {/* Image */}
+              {hasImage && result.imageUrl && (
+                <div style={{ marginBottom:10 }}>
+                  <img src={result.imageUrl} alt="Generated" style={{ width:"100%", maxHeight:260, objectFit:"cover", borderRadius:6, display:"block" }} />
+                  <div style={{ display:"flex", alignItems:"center", gap:6, marginTop:5 }}>
+                    <span style={{
+                      fontSize:9, fontWeight:700, fontFamily:FB, padding:"2px 7px", borderRadius:20,
+                      background: SRC_CLR[result.imageSource] + "20",
+                      color: SRC_CLR[result.imageSource] || C.muted,
+                      textTransform:"uppercase", letterSpacing:"0.05em",
+                    }}>
+                      {SRC_BADGE[result.imageSource] || result.imageSource}
+                    </span>
+                    <span style={{ fontSize:10, color:C.muted, fontFamily:FB }}>
+                      OpenAI key: {result.hasOpenAIKey ? "✓ set" : "✗ missing"}
+                    </span>
+                  </div>
+                </div>
+              )}
+
+              {/* Caption / copy */}
+              {(result.body || result.caption) && (
+                <div style={{ ...card("10px 12px"), background:"#F0FDF4", border:`1px solid ${C.ok}25`, marginBottom:8 }}>
+                  <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:6 }}>
+                    <span style={{ fontSize:10, fontWeight:700, color:C.ok, fontFamily:FB, textTransform:"uppercase", letterSpacing:"0.05em" }}>
+                      {CH_LABELS[result.channel] || result.channel} copy
+                    </span>
+                    <span style={{ fontSize:9, color:C.muted, fontFamily:FB }}>{result.captionSource}</span>
+                  </div>
+                  <p style={{ fontSize:13, color:"#374151", fontFamily:FB, lineHeight:1.6, marginBottom:result.hashtags?6:0 }}>
+                    {result.body || result.caption}
+                  </p>
+                  {result.hashtags && (
+                    <p style={{ fontSize:11, color:C.muted, fontFamily:FB }}>{result.hashtags}</p>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ── MAIN AGENT PANEL ──────────────────────────────────────────────────────────
 
 export default function AgentPanel({ businessId, businessName, metrics, planInfo, integs, setTab }) {
@@ -1389,6 +1550,7 @@ export default function AgentPanel({ businessId, businessName, metrics, planInfo
             </div>
           )}
 
+          <ContentLab businessId={businessId} businessName={businessName} />
           <AddCampaignForm mode={agentMode} onAdd={c=>saveCampaigns(p=>[c,...p])} />
 
           {/* Archived campaigns */}

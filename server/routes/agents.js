@@ -795,6 +795,84 @@ router.get("/:businessId/autopilot", requireAuth, async (req, res, next) => {
   } catch(e) { next(e); }
 });
 
+/**
+ * POST /:businessId/content-lab
+ * Test content generation (caption + image) for any channel without running a
+ * full campaign. Surfaces the exact DALL-E error so it can be diagnosed in the UI.
+ */
+router.post("/:businessId/content-lab", requireAuth, async (req, res, next) => {
+  try {
+    const biz = await prisma.business.findFirst({ where:{ id:req.params.businessId, userId:req.userId } });
+    if (!biz) return res.status(404).json({ error:"Business not found" });
+
+    const { channel = "instagram", context = "value tip post", tone = "professional" } = req.body;
+    let idea = {}; try { idea = JSON.parse(biz.ideaData||"{}"); } catch {}
+    const brandId = await getBrandIdentity(req.params.businessId);
+
+    // ── Caption ──────────────────────────────────────────────────────────────
+    const ig = require("../services/instagram");
+    let captionResult = null, captionError = null, captionSource = "claude";
+    if (process.env.OPENAI_API_KEY) {
+      try {
+        captionResult = await openaiSvc.generateInstagramCaption({
+          businessName: biz.name, businessType: idea.name,
+          context, brandIdentity: brandId, marketInsights: "",
+        });
+        captionSource = "gpt4o";
+      } catch(e) {
+        captionError = e.message;
+        captionResult = await ig.generateCaption(biz.name, idea.name, context, tone, {});
+      }
+    } else {
+      captionResult = await ig.generateCaption(biz.name, idea.name, context, tone, {});
+    }
+
+    // ── Image ────────────────────────────────────────────────────────────────
+    const imgGen = require("../services/imageGen");
+    const appUrl = log.getAppUrl();
+    let imageUrl = null, imageSource = null, dalleError = null;
+
+    const needsImage = ["instagram","twitter","linkedin","tiktok","general"].includes(channel);
+    if (needsImage) {
+      if (process.env.OPENAI_API_KEY) {
+        log.info("CONTENT-LAB", "Attempting DALL-E 3", {
+          businessId: req.params.businessId, channel,
+          keyPrefix: process.env.OPENAI_API_KEY.slice(0, 10),
+        });
+        try {
+          const imgBuf = await openaiSvc.generatePostImage(biz.name, captionResult?.body || context, brandId);
+          const imageId = imgGen.storeImage(imgBuf);
+          imageUrl = `${appUrl}/api/instagram/images/${imageId}`;
+          imageSource = "dalle3";
+          log.info("CONTENT-LAB", "DALL-E 3 success", { bytes: imgBuf.length, imageUrl });
+        } catch(e) {
+          dalleError = e.message || String(e);
+          log.error("CONTENT-LAB", "DALL-E 3 FAILED", {
+            error: dalleError, status: e.status, code: e.code,
+          });
+          const imageId = await imgGen.generatePostImage(biz.name, context);
+          imageUrl = `${appUrl}/api/instagram/images/${imageId}`;
+          imageSource = "svg_fallback";
+        }
+      } else {
+        dalleError = "OPENAI_API_KEY is not set — add it to Railway environment variables";
+        const imageId = await imgGen.generatePostImage(biz.name, context);
+        imageUrl = `${appUrl}/api/instagram/images/${imageId}`;
+        imageSource = "svg_no_openai";
+      }
+    }
+
+    return res.json({
+      channel,
+      caption:       captionResult?.caption || null,
+      body:          captionResult?.body    || null,
+      hashtags:      captionResult?.hashtags || null,
+      imageUrl, imageSource, dalleError, captionError, captionSource,
+      hasOpenAIKey:  !!process.env.OPENAI_API_KEY,
+    });
+  } catch(e) { next(e); }
+});
+
 // Called once at server startup to resume autopilot for any businesses left enabled
 async function resumeAllAutopilots() {
   try {
