@@ -657,9 +657,9 @@ function CampaignGroup({ title, tasks, businessId, outputs, onUpdate, onDelete, 
   );
 }
 
-function TasksPanel({ businessId, businessOutputs, hubNotes, stickyAssignments, onAssignSticky, onUnstickNote, onTasksChanged }) {
-  const [tasks,      setTasks]      = useState([]);
-  const [loading,    setLoading]    = useState(true);
+function TasksPanel({ businessId, businessOutputs, hubNotes, stickyAssignments, onAssignSticky, onUnstickNote, onTasksChanged, initialTasks }) {
+  const [tasks,      setTasks]      = useState(initialTasks || []);
+  const [loading,    setLoading]    = useState(!initialTasks?.length);
   const [showAdd,    setShowAdd]    = useState(false);
   const [filter,     setFilter]     = useState("all");
   const [selectMode, setSelectMode] = useState(false);
@@ -2335,7 +2335,7 @@ export default function Hub() {
           )}
 
           {/* TASKS */}
-          {tab==="tasks" && <TasksPanel businessId={businessId} businessOutputs={outputs} hubNotes={hubNotes} stickyAssignments={stickyAssignments} onAssignSticky={assignSticky} onUnstickNote={unstickNote} onTasksChanged={refreshTasks}/>}
+          {tab==="tasks" && <TasksPanel businessId={businessId} businessOutputs={outputs} hubNotes={hubNotes} stickyAssignments={stickyAssignments} onAssignSticky={assignSticky} onUnstickNote={unstickNote} onTasksChanged={refreshTasks} initialTasks={tasks}/>}
 
           {/* HUB */}
           {tab==="hub" && (
