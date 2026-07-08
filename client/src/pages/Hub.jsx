@@ -2162,8 +2162,9 @@ export default function Hub() {
     { id:"management", label:"Management Agent" },
   ];
 
-  const tasksDone  = tasks.filter(t=>t.status==="done").length;
-  const tasksTotal = tasks.length;
+  const regularTasks = tasks.filter(t => t.category !== "notes");
+  const tasksDone  = regularTasks.filter(t=>t.status==="done").length;
+  const tasksTotal = regularTasks.length;
 
   return (
     <div style={{ display:"flex", minHeight:"100vh", fontFamily:FB }}>
