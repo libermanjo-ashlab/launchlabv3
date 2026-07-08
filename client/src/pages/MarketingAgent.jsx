@@ -813,7 +813,7 @@ function CampaignCard({ campaign:c, onUpdate, onDelete, businessId, businessName
         }
 
         // For visual channel prep tasks: composite canvas text over AI background for display
-        if (VISUAL_CHANNEL_SET.has(campChannel) && output?.caption && !output?.isGuided && !runBody.imageUrl) {
+        if (VISUAL_CHANNEL_SET.has(campChannel) && (output?.caption || output?.body) && !output?.isGuided && !runBody.imageUrl) {
           try {
             const bgUrl = output?.imageUrl && output?.imageSource?.startsWith("gpt-image") ? output.imageUrl : null;
             const blob = await generatePostImageBlob(businessName || "Business", output.body || output.caption, bgUrl);
@@ -884,6 +884,7 @@ function CampaignCard({ campaign:c, onUpdate, onDelete, businessId, businessName
       </div>
 
       {c.rationale && <p style={{ fontSize:12, color:C.muted, fontFamily:FB, lineHeight:1.5, marginBottom:8 }}>{c.rationale}</p>}
+      {c.contentPreview && <div style={{ background:"#F9FAFB", border:`1px solid ${C.border}`, borderRadius:6, padding:"6px 10px", fontSize:12, color:C.text, fontFamily:FB, lineHeight:1.5, marginBottom:8, fontStyle:"italic" }}>"{c.contentPreview}"</div>}
       {c.expectedImpact && <div style={{ background:C.okBg, borderRadius:6, padding:"4px 8px", fontSize:11, color:C.ok, fontFamily:FB, marginBottom:8 }}>Goal: {c.expectedImpact}</div>}
 
       {/* 15-min warning */}
@@ -1138,8 +1139,8 @@ function ImplementResult({ result, businessId, businessName }) {
         <p style={{ fontSize:13, color:C.text, fontFamily:FB, lineHeight:1.6, marginBottom:8 }}>{result.body || result.caption}</p>
         {result.hashtags && <p style={{ fontSize:11, color:C.muted, fontFamily:FB, marginBottom:10 }}>{result.hashtags}</p>}
         <div style={{ display:"flex", gap:6 }}>
-          <button onClick={()=>copy(result.caption)} style={{ ...btnO(C.primary,11), flex:1, padding:"5px 10px" }}>{copied?"Copied!":"Copy caption"}</button>
-          {result.caption && <button onClick={publishNow} disabled={publishing} style={{ ...btn(C.primary,"#fff",11), flex:1, padding:"5px 10px" }}>{publishing?"Publishing…":"Publish now"}</button>}
+          <button onClick={()=>copy(result.body||result.caption)} style={{ ...btnO(C.primary,11), flex:1, padding:"5px 10px" }}>{copied?"Copied!":"Copy text"}</button>
+          {result.channel==="instagram" && <button onClick={publishNow} disabled={publishing} style={{ ...btn(C.primary,"#fff",11), flex:1, padding:"5px 10px" }}>{publishing?"Publishing…":"Publish to Instagram"}</button>}
         </div>
       </div>
     );
