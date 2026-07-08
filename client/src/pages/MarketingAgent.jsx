@@ -720,10 +720,11 @@ function CampaignTaskRow({ task:t, mode, channel, businessId, businessName, onCo
 
 // ── Campaign Card ─────────────────────────────────────────────────────────────
 
-function CampaignCard({ campaign:c, onUpdate, onDelete, businessId, businessName, setTab, activeCampaignCount=0, refreshTasks }) {
+function CampaignCard({ campaign:c, onUpdate, onDelete, businessId, businessName, setTab, activeCampaignCount=0, refreshTasks, stickyNote, onAssignSticky, onUnstickNote }) {
   const [expanded,    setExpanded]    = useState(c.status==="active");
   const [starting,    setStarting]    = useState(false);
   const [autoRunning, setAutoRunning] = useState(false);
+  const [dropOver,    setDropOver]    = useState(false);
   const hasAutoStartedRef = useRef(false);
   const abortRef = useRef(false);
 
@@ -882,7 +883,20 @@ function CampaignCard({ campaign:c, onUpdate, onDelete, businessId, businessName
   const allDone = tasks.length > 0 && activeTasks.length === 0;
 
   return (
-    <div style={{ ...card("12px 14px"), marginBottom:10, border:`1px solid ${statusColor}25`, background: c.status==="archived"?"#F9F9F9":"#fff" }}>
+    <div
+      onDragOver={e=>{ e.preventDefault(); setDropOver(true); }}
+      onDragLeave={()=>setDropOver(false)}
+      onDrop={e=>{ e.preventDefault(); setDropOver(false); const noteId=e.dataTransfer.getData("text/noteId"); if(noteId&&onAssignSticky) onAssignSticky(noteId, c.id, c.title); }}
+      style={{ ...card("12px 14px"), marginBottom:10, border:`1px solid ${dropOver?C.primary:statusColor+"25"}`, background: c.status==="archived"?"#F9F9F9":"#fff", transition:"border-color 0.15s" }}>
+      {/* Sticky note */}
+      {stickyNote && (
+        <div style={{ display:"flex", alignItems:"center", gap:5, background:stickyNote.color||"#FEF9C3", borderRadius:6, padding:"4px 8px", marginBottom:8, fontSize:11, color:"#374151", fontFamily:FB }}>
+          <span>📌</span>
+          <span style={{ flex:1, wordBreak:"break-word" }}>{stickyNote.text}</span>
+          <button onClick={()=>onUnstickNote?.(c.id)} style={{ background:"none", border:"none", cursor:"pointer", color:"#9CA3AF", fontSize:12, padding:0 }}>✕</button>
+        </div>
+      )}
+      {dropOver && !stickyNote && <div style={{ height:2, background:C.primary, borderRadius:2, marginBottom:6 }} />}
       {/* Header */}
       <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", marginBottom:6 }}>
         <div style={{ flex:1, paddingRight:8 }}>
@@ -1102,14 +1116,15 @@ function ImplementResult({ result, businessId, businessName }) {
     let cancelled = false;
     const effectiveName = businessName || "Business";
     if (result.isGuided) return;
-    const bgUrl = result?.imageUrl && result?.imageSource?.startsWith("gpt-image") ? result.imageUrl : null;
-    console.log(`[IMPLEMENT:canvas] Canvas composite — businessName="${effectiveName}" bgSource=${bgUrl ? result.imageSource : "gradient"}`);
+    // gpt-image sources can't be loaded into canvas (CORS) — display directly
+    if (result.imageSource?.startsWith("gpt-image")) {
+      if (!cancelled) setLocalImgUrl(result.imageUrl || null);
+      return;
+    }
     (async () => {
       try {
-        const blob = await generatePostImageBlob(effectiveName, result.body || result.caption, bgUrl);
-        console.log(`[IMPLEMENT:canvas] Blob generated — size=${blob.size} type=${blob.type}`);
+        const blob = await generatePostImageBlob(effectiveName, result.body || result.caption, null);
         const { imageUrl } = await api.instagram.uploadImage(blob);
-        console.log(`[IMPLEMENT:canvas] Upload complete — imageUrl=${imageUrl}`);
         if (!cancelled) setLocalImgUrl(imageUrl);
       } catch(imgErr) {
         console.error(`[IMPLEMENT:canvas] Canvas/upload FAILED — "${imgErr.message}". Will display server image: ${result.imageUrl || "none"}`);
@@ -1631,16 +1646,16 @@ function ContentLab({ businessId, businessName, plan }) {
 
 // ── MAIN AGENT PANEL ──────────────────────────────────────────────────────────
 
-export default function AgentPanel({ businessId, businessName, metrics, planInfo, integs, setTab, refreshTasks }) {
+export default function AgentPanel({ businessId, businessName, metrics, planInfo, integs, setTab, refreshTasks, hubNotes, stickyAssignments, onAssignSticky, onUnstickNote }) {
   const navigate = useNavigate();
 
-  // Mode
+  // Mode — sessionStorage so it resets on browser close / logout
   const [agentMode, setAgentMode] = useState(() => {
-    try { return localStorage.getItem(`earnedlab_agentmode_${businessId}`) || "guided"; } catch { return "guided"; }
+    try { return sessionStorage.getItem(`earnedlab_agentmode_${businessId}`) || "guided"; } catch { return "guided"; }
   });
   const saveAgentMode = (m) => {
     setAgentMode(m);
-    try { localStorage.setItem(`earnedlab_agentmode_${businessId}`, m); } catch {}
+    try { sessionStorage.setItem(`earnedlab_agentmode_${businessId}`, m); } catch {}
   };
 
   // Analysis state
@@ -1689,7 +1704,7 @@ export default function AgentPanel({ businessId, businessName, metrics, planInfo
         if (d.mode && !localStorage.getItem(`earnedlab_agentmode_${businessId}`)) saveAgentMode(d.mode);
       }
     }).catch(()=>{});
-    api.agents.getAutopilot(businessId).then(d=>{ if(d.autopilotEnabled) saveAgentMode("auto"); }).catch(()=>{});
+    // Note: autopilot mode is session-only — resets to guided on login
   },[businessId]);
 
   // Enforce plan-based mode restrictions when access data loads
@@ -2085,7 +2100,7 @@ export default function AgentPanel({ businessId, businessName, metrics, planInfo
                 Queued — ready to start ({plannedCampaigns.length})
               </p>
               {plannedCampaigns.map(c=>(
-                <CampaignCard key={c.id} campaign={c} onUpdate={updateCampaign} onDelete={deleteCampaign} businessId={businessId} businessName={businessName} setTab={setTab} activeCampaignCount={activeCampaigns.length} refreshTasks={refreshTasks} />
+                <CampaignCard key={c.id} campaign={c} onUpdate={updateCampaign} onDelete={deleteCampaign} businessId={businessId} businessName={businessName} setTab={setTab} activeCampaignCount={activeCampaigns.length} refreshTasks={refreshTasks} stickyNote={stickyAssignments?.[c.id] ? hubNotes?.find(n=>n.id===stickyAssignments[c.id]?.noteId) : null} onAssignSticky={onAssignSticky} onUnstickNote={onUnstickNote} />
               ))}
             </div>
           )}
@@ -2097,7 +2112,7 @@ export default function AgentPanel({ businessId, businessName, metrics, planInfo
                 Active ({activeCampaigns.length})
               </p>
               {activeCampaigns.map(c=>(
-                <CampaignCard key={c.id} campaign={c} onUpdate={updateCampaign} onDelete={deleteCampaign} businessId={businessId} businessName={businessName} setTab={setTab} activeCampaignCount={activeCampaigns.length} refreshTasks={refreshTasks} />
+                <CampaignCard key={c.id} campaign={c} onUpdate={updateCampaign} onDelete={deleteCampaign} businessId={businessId} businessName={businessName} setTab={setTab} activeCampaignCount={activeCampaigns.length} refreshTasks={refreshTasks} stickyNote={stickyAssignments?.[c.id] ? hubNotes?.find(n=>n.id===stickyAssignments[c.id]?.noteId) : null} onAssignSticky={onAssignSticky} onUnstickNote={onUnstickNote} />
               ))}
             </div>
           )}
@@ -2117,7 +2132,7 @@ export default function AgentPanel({ businessId, businessName, metrics, planInfo
                 )}
               </div>
               {monitoringCampaigns.map(c=>(
-                <CampaignCard key={c.id} campaign={c} onUpdate={updateCampaign} onDelete={deleteCampaign} businessId={businessId} businessName={businessName} setTab={setTab} activeCampaignCount={activeCampaigns.length} refreshTasks={refreshTasks} />
+                <CampaignCard key={c.id} campaign={c} onUpdate={updateCampaign} onDelete={deleteCampaign} businessId={businessId} businessName={businessName} setTab={setTab} activeCampaignCount={activeCampaigns.length} refreshTasks={refreshTasks} stickyNote={stickyAssignments?.[c.id] ? hubNotes?.find(n=>n.id===stickyAssignments[c.id]?.noteId) : null} onAssignSticky={onAssignSticky} onUnstickNote={onUnstickNote} />
               ))}
             </div>
           )}
@@ -2145,7 +2160,7 @@ export default function AgentPanel({ businessId, businessName, metrics, planInfo
                 {showArchived?"▲":"▼"} Archived Campaigns ({archivedCampaigns.length})
               </button>
               {showArchived && archivedCampaigns.map(c=>(
-                <CampaignCard key={c.id} campaign={c} onUpdate={updateCampaign} onDelete={deleteCampaign} businessId={businessId} businessName={businessName} setTab={setTab} activeCampaignCount={activeCampaigns.length} refreshTasks={refreshTasks} />
+                <CampaignCard key={c.id} campaign={c} onUpdate={updateCampaign} onDelete={deleteCampaign} businessId={businessId} businessName={businessName} setTab={setTab} activeCampaignCount={activeCampaigns.length} refreshTasks={refreshTasks} stickyNote={stickyAssignments?.[c.id] ? hubNotes?.find(n=>n.id===stickyAssignments[c.id]?.noteId) : null} onAssignSticky={onAssignSticky} onUnstickNote={onUnstickNote} />
               ))}
             </div>
           )}

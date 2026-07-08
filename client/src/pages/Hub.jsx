@@ -548,7 +548,18 @@ function NotesGrid({ notes, onDelete }) {
 }
 
 // ── Inline-editable task row wrapper ─────────────────────────────────────────
-function TaskRowWrapper({ task, businessId, outputs, onUpdate, onDelete, selectable, selected, onToggleSelect }) {
+function StickyNoteChip({ note, onUnstick }) {
+  if (!note) return null;
+  return (
+    <div style={{ display:"inline-flex", alignItems:"center", gap:5, background:note.color||"#FEF9C3", borderRadius:6, padding:"3px 8px", marginBottom:4, fontSize:11, color:"#374151", fontFamily:FB, maxWidth:"100%", overflow:"hidden" }}>
+      <span style={{ flexShrink:0 }}>📌</span>
+      <span style={{ flex:1, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{note.text}</span>
+      <button onClick={e=>{e.stopPropagation();onUnstick();}} style={{ background:"none", border:"none", cursor:"pointer", color:"#9CA3AF", fontSize:12, padding:0, flexShrink:0 }}>✕</button>
+    </div>
+  );
+}
+
+function TaskRowWrapper({ task, businessId, outputs, onUpdate, onDelete, selectable, selected, onToggleSelect, stickyNote, onAssignSticky, onUnstickNote }) {
   const [editing,  setEditing]  = useState(false);
   const [eName,    setEName]    = useState(task.name);
   const [eDesc,    setEDesc]    = useState(task.description || "");
@@ -565,8 +576,16 @@ function TaskRowWrapper({ task, businessId, outputs, onUpdate, onDelete, selecta
     setEditing(false);
   };
 
+  const [dropOver, setDropOver] = useState(false);
   return (
-    <div style={{ display:"flex", gap:8, alignItems:"flex-start", marginBottom:8 }}>
+    <div
+      style={{ marginBottom:8 }}
+      onDragOver={e=>{ e.preventDefault(); setDropOver(true); }}
+      onDragLeave={()=>setDropOver(false)}
+      onDrop={e=>{ e.preventDefault(); setDropOver(false); const noteId=e.dataTransfer.getData("text/noteId"); if(noteId&&onAssignSticky) onAssignSticky(noteId, task.id, task.name); }}>
+      {stickyNote && <StickyNoteChip note={stickyNote} onUnstick={()=>onUnstickNote(task.id)} />}
+      {dropOver && !stickyNote && <div style={{ height:2, background:C.primary, borderRadius:2, marginBottom:4 }} />}
+      <div style={{ display:"flex", gap:8, alignItems:"flex-start", border:dropOver?`1px dashed ${C.primary}`:"1px solid transparent", borderRadius:8, padding:dropOver?"2px":"0" }}>
       {/* Checkbox for bulk select */}
       {selectable && (
         <div style={{ paddingTop:16, flexShrink:0 }}>
@@ -603,12 +622,13 @@ function TaskRowWrapper({ task, businessId, outputs, onUpdate, onDelete, selecta
           </div>
         )}
       </div>
+      </div>
     </div>
   );
 }
 
 // ── Campaign group accordion ──────────────────────────────────────────────────
-function CampaignGroup({ title, tasks, businessId, outputs, onUpdate, onDelete, selectable, selected, onToggleSelect }) {
+function CampaignGroup({ title, tasks, businessId, outputs, onUpdate, onDelete, selectable, selected, onToggleSelect, hubNotes, stickyAssignments, onAssignSticky, onUnstickNote }) {
   const [open, setOpen] = useState(true);
   const done  = tasks.filter(t=>t.status==="done").length;
   return (
@@ -621,18 +641,23 @@ function CampaignGroup({ title, tasks, businessId, outputs, onUpdate, onDelete, 
       </div>
       {open && (
         <div style={{ paddingLeft:16, borderLeft:`2px solid ${C.primary}22` }}>
-          {tasks.map(t=>(
-            <TaskRowWrapper key={t.id} task={t} businessId={businessId} outputs={outputs}
-              onUpdate={onUpdate} onDelete={onDelete}
-              selectable={selectable} selected={selected.has(t.id)} onToggleSelect={onToggleSelect} />
-          ))}
+          {tasks.map(t=>{
+            const assignment = stickyAssignments?.[t.id];
+            const stickyNote = assignment ? hubNotes?.find(n=>n.id===assignment.noteId) : null;
+            return (
+              <TaskRowWrapper key={t.id} task={t} businessId={businessId} outputs={outputs}
+                onUpdate={onUpdate} onDelete={onDelete}
+                selectable={selectable} selected={selected.has(t.id)} onToggleSelect={onToggleSelect}
+                stickyNote={stickyNote} onAssignSticky={onAssignSticky} onUnstickNote={onUnstickNote} />
+            );
+          })}
         </div>
       )}
     </div>
   );
 }
 
-function TasksPanel({ businessId, businessOutputs }) {
+function TasksPanel({ businessId, businessOutputs, hubNotes, stickyAssignments, onAssignSticky, onUnstickNote }) {
   const [tasks,      setTasks]      = useState([]);
   const [loading,    setLoading]    = useState(true);
   const [showAdd,    setShowAdd]    = useState(false);
@@ -810,7 +835,8 @@ function TasksPanel({ businessId, businessOutputs }) {
             <CampaignGroup key={title} title={title} tasks={groupTasks}
               businessId={businessId} outputs={businessOutputs}
               onUpdate={onUpdate} onDelete={onDelete}
-              selectable={selectMode} selected={selected} onToggleSelect={toggleSelect} />
+              selectable={selectMode} selected={selected} onToggleSelect={toggleSelect}
+              hubNotes={hubNotes} stickyAssignments={stickyAssignments} onAssignSticky={onAssignSticky} onUnstickNote={onUnstickNote} />
           ))
         )
       ) : (
@@ -825,7 +851,8 @@ function TasksPanel({ businessId, businessOutputs }) {
                 <CampaignGroup key={title} title={title} tasks={groupTasks}
                   businessId={businessId} outputs={businessOutputs}
                   onUpdate={onUpdate} onDelete={onDelete}
-                  selectable={selectMode} selected={selected} onToggleSelect={toggleSelect} />
+                  selectable={selectMode} selected={selected} onToggleSelect={toggleSelect}
+                  hubNotes={hubNotes} stickyAssignments={stickyAssignments} onAssignSticky={onAssignSticky} onUnstickNote={onUnstickNote} />
               ))}
             </div>
           )}
@@ -835,25 +862,35 @@ function TasksPanel({ businessId, businessOutputs }) {
             <div style={{ ...card("28px"), textAlign:"center", color:C.muted }}>
               <div style={{ fontSize:28, marginBottom:10 }}>📋</div>
               <div style={{ fontFamily:FH, fontWeight:600, fontSize:15, marginBottom:6 }}>No tasks yet</div>
-              <p style={{ fontSize:13, lineHeight:1.65, marginBottom:16 }}>Add tasks to track your progress and generate business assets with AI.</p>
+              <p style={{ fontSize:13, lineHeight:1.65, marginBottom:16 }}>Add tasks to track your progress and generate business assets.</p>
               <button onClick={()=>setShowAdd(true)} style={{ ...btn(C.primary,"#fff",13) }}>Add your first task</button>
             </div>
           )}
 
-          {visibleNonCampaign.filter(t=>t.status!=="done").map(t=>(
-            <TaskRowWrapper key={t.id} task={t} businessId={businessId} outputs={businessOutputs}
-              onUpdate={onUpdate} onDelete={onDelete}
-              selectable={selectMode} selected={selected.has(t.id)} onToggleSelect={toggleSelect} />
-          ))}
+          {visibleNonCampaign.filter(t=>t.status!=="done").map(t=>{
+            const assignment = stickyAssignments?.[t.id];
+            const stickyNote = assignment ? hubNotes?.find(n=>n.id===assignment.noteId) : null;
+            return (
+              <TaskRowWrapper key={t.id} task={t} businessId={businessId} outputs={businessOutputs}
+                onUpdate={onUpdate} onDelete={onDelete}
+                selectable={selectMode} selected={selected.has(t.id)} onToggleSelect={toggleSelect}
+                stickyNote={stickyNote} onAssignSticky={onAssignSticky} onUnstickNote={onUnstickNote} />
+            );
+          })}
 
           {visibleNonCampaign.some(t=>t.status==="done") && (
             <>
               <div style={{ fontSize:11, fontWeight:700, color:C.muted, textTransform:"uppercase", letterSpacing:"0.08em", padding:"12px 0 8px", fontFamily:FB }}>Completed</div>
-              {visibleNonCampaign.filter(t=>t.status==="done").map(t=>(
-                <TaskRowWrapper key={t.id} task={t} businessId={businessId} outputs={businessOutputs}
-                  onUpdate={onUpdate} onDelete={onDelete}
-                  selectable={selectMode} selected={selected.has(t.id)} onToggleSelect={toggleSelect} />
-              ))}
+              {visibleNonCampaign.filter(t=>t.status==="done").map(t=>{
+                const assignment = stickyAssignments?.[t.id];
+                const stickyNote = assignment ? hubNotes?.find(n=>n.id===assignment.noteId) : null;
+                return (
+                  <TaskRowWrapper key={t.id} task={t} businessId={businessId} outputs={businessOutputs}
+                    onUpdate={onUpdate} onDelete={onDelete}
+                    selectable={selectMode} selected={selected.has(t.id)} onToggleSelect={toggleSelect}
+                    stickyNote={stickyNote} onAssignSticky={onAssignSticky} onUnstickNote={onUnstickNote} />
+                );
+              })}
             </>
           )}
         </>
@@ -1067,7 +1104,7 @@ function FilesArchive({ businessId, outputs, tasks }) {
   );
 }
 
-function HubPanel({ businessId, integs, onSaveFields, tasks, outputs, isMinor }) {
+function HubPanel({ businessId, integs, onSaveFields, tasks, outputs, isMinor, isAutopilotPlan }) {
   const navigate = useNavigate();
   const getMeta = provider => {
     const intg = integs.find(i=>i.provider===provider);
@@ -1299,7 +1336,7 @@ function HubPanel({ businessId, integs, onSaveFields, tasks, outputs, isMinor })
             isConn={isConn(def.provider)}
             onSave={vals => onSaveFields(def.provider, vals)}
             autopilotLabel={def.autopilotLabel}
-            autopilotDisabled={def.autopilotDisabled}
+            autopilotDisabled={!isAutopilotPlan}
             setupGuide={def.setupGuide}
             onTestConnection={def.wpTest ? async (vals) => {
               if (!vals.siteUrl || !vals.wpUsername || !vals.wpAppPassword) throw new Error("Enter site URL, username, and app password first");
@@ -1887,6 +1924,10 @@ export default function Hub() {
   const [noteText,   setNoteText]   = useState("");
   const [noteColor,  setNoteColor]  = useState(NOTE_BG_COLORS[0]);
   const [noteAdding, setNoteAdding] = useState(false);
+  const [draggedNoteId, setDraggedNoteId] = useState(null);
+  const [stickyAssignments, setStickyAssignments] = useState(()=>{
+    try { return JSON.parse(localStorage.getItem(`earnedlab_sticky_${businessId}`)||"{}"); } catch { return {}; }
+  });
   const navigate = useNavigate();
 
   const age     = user?.age;
@@ -1908,6 +1949,23 @@ export default function Hub() {
     api.agents.notes(businessId).then(d=>setHubNotes(d.notes||[])).catch(()=>{});
   },[businessId]);
 
+  // Intercept interactive clicks when trial is expired — data stays visible
+  useEffect(() => {
+    if (!planInfo?.locked) return;
+    const handler = (e) => {
+      const el = e.target;
+      if (el.closest(".trial-expired-modal")) return;
+      const interactive = el.tagName==="BUTTON" || el.tagName==="INPUT" || el.tagName==="SELECT" || el.tagName==="TEXTAREA" || el.closest("button") || el.getAttribute("role")==="button";
+      if (interactive) {
+        e.preventDefault();
+        e.stopPropagation();
+        setShowTrialExpiredModal(true);
+      }
+    };
+    document.addEventListener("click", handler, true);
+    return () => document.removeEventListener("click", handler, true);
+  }, [planInfo?.locked]); // eslint-disable-line react-hooks/exhaustive-deps
+
   const addHubNote = async () => {
     if (!noteText.trim()) return;
     setNoteAdding(true);
@@ -1922,6 +1980,32 @@ export default function Hub() {
   const deleteHubNote = (id) => {
     setHubNotes(p=>p.filter(n=>n.id!==id));
     api.agents.deleteNote(businessId, id).catch(()=>{});
+    // Also remove any sticky assignment for this note
+    setStickyAssignments(prev => {
+      const next = { ...prev };
+      Object.keys(next).forEach(k => { if (next[k]?.noteId === id) delete next[k]; });
+      try { localStorage.setItem(`earnedlab_sticky_${businessId}`, JSON.stringify(next)); } catch {}
+      return next;
+    });
+  };
+
+  const assignSticky = (noteId, targetId, targetLabel) => {
+    setStickyAssignments(prev => {
+      // Remove any existing assignment for this noteId
+      const next = Object.fromEntries(Object.entries(prev).filter(([,v])=>v.noteId!==noteId));
+      next[targetId] = { noteId, targetLabel };
+      try { localStorage.setItem(`earnedlab_sticky_${businessId}`, JSON.stringify(next)); } catch {}
+      return next;
+    });
+  };
+
+  const unstickNote = (targetId) => {
+    setStickyAssignments(prev => {
+      const next = { ...prev };
+      delete next[targetId];
+      try { localStorage.setItem(`earnedlab_sticky_${businessId}`, JSON.stringify(next)); } catch {}
+      return next;
+    });
   };
 
   useEffect(()=>{
@@ -2006,32 +2090,24 @@ export default function Hub() {
 
       {showTour && <GuidedTour business={business} user={user} onDone={dismissTour} />}
 
-      {/* Expired trial: transparent click-capture overlay with upgrade modal */}
-      {planInfo?.locked && (
-        <>
-          <div
-            onClick={() => setShowTrialExpiredModal(true)}
-            style={{ position:"fixed", inset:0, zIndex:200, cursor:"pointer" }}
-          />
-          {showTrialExpiredModal && (
-            <div style={{ position:"fixed", inset:0, zIndex:300, display:"flex", alignItems:"center", justifyContent:"center", background:"rgba(0,0,0,0.55)" }}
-              onClick={() => setShowTrialExpiredModal(false)}>
-              <div onClick={e=>e.stopPropagation()} style={{ background:"#fff", borderRadius:16, padding:"32px 36px", maxWidth:400, width:"90%", textAlign:"center", boxShadow:"0 20px 60px rgba(0,0,0,0.25)" }}>
-                <div style={{ fontSize:36, marginBottom:12 }}>🔒</div>
-                <div style={{ fontFamily:FH, fontWeight:700, fontSize:20, marginBottom:8, color:"#111" }}>Your trial has ended</div>
-                <p style={{ fontSize:13, color:"#6B7280", fontFamily:FB, lineHeight:1.6, marginBottom:20 }}>
-                  Your data is safe. Upgrade to a paid plan to continue using all features — your history, tasks, and settings will all be here waiting.
-                </p>
-                <button onClick={()=>navigate("/pricing")} style={{ ...btn(C.primary,"#fff",14), padding:"10px 28px", width:"100%", marginBottom:8 }}>
-                  View Plans & Pricing
-                </button>
-                <button onClick={()=>setShowTrialExpiredModal(false)} style={{ ...btnO(C.muted,12), padding:"7px 20px", width:"100%" }}>
-                  Keep browsing (view only)
-                </button>
-              </div>
-            </div>
-          )}
-        </>
+      {/* Expired trial: intercept interactive clicks; data remains fully visible/scrollable */}
+      {showTrialExpiredModal && (
+        <div style={{ position:"fixed", inset:0, zIndex:300, display:"flex", alignItems:"center", justifyContent:"center", background:"rgba(0,0,0,0.55)" }}
+          onClick={() => setShowTrialExpiredModal(false)}>
+          <div className="trial-expired-modal" onClick={e=>e.stopPropagation()} style={{ background:"#fff", borderRadius:16, padding:"32px 36px", maxWidth:400, width:"90%", textAlign:"center", boxShadow:"0 20px 60px rgba(0,0,0,0.25)" }}>
+            <div style={{ fontSize:36, marginBottom:12 }}>🔒</div>
+            <div style={{ fontFamily:FH, fontWeight:700, fontSize:20, marginBottom:8, color:"#111" }}>Your trial has ended</div>
+            <p style={{ fontSize:13, color:"#6B7280", fontFamily:FB, lineHeight:1.6, marginBottom:20 }}>
+              Your data is safe. Upgrade to a paid plan to continue using all features — your history, tasks, and settings will all be here waiting.
+            </p>
+            <button onClick={()=>navigate("/pricing")} style={{ ...btn(C.primary,"#fff",14), padding:"10px 28px", width:"100%", marginBottom:8 }}>
+              View Plans & Pricing
+            </button>
+            <button onClick={()=>setShowTrialExpiredModal(false)} style={{ ...btnO(C.muted,12), padding:"7px 20px", width:"100%" }}>
+              Keep browsing (view only)
+            </button>
+          </div>
+        </div>
       )}
 
       {/* Sidebar */}
@@ -2071,22 +2147,24 @@ export default function Hub() {
           <div onClick={()=>setShowTour(true)} style={{ padding:"8px 12px", borderRadius:8, color:"rgba(255,255,255,0.3)", cursor:"pointer", fontSize:12, fontFamily:FB }}>Replay tour</div>
           <div onClick={()=>navigate("/dashboard")} style={{ padding:"8px 12px", borderRadius:8, color:"rgba(255,255,255,0.2)", cursor:"pointer", fontSize:12, fontFamily:FB }}>All businesses</div>
 
-          {/* Available Insights footer bar */}
-          {insightsBudget && (() => {
-            const usedIns  = Math.round(insightsBudget.used  / 1.5);
-            const limitIns = Math.round(insightsBudget.limit / 1.5);
-            const pct      = insightsBudget.pct || 0;
+          {/* Available Insights footer bar — always visible when plan is known */}
+          {planInfo && (()=>{
+            const rawLimit = insightsBudget?.limit || (planInfo.plan==="pro_autopilot"?110000:planInfo.plan==="pro"?50000:20000);
+            const rawUsed  = insightsBudget?.used  || 0;
+            const usedIns  = Math.round(rawUsed  / 1.5);
+            const limitIns = Math.round(rawLimit / 1.5);
+            const pct      = Math.min(100, rawLimit > 0 ? Math.round(rawUsed / rawLimit * 100) : 0);
             const barColor = pct >= 90 ? "#EF4444" : pct >= 70 ? "#F59E0B" : "#4ADE80";
             return (
-              <div style={{ padding:"8px 12px", marginTop:4 }}>
+              <div style={{ padding:"8px 12px", marginTop:4, borderTop:"1px solid rgba(255,255,255,0.04)" }}>
                 <div style={{ display:"flex", justifyContent:"space-between", marginBottom:4 }}>
-                  <span style={{ fontSize:9, color:"rgba(255,255,255,0.3)", fontFamily:FB, textTransform:"uppercase", letterSpacing:"0.05em" }}>Insights</span>
-                  <span style={{ fontSize:9, color: pct>=90?"#EF4444":pct>=70?"#F59E0B":"rgba(255,255,255,0.3)", fontFamily:FB }}>
+                  <span style={{ fontSize:9, color:"rgba(255,255,255,0.3)", fontFamily:FB, textTransform:"uppercase", letterSpacing:"0.05em" }}>Daily Insights</span>
+                  <span style={{ fontSize:9, color:pct>=90?"#EF4444":pct>=70?"#F59E0B":"rgba(255,255,255,0.3)", fontFamily:FB }}>
                     {usedIns.toLocaleString()}/{limitIns.toLocaleString()}
                   </span>
                 </div>
                 <div style={{ height:3, borderRadius:2, background:"rgba(255,255,255,0.08)" }}>
-                  <div style={{ height:"100%", width:`${Math.min(100,pct)}%`, borderRadius:2, background:barColor, transition:"width 0.5s" }} />
+                  <div style={{ height:"100%", width:`${pct}%`, borderRadius:2, background:barColor, transition:"width 0.5s" }} />
                 </div>
               </div>
             );
@@ -2183,7 +2261,7 @@ export default function Hub() {
           )}
 
           {/* TASKS */}
-          {tab==="tasks" && <TasksPanel businessId={businessId} businessOutputs={outputs} />}
+          {tab==="tasks" && <TasksPanel businessId={businessId} businessOutputs={outputs} hubNotes={hubNotes} stickyAssignments={stickyAssignments} onAssignSticky={assignSticky} onUnstickNote={unstickNote}/>}
 
           {/* HUB */}
           {tab==="hub" && (
@@ -2194,6 +2272,7 @@ export default function Hub() {
               tasks={tasks}
               outputs={outputs}
               isMinor={!!isMinor}
+              isAutopilotPlan={planInfo?.plan === "pro_autopilot"}
             />
           )}
 
@@ -2202,7 +2281,7 @@ export default function Hub() {
             <div>
               <div style={{ fontFamily:FH, fontWeight:700, fontSize:24, letterSpacing:"-0.04em", marginBottom:4 }}>Marketing Agent</div>
               <p style={{ color:C.muted, fontSize:14, marginBottom:24, fontFamily:FB }}>Analyzes your connected channels and metrics to surface the highest-impact opportunities. Works with any channel — add more in the Hub to broaden coverage.</p>
-              <AgentPanel businessId={businessId} businessName={business?.name || ""} metrics={metrics} planInfo={planInfo} integs={integs} setTab={setTab} refreshTasks={refreshTasks}/>
+              <AgentPanel businessId={businessId} businessName={business?.name || ""} metrics={metrics} planInfo={planInfo} integs={integs} setTab={setTab} refreshTasks={refreshTasks} hubNotes={hubNotes} stickyAssignments={stickyAssignments} onAssignSticky={assignSticky} onUnstickNote={unstickNote}/>
             </div>
           )}
 
@@ -2265,19 +2344,40 @@ export default function Hub() {
 
       {/* Floating Notes Panel */}
       {notesOpen && (
-        <div style={{ position:"fixed", bottom:120, right:chatOpen?360:24, zIndex:200, width:300, background:"#fff", borderRadius:14, boxShadow:"0 8px 40px rgba(0,0,0,0.15)", border:"1px solid #E5E7EB", overflow:"hidden" }}>
+        <div style={{ position:"fixed", bottom:120, right:chatOpen?360:24, zIndex:200, width:310, background:"#fff", borderRadius:14, boxShadow:"0 8px 40px rgba(0,0,0,0.15)", border:"1px solid #E5E7EB", overflow:"hidden" }}>
           <div style={{ padding:"12px 14px", borderBottom:"1px solid #F3F4F6", display:"flex", justifyContent:"space-between", alignItems:"center" }}>
-            <span style={{ fontFamily:FH, fontWeight:700, fontSize:13, color:"#111827" }}>Notes {hubNotes.length>0 && <span style={{ background:C.primary, color:"#fff", borderRadius:10, padding:"1px 6px", fontSize:10, marginLeft:4 }}>{hubNotes.length}</span>}</span>
-            <button onClick={()=>setNotesOpen(false)} style={{ background:"none", border:"none", cursor:"pointer", color:"#9CA3AF", fontSize:18, lineHeight:1, padding:0 }}>×</button>
+            <span style={{ fontFamily:FH, fontWeight:700, fontSize:13, color:"#111827" }}>
+              Notes {hubNotes.length>0 && <span style={{ background:C.primary, color:"#fff", borderRadius:10, padding:"1px 6px", fontSize:10, marginLeft:4 }}>{hubNotes.length}</span>}
+            </span>
+            <div style={{ display:"flex", alignItems:"center", gap:8 }}>
+              <span style={{ fontSize:10, color:"#9CA3AF", fontFamily:FB }}>Drag to stick</span>
+              <button onClick={()=>setNotesOpen(false)} style={{ background:"none", border:"none", cursor:"pointer", color:"#9CA3AF", fontSize:18, lineHeight:1, padding:0 }}>×</button>
+            </div>
           </div>
           <div style={{ maxHeight:260, overflowY:"auto", padding:"10px 12px" }}>
-            {hubNotes.length===0 && <div style={{ fontSize:12, color:"#9CA3AF", textAlign:"center", padding:"12px 0", fontFamily:FB }}>No notes yet.</div>}
-            {hubNotes.map(n=>(
-              <div key={n.id} style={{ background:n.color||NOTE_BG_COLORS[0], borderRadius:8, padding:"8px 10px", marginBottom:6, display:"flex", gap:6 }}>
-                <div style={{ flex:1, fontSize:12, color:"#374151", fontFamily:FB, lineHeight:1.5, wordBreak:"break-word" }}>{n.text}</div>
-                <button onClick={()=>deleteHubNote(n.id)} style={{ background:"none", border:"none", cursor:"pointer", color:"#9CA3AF", fontSize:14, padding:0, flexShrink:0, alignSelf:"flex-start" }}>×</button>
-              </div>
-            ))}
+            {hubNotes.length===0 && <div style={{ fontSize:12, color:"#9CA3AF", textAlign:"center", padding:"12px 0", fontFamily:FB }}>No notes yet. Add one below.</div>}
+            {hubNotes.map(n=>{
+              const stuckTo = Object.entries(stickyAssignments).find(([,v])=>v.noteId===n.id);
+              return (
+                <div key={n.id}
+                  draggable
+                  onDragStart={e=>{ e.dataTransfer.setData("text/noteId", n.id); setDraggedNoteId(n.id); }}
+                  onDragEnd={()=>setDraggedNoteId(null)}
+                  style={{ background:n.color||NOTE_BG_COLORS[0], borderRadius:8, padding:"8px 10px", marginBottom:6, display:"flex", gap:6, cursor:"grab", opacity:draggedNoteId===n.id?0.5:1 }}>
+                  <div style={{ fontSize:14, color:"#9CA3AF", flexShrink:0, lineHeight:1.3, userSelect:"none" }}>⠿</div>
+                  <div style={{ flex:1, minWidth:0 }}>
+                    <div style={{ fontSize:12, color:"#374151", fontFamily:FB, lineHeight:1.5, wordBreak:"break-word" }}>{n.text}</div>
+                    {stuckTo && (
+                      <div style={{ display:"flex", alignItems:"center", gap:4, marginTop:4 }}>
+                        <span style={{ fontSize:10, color:"#6B7280", fontFamily:FB }}>📌 {stuckTo[1].targetLabel || "Item"}</span>
+                        <button onClick={()=>unstickNote(stuckTo[0])} style={{ background:"none", border:"none", cursor:"pointer", color:"#D1D5DB", fontSize:10, padding:0 }}>✕</button>
+                      </div>
+                    )}
+                  </div>
+                  <button onClick={()=>deleteHubNote(n.id)} style={{ background:"none", border:"none", cursor:"pointer", color:"#9CA3AF", fontSize:14, padding:0, flexShrink:0, alignSelf:"flex-start" }}>×</button>
+                </div>
+              );
+            })}
           </div>
           <div style={{ padding:"8px 12px", borderTop:"1px solid #F3F4F6" }}>
             <div style={{ display:"flex", gap:4, marginBottom:6 }}>

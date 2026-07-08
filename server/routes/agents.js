@@ -872,6 +872,21 @@ router.post("/:businessId/campaigns/task-content", requireAuth, async (req, res,
     const isVisual = VISUAL_CHANNELS.has(ch);
 
     if (isVisual) {
+      // Manual mode: return quick tips immediately — no OpenAI call
+      if (mode === "manual") {
+        const CHANNEL_TIP_MAP = {
+          instagram: ["Post consistently at 7-9am or 6-9pm for best reach", "Use 5-8 relevant hashtags — avoid generic ones with 10M+ posts", "Stories and Reels get 2x the organic reach of static posts", "Reply to every comment in the first hour — it boosts the algorithm", "Use a clear CTA: 'Save this', 'DM me', or 'Link in bio'"],
+          twitter:   ["Threads get 3-5x more engagement than single tweets", "Reply to trending posts in your niche to gain visibility", "Tweet at 8am, 12pm, or 5-6pm EST for peak engagement", "Use 1-2 hashtags max — more can reduce reach on X", "Pin your best-performing tweet to attract new followers"],
+          tiktok:    ["Hook viewers in the first 2 seconds — start with movement or a question", "Use trending sounds from the Discover tab even for text-based content", "Post 3-5 times per week minimum to stay in the algorithm", "Stitch or duet relevant creators to ride their audience", "Add text overlays — 80% of TikTok is watched without sound"],
+          linkedin:  ["Start posts with a bold first line — it shows before 'see more'", "Personal stories outperform promotional posts 3-1 on LinkedIn", "Tag up to 5 relevant connections to extend organic reach", "Post on Tue-Thu mornings for professional audiences", "End every post with a question to drive comments"],
+          google:    ["Respond to every Google review within 24h — it signals activity", "Add new photos weekly to keep your listing fresh", "Use Google Posts to share offers and events directly in search", "Ask happy clients to leave reviews immediately after service", "Keep your business hours updated — incorrect hours hurt ranking"],
+          facebook:  ["Facebook Groups outperform Pages — post in relevant local groups", "Video content gets 5x the reach of image posts on Facebook", "Boost posts for $5-10 to test before committing larger budgets", "Post in the evening (7-9pm) when your audience is most active", "Use Facebook Events to drive local engagement for promotions"],
+          general:   ["Consistency beats perfection — publish on schedule", "Repurpose each piece of content across 3+ channels", "Engage with 5-10 accounts in your niche every day", "Track which posts drive actual inquiries, not just likes", "Use direct outreach alongside content for faster growth"],
+        };
+        const tips = CHANNEL_TIP_MAP[ch] || CHANNEL_TIP_MAP.general;
+        return res.json({ content: { channel: ch, type: "manual_tip", tips } });
+      }
+
       // Caption
       let captionResult, dalleError = null;
       try {
