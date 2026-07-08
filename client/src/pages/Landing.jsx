@@ -40,7 +40,7 @@ function Hero({ onCta }) {
       <div style={{ position:"relative", zIndex:1, maxWidth:680 }}>
         <div style={{ display:"inline-flex", alignItems:"center", gap:8, background:surface, border:`1px solid ${border}`, borderRadius:24, padding:"6px 14px", marginBottom:32, backdropFilter:"blur(8px)" }}>
           <span style={{ width:6, height:6, borderRadius:"50%", background:"#4ADE80", boxShadow:"0 0 8px #4ADE8088", flexShrink:0 }} />
-          <span style={{ fontSize:12, color:muted, fontFamily:FB, fontWeight:500, letterSpacing:"0.02em" }}>AI-powered sidehustle platform — now in early access</span>
+          <span style={{ fontSize:12, color:muted, fontFamily:FB, fontWeight:500, letterSpacing:"0.02em" }}>Automated sidehustle platform — now in early access</span>
         </div>
 
         <h1 style={{ fontFamily:FH, fontWeight:700, fontSize:"clamp(42px,6vw,68px)", color:"#fff", lineHeight:1.05, letterSpacing:"-0.045em", margin:"0 0 20px" }}>
@@ -49,7 +49,7 @@ function Hero({ onCta }) {
         </h1>
 
         <p style={{ fontSize:"clamp(15px,2vw,18px)", color:muted, lineHeight:1.75, maxWidth:520, margin:"0 auto 40px", fontFamily:FB }}>
-          EarnedLab's AI agents find the right business for your situation, build everything automatically, and keep it growing — while you focus on what matters.
+          EarnedLab's agentic platform finds the right business for your situation, builds everything automatically, and keeps it growing — while you focus on what matters.
         </p>
 
         <div style={{ display:"flex", flexDirection:"column", alignItems:"center", gap:14 }}>
@@ -81,7 +81,7 @@ function HowItWorks() {
       tag:"Discovery",
     },
     {
-      n:"02", title:"AI finds your best business",
+      n:"02", title:"Smart matching finds your best business",
       body:"We analyze hundreds of options and match you with the business type most likely to succeed given your specific situation.",
       tag:"Matching",
     },
@@ -252,7 +252,7 @@ function Pricing({ onCta }) {
 // ── FAQ ───────────────────────────────────────────────────────────────────
 function FAQ() {
   const faqs = [
-    { q:"How long does setup actually take?", a:"Most users finish the discovery questionnaire in about 5 minutes and have a live business in under 30. The AI handles the research, idea selection, and initial setup automatically." },
+    { q:"How long does setup actually take?", a:"Most users finish the discovery questionnaire in about 5 minutes and have a live business in under 30. EarnedLab handles the research, idea selection, and initial setup automatically." },
     { q:"Do I need any technical skills?", a:"None at all. EarnedLab handles everything from website creation to deployment. If you can send an email, you can use this." },
     { q:"What kind of businesses does EarnedLab work for?", a:"Service businesses, freelancing, and local businesses work best — consulting, coaching, cleaning, photography, tutoring, and similar. We're not the right fit for e-commerce or physical products yet." },
     { q:"What happens at the end of the trial?", a:"Your account moves to a read-only view. Your data and business are saved. Upgrade any time to resume the agents. We'll email you before the trial ends." },

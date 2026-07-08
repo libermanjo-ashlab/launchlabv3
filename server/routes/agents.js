@@ -131,7 +131,7 @@ router.post("/:businessId/marketing/run", requireAuth, async (req, res, next) =>
     const estimate   = mode === "manual" ? TOKEN_EST.marketing_basic : TOKEN_EST.marketing_full;
     if (dailyUsed + estimate > tokenLimit) {
       return res.status(429).json({
-        error: `Daily AI limit reached (${tokenLimit.toLocaleString()} tokens/day on ${effective.plan} plan). Resets at midnight UTC.`,
+        error: `Daily insights limit reached on the ${effective.plan} plan. Resets at midnight UTC.`,
         tokenLimitReached: true,
         tokenBudget: tokenBudget(effective.plan, dailyUsed),
       });
@@ -390,10 +390,24 @@ router.post("/:businessId/management/implement", requireAuth, async (req, res, n
       const tweetText = await openaiSvc.generateChannelCaption({
         businessName: biz.name, channel: "twitter", context: insight.recommendation, brandIdentity: brandId,
       });
+      // Generate visual for Twitter post
+      let twitterImageUrl = null, twitterImageSource = null;
+      if (process.env.OPENAI_API_KEY) {
+        try {
+          const imgGen = require("../services/imageGen");
+          const appUrl = log.getAppUrl();
+          const { buf: imgBuf, model: imgModel } = await openaiSvc.generatePostImage(biz.name, tweetText, brandId);
+          twitterImageUrl = `${appUrl}/api/instagram/images/${imgGen.storeImage(imgBuf)}`;
+          twitterImageSource = imgModel;
+        } catch(imgErr) {
+          log.warn("IMPLEMENT", "Twitter image gen failed", { error: imgErr.message });
+        }
+      }
       const tw = require("../services/twitter");
       const tweet = await tw.postTweet(twMeta, tweetText.slice(0, 280));
       logActivity(req.params.businessId,{ agent:"management", action:"Tweet posted", detail:`@${twMeta.username}: "${tweetText.slice(0,60)}…"` });
       return res.json({ success:true, channel:"twitter", caption:tweetText, body:tweetText, published:true,
+        imageUrl: twitterImageUrl, imageSource: twitterImageSource,
         permalink:`https://x.com/i/web/status/${tweet.id}` });
     }
 
@@ -405,13 +419,38 @@ router.post("/:businessId/management/implement", requireAuth, async (req, res, n
       const tiktokText = await openaiSvc.generateChannelCaption({
         businessName: biz.name, channel: "tiktok", context: insight.recommendation, brandIdentity: brandId,
       });
-      if (!ttMeta.accessToken) {
-        return res.json({ success:true, channel:"tiktok", caption:tiktokText, body:tiktokText, needsSetup:true,
-          message:"TikTok not connected. Connect in Hub → TikTok. Content generated below — download your slideshow and post in TikTok app." });
+      // Generate visual for TikTok (slideshow image)
+      let tiktokImageUrl = null, tiktokImageSource = null;
+      if (process.env.OPENAI_API_KEY) {
+        try {
+          const imgGen = require("../services/imageGen");
+          const appUrl = log.getAppUrl();
+          const { buf: imgBuf, model: imgModel } = await openaiSvc.generatePostImage(biz.name, tiktokText, brandId);
+          tiktokImageUrl = `${appUrl}/api/instagram/images/${imgGen.storeImage(imgBuf)}`;
+          tiktokImageSource = imgModel;
+        } catch(imgErr) {
+          log.warn("IMPLEMENT", "TikTok image gen failed", { error: imgErr.message });
+        }
       }
-      // TikTok requires video/image content — return caption + slide generation instructions
+      if (!ttMeta.accessToken) {
+        return res.json({ success:true, channel:"tiktok", caption:tiktokText, body:tiktokText,
+          imageUrl: tiktokImageUrl, imageSource: tiktokImageSource, needsSetup:true,
+          message:"TikTok not connected. Connect in Hub → TikTok. Content generated below — download and post in TikTok app." });
+      }
+      // TikTok photo post via API
+      const tt = require("../services/tiktok");
+      if (tiktokImageUrl) {
+        try {
+          await tt.postPhoto(ttMeta, [tiktokImageUrl], tiktokText);
+          return res.json({ success:true, channel:"tiktok", caption:tiktokText, body:tiktokText,
+            imageUrl: tiktokImageUrl, imageSource: tiktokImageSource, published:true });
+        } catch(ttErr) {
+          log.warn("IMPLEMENT", "TikTok post failed — returning content only", { error: ttErr.message });
+        }
+      }
       return res.json({ success:true, channel:"tiktok", caption:tiktokText, body:tiktokText,
-        actionPlan:"Use the Content Lab slideshow builder above to create your TikTok video, then post via the TikTok app or API." });
+        imageUrl: tiktokImageUrl, imageSource: tiktokImageSource,
+        actionPlan:"Use the Content Lab slideshow builder to create your TikTok video, then post via the TikTok app." });
     }
 
     // ── Email ────────────────────────────────────────────────────────────────
@@ -468,6 +507,32 @@ router.post("/:businessId/management/implement", requireAuth, async (req, res, n
         actionPlan:`Website content ready. Copy and update your site at ${webMeta.siteUrl || webMeta.liveUrl || "your website"}.` });
     }
 
+    // ── Visual channels (LinkedIn, Google, Facebook, general) — generate image + caption
+    const VISUAL_FALLBACK = new Set(["linkedin","google","facebook","general"]);
+    if (VISUAL_FALLBACK.has(channelLabel)) {
+      const brandId = await getBrandIdentity(req.params.businessId);
+      const captionText = await openaiSvc.generateChannelCaption({
+        businessName: biz.name, channel: channelLabel, context: insight.recommendation, brandIdentity: brandId,
+      });
+      let visImageUrl = null, visImageSource = null;
+      if (process.env.OPENAI_API_KEY) {
+        try {
+          const imgGen = require("../services/imageGen");
+          const appUrl = log.getAppUrl();
+          const { buf: imgBuf, model: imgModel } = await openaiSvc.generatePostImage(biz.name, captionText, brandId);
+          visImageUrl = `${appUrl}/api/instagram/images/${imgGen.storeImage(imgBuf)}`;
+          visImageSource = imgModel;
+        } catch(imgErr) {
+          log.warn("IMPLEMENT", `${channelLabel} image gen failed`, { error: imgErr.message });
+        }
+      }
+      logActivity(req.params.businessId,{ agent:"management", action:`${channelLabel} content ready`, detail:captionText.slice(0,80) });
+      if (effective.plan === "trial") await bumpUsage(req.params.businessId, "managementImplements");
+      return res.json({ success:true, channel: channelLabel, caption: captionText, body: captionText,
+        imageUrl: visImageUrl, imageSource: visImageSource,
+        actionPlan: insight.managementAction || `Content ready — copy and post on ${channelLabel}.` });
+    }
+
     logActivity(req.params.businessId,{ agent:"management", action:"Ready to act", detail:`Apply the recommendation on your ${channelLabel} channel` });
     if (effective.plan === "trial") await bumpUsage(req.params.businessId, "managementImplements");
     return res.json({ success:true, channel: channelLabel, actionPlan: insight.managementAction || insight.recommendation });
@@ -499,7 +564,7 @@ router.post("/:businessId/campaigns/breakdown", requireAuth, async (req, res, ne
     const tokenLimit = DAILY_TOKEN_LIMITS[effective.plan] || DAILY_TOKEN_LIMITS.starter;
     if (dailyUsed + TOKEN_EST.campaign_breakdown > tokenLimit) {
       return res.status(429).json({
-        error: `Daily AI token limit reached (${tokenLimit.toLocaleString()} tokens/day). Upgrade your plan or wait until midnight UTC.`,
+        error: `Daily insights limit reached. Upgrade your plan or wait until midnight UTC.`,
         tokenLimitReached: true,
         tokenBudget: tokenBudget(effective.plan, dailyUsed),
       });
@@ -518,7 +583,7 @@ Channel: ${campaign.channel || "general"}
 Rationale: ${campaign.rationale || ""}
 Execution mode: ${campaign.mode || "manual"}
 
-Break this campaign into 3–6 concrete, actionable tasks. Each task should be specific, completable in 1–3 days, and clearly linked to the campaign goal.
+Break this campaign into exactly 2–3 concrete, actionable tasks (never more than 3). If the campaign is repetitive (e.g. post 3 times, run for 5 days), each repetition is one task. Each task should be specific, completable in 1–3 days, and clearly linked to the campaign goal. Return the minimum number of tasks needed — prefer fewer tasks that cover more ground over many granular ones.
 
 Return a JSON object:
 {
@@ -827,9 +892,9 @@ router.post("/:businessId/campaigns/task-content", requireAuth, async (req, res,
         throw captionErr;
       }
 
-      // Background image (client canvas overlays the text)
+      // Background image (skipped in manual mode — tips don't need images)
       let imageUrl = null, imageSource = null;
-      if (process.env.OPENAI_API_KEY) {
+      if (mode !== "manual" && process.env.OPENAI_API_KEY) {
         const imgGen = require("../services/imageGen");
         const appUrl = log.getAppUrl();
         try {
@@ -843,6 +908,8 @@ router.post("/:businessId/campaigns/task-content", requireAuth, async (req, res,
           log.error("CONTENT", "Image generation failed", { error: dalleError, channel: ch });
           imageSource = "image_failed";
         }
+      } else if (mode === "manual") {
+        imageSource = null;
       } else {
         imageSource = "no_openai_key";
       }

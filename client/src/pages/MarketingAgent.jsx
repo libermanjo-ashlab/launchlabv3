@@ -36,24 +36,33 @@ function spin() {
 
 // ── Mode Toggle ───────────────────────────────────────────────────────────────
 
-function ModeToggle({ mode, onChange }) {
+function ModeToggle({ mode, onChange, allowedModes, planLockedMsg }) {
   const opts = [
     { value:"manual",  label:"Manual",    desc:"Track your own work with general tips" },
-    { value:"guided",  label:"Guided",    desc:"AI generates content, you implement manually" },
-    { value:"auto",    label:"Autopilot", desc:"Full automation — runs every 12h, executes campaigns" },
+    { value:"guided",  label:"Guided",    desc:"Data-driven content, you implement manually" },
+    { value:"auto",    label:"Autopilot", desc:"Fully agentic — runs every 12h, executes campaigns" },
   ];
+  const allowed = allowedModes || ["manual","guided","auto"];
   return (
-    <div style={{ display:"flex", background:"#F1F0EF", borderRadius:12, padding:3, gap:2, marginBottom:18 }}>
-      {opts.map(o=>(
-        <button key={o.value} title={o.desc} onClick={()=>onChange(o.value)}
-          style={{ flex:1, padding:"8px 10px", borderRadius:9, border:"none", cursor:"pointer",
-            fontFamily:FB, fontWeight:600, fontSize:12, transition:"all 0.15s",
-            background: mode===o.value ? (o.value==="auto"?C.primary:o.value==="guided"?"#4F46E5":"#374151") : "transparent",
-            color: mode===o.value ? "#fff" : C.muted,
-            boxShadow: mode===o.value ? "0 1px 5px rgba(0,0,0,0.18)" : "none" }}>
-          {o.label}
-        </button>
-      ))}
+    <div>
+      <div style={{ display:"flex", background:"#F1F0EF", borderRadius:12, padding:3, gap:2, marginBottom:4 }}>
+        {opts.map(o=>{
+          const locked = !allowed.includes(o.value);
+          return (
+            <button key={o.value} title={locked ? (planLockedMsg||"Upgrade to unlock") : o.desc}
+              onClick={()=>{ if (!locked) onChange(o.value); }}
+              style={{ flex:1, padding:"8px 10px", borderRadius:9, border:"none",
+                cursor: locked ? "not-allowed" : "pointer",
+                fontFamily:FB, fontWeight:600, fontSize:12, transition:"all 0.15s", opacity: locked ? 0.35 : 1,
+                background: mode===o.value ? (o.value==="auto"?C.primary:o.value==="guided"?"#4F46E5":"#374151") : "transparent",
+                color: mode===o.value ? "#fff" : C.muted,
+                boxShadow: mode===o.value ? "0 1px 5px rgba(0,0,0,0.18)" : "none" }}>
+              {o.label}
+            </button>
+          );
+        })}
+      </div>
+      {planLockedMsg && <div style={{ fontSize:10, color:C.muted, fontFamily:FB, marginBottom:14, paddingLeft:2 }}>{planLockedMsg}</div>}
     </div>
   );
 }
@@ -512,12 +521,12 @@ function CampaignTaskRow({ task:t, mode, channel, businessId, businessName, onCo
       if (c?.dalleError) console.error(`[TASK:getContent] DALL-E error: ${c.dalleError}`);
 
       // For visual channel tasks with an image (but not video/slideshow), composite canvas text
+      // Skip canvas for gpt-image sources — display the AI image directly without re-rendering
       const taskChannel = channel || c?.channel || "general";
-      if (!c?.isGuided && !c?.isVideo && c?.imageUrl && VISUAL_CHANNEL_SET.has(taskChannel)) {
-        const bgUrl = c?.imageSource?.startsWith("gpt-image") ? c.imageUrl : null;
-        console.log(`[TASK:getContent] Canvas composite — channel=${taskChannel} bgSource=${bgUrl ? c.imageSource : "gradient"}`);
+      if (!c?.isGuided && !c?.isVideo && c?.imageUrl && VISUAL_CHANNEL_SET.has(taskChannel) && !c?.imageSource?.startsWith("gpt-image")) {
+        console.log(`[TASK:getContent] Canvas composite — channel=${taskChannel} bgSource=gradient`);
         try {
-          const blob = await generatePostImageBlob(businessName || "Business", c.body || c.caption, bgUrl);
+          const blob = await generatePostImageBlob(businessName || "Business", c.body || c.caption, null);
           const { imageUrl } = await api.instagram.uploadImage(blob);
           c = { ...c, imageUrl, imageSource: "canvas" };
         } catch(imgErr) {
@@ -711,7 +720,7 @@ function CampaignTaskRow({ task:t, mode, channel, businessId, businessName, onCo
 
 // ── Campaign Card ─────────────────────────────────────────────────────────────
 
-function CampaignCard({ campaign:c, onUpdate, onDelete, businessId, businessName, setTab, activeCampaignCount=0 }) {
+function CampaignCard({ campaign:c, onUpdate, onDelete, businessId, businessName, setTab, activeCampaignCount=0, refreshTasks }) {
   const [expanded,    setExpanded]    = useState(c.status==="active");
   const [starting,    setStarting]    = useState(false);
   const [autoRunning, setAutoRunning] = useState(false);
@@ -808,14 +817,14 @@ function CampaignCard({ campaign:c, onUpdate, onDelete, businessId, businessName
           lastCaption = output.body || output.caption;
         }
 
-        // For visual channel prep tasks: composite canvas text over AI background for display
-        if (VISUAL_CHANNEL_SET.has(campChannel) && (output?.caption || output?.body) && !output?.isGuided && !runBody.imageUrl) {
+        // For visual channel prep tasks: composite canvas for non-AI images only
+        // gpt-image sources are displayed directly — skip canvas to preserve the AI image
+        if (VISUAL_CHANNEL_SET.has(campChannel) && (output?.caption || output?.body) && !output?.isGuided && !runBody.imageUrl && !output?.imageSource?.startsWith("gpt-image")) {
           try {
-            const bgUrl = output?.imageUrl && output?.imageSource?.startsWith("gpt-image") ? output.imageUrl : null;
-            const blob = await generatePostImageBlob(businessName || "Business", output.body || output.caption, bgUrl);
+            const blob = await generatePostImageBlob(businessName || "Business", output.body || output.caption, null);
             const { imageUrl: canvasUrl } = await api.instagram.uploadImage(blob);
             output = { ...output, imageUrl: canvasUrl, imageSource: "canvas" };
-            console.log(`[AUTOPILOT:runTasksAuto] Canvas display image for "${task.name}" — bgSource=${bgUrl ? "gpt-image" : "gradient"}`);
+            console.log(`[AUTOPILOT:runTasksAuto] Canvas display image for "${task.name}"`);
           } catch(displayErr) {
             console.warn(`[AUTOPILOT:runTasksAuto] Canvas display failed for "${task.name}" — ${displayErr.message}`);
           }
@@ -849,15 +858,23 @@ function CampaignCard({ campaign:c, onUpdate, onDelete, businessId, businessName
 
   const completeTask = (taskId) => {
     onUpdate({ ...c, tasks:tasks.map(t=>t.id===taskId?{...t,status:"completed"}:t), progressCurrent:(c.progressCurrent||0)+1 });
+    api.tasks.update(taskId, { status:"done" }).then(()=>refreshTasks?.()).catch(()=>{});
   };
   const skipTask = (taskId) => {
     onUpdate({ ...c, tasks:tasks.map(t=>t.id===taskId?{...t,status:"skipped"}:t) });
+    api.tasks.update(taskId, { status:"done" }).then(()=>refreshTasks?.()).catch(()=>{});
   };
   const removeTask = (taskId) => {
     onUpdate({ ...c, tasks:tasks.filter(t=>t.id!==taskId) });
+    api.tasks.delete(taskId).then(()=>refreshTasks?.()).catch(()=>{});
   };
 
-  const markDone = () => onUpdate({ ...c, status:"monitoring", completedAt:new Date().toISOString() });
+  const markDone = () => {
+    onUpdate({ ...c, status:"monitoring", completedAt:new Date().toISOString() });
+    // Delete all campaign tasks from DB when campaign is marked done
+    const ids = (c.taskIds||tasks.map(t=>t.id)).filter(Boolean);
+    if (ids.length) api.tasks.bulkAction(businessId, "delete", ids).then(()=>refreshTasks?.()).catch(()=>{});
+  };
   const archive  = () => onUpdate({ ...c, status:"archived", archivedAt:new Date().toISOString() });
   const pause    = () => { abortRef.current=true; setAutoRunning(false); };
 
@@ -1262,7 +1279,7 @@ const SRC_CLR = {
   canvas:C.warn, svg_fallback:C.err, svg_no_openai:C.muted, image_failed:C.err, dalle3_failed:C.err,
 };
 
-function ContentLab({ businessId, businessName }) {
+function ContentLab({ businessId, businessName, plan }) {
   const [open,           setOpen]           = useState(false);
   const [channel,        setChannel]        = useState("instagram");
   const [context,        setContext]        = useState("");
@@ -1274,6 +1291,11 @@ function ContentLab({ businessId, businessName }) {
   const [videoLoading,   setVideoLoading]   = useState(false);
   const [copied,         setCopied]         = useState(false);
   const [error,          setError]          = useState("");
+  const [posting,        setPosting]        = useState(false);
+  const [postResult,     setPostResult]     = useState(null);
+
+  const isStarter      = plan === "starter" || plan === "trial";
+  const isAutopilot    = plan === "pro_autopilot";
 
   const channelOpt = CHANNEL_OPTS.find(o => o.value === channel);
   const hasImage   = channelOpt?.hasImage;
@@ -1290,11 +1312,11 @@ function ContentLab({ businessId, businessName }) {
     try {
       const data = await api.agents.contentLab(businessId, { channel, context: context.trim(), tone });
       setResult(data);
-      // For visual channels, composite canvas text over the AI background
-      if (hasImage && data.imageUrl && !data.isVideo) {
+      // For visual channels with non-AI images, composite canvas text overlay
+      // gpt-image sources are displayed directly — no canvas re-render needed
+      if (hasImage && data.imageUrl && !data.isVideo && !data.imageSource?.startsWith("gpt-image")) {
         try {
-          const bgUrl = data.imageSource?.startsWith("gpt-image") ? data.imageUrl : null;
-          const blob  = await generatePostImageBlob(businessName || "Business", data.body || data.caption, bgUrl);
+          const blob = await generatePostImageBlob(businessName || "Business", data.body || data.caption, null);
           setComposedBlob(blob);
         } catch(canvasErr) {
           console.error("[ContentLab] Canvas composition failed:", canvasErr.message);
@@ -1357,7 +1379,6 @@ function ContentLab({ businessId, businessName }) {
         padding:"14px 18px", borderBottom: open ? `1px solid ${C.border}` : "none",
       }}>
         <div style={{ display:"flex", alignItems:"center", gap:10 }}>
-          <span style={{ fontSize:20, lineHeight:1 }}>✨</span>
           <div style={{ textAlign:"left" }}>
             <div style={{ fontFamily:FH, fontWeight:700, fontSize:15, color:C.text }}>Content Lab</div>
             <div style={{ fontSize:11, color:C.muted, fontFamily:FB, marginTop:1 }}>
@@ -1368,7 +1389,19 @@ function ContentLab({ businessId, businessName }) {
         <span style={{ fontSize:11, color:C.muted, fontFamily:FB }}>{open ? "▲" : "▼"}</span>
       </button>
 
-      {open && (
+      {open && isStarter && (
+        <div style={{ padding:"20px 18px", textAlign:"center" }}>
+          <div style={{ fontFamily:FH, fontWeight:600, fontSize:14, color:C.text, marginBottom:6 }}>Content Lab is a Pro feature</div>
+          <div style={{ fontSize:12, color:C.muted, fontFamily:FB, marginBottom:14, lineHeight:1.6 }}>
+            Generate branded content for any channel — images, captions, hashtags, and video scripts. Upgrade to Pro ($89/mo) to unlock.
+          </div>
+          <button onClick={()=>window.location.href="/pricing"} style={{ ...btn(C.primary,"#fff",12), padding:"7px 18px" }}>
+            Upgrade to Pro
+          </button>
+        </div>
+      )}
+
+      {open && !isStarter && (
         <div style={{ padding:"16px 18px" }}>
           {/* Controls */}
           <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 2fr auto", gap:10, marginBottom:14, alignItems:"end" }}>
@@ -1486,29 +1519,37 @@ function ContentLab({ businessId, businessName }) {
                   {/* Image column */}
                   {hasImage && (
                     <div>
-                      {composedUrl ? (
-                        <>
-                          <img src={composedUrl} alt="Generated post" style={{ width:"100%", borderRadius:8, display:"block", marginBottom:8 }} />
-                          <div style={{ display:"flex", gap:6, alignItems:"center" }}>
-                            <button onClick={downloadImage}
-                              style={{ ...btn(C.ok,"#fff",11), padding:"5px 0", flex:1, textAlign:"center" }}>
-                              ↓ Download PNG
-                            </button>
-                            <span style={{
-                              fontSize:9, fontWeight:700, fontFamily:FB, padding:"5px 8px", borderRadius:6,
-                              background: (SRC_CLR[result.imageSource] || C.muted) + "20",
-                              color: SRC_CLR[result.imageSource] || C.muted,
-                              textTransform:"uppercase", letterSpacing:"0.04em",
-                            }}>
-                              {SRC_BADGE[result.imageSource] || result.imageSource}
-                            </span>
+                      {(() => {
+                        const displayUrl = composedUrl || (result.imageSource?.startsWith("gpt-image") ? result.imageUrl : null);
+                        if (displayUrl) return (
+                          <>
+                            <img src={displayUrl} alt="Generated post" style={{ width:"100%", borderRadius:8, display:"block", marginBottom:8 }} />
+                            <div style={{ display:"flex", gap:6, alignItems:"center" }}>
+                              {composedUrl && (
+                                <button onClick={downloadImage}
+                                  style={{ ...btn(C.ok,"#fff",11), padding:"5px 0", flex:1, textAlign:"center" }}>
+                                  ↓ Download PNG
+                                </button>
+                              )}
+                              <span style={{
+                                fontSize:9, fontWeight:700, fontFamily:FB, padding:"5px 8px", borderRadius:6,
+                                background: (SRC_CLR[result.imageSource] || C.muted) + "20",
+                                color: SRC_CLR[result.imageSource] || C.muted,
+                                textTransform:"uppercase", letterSpacing:"0.04em",
+                              }}>
+                                {SRC_BADGE[result.imageSource] || result.imageSource}
+                              </span>
+                            </div>
+                          </>
+                        );
+                        if (result.imageUrl && !result.imageSource?.startsWith("gpt-image")) return (
+                          <div style={{ ...card("12px"), background:"#F3F4F6", textAlign:"center", color:C.muted, fontSize:12, fontFamily:FB, borderRadius:8 }}>
+                            Compositing…
                           </div>
-                        </>
-                      ) : result.imageUrl ? (
-                        <div style={{ ...card("12px"), background:"#F3F4F6", textAlign:"center", color:C.muted, fontSize:12, fontFamily:FB, borderRadius:8 }}>
-                          Compositing…
-                        </div>
-                      ) : result.dalleError ? (
+                        );
+                        return null;
+                      })()}
+                      {result.dalleError ? (
                         <div style={{ ...card("10px 12px"), background:"#FEF2F2", border:"1px solid #FECACA", fontSize:11, color:C.err, fontFamily:FB, borderRadius:8 }}>
                           <strong>Image failed:</strong> {result.dalleError}
                           <div style={{ fontSize:10, color:"#9CA3AF", marginTop:4 }}>
@@ -1546,6 +1587,37 @@ function ContentLab({ businessId, businessName }) {
                         <p style={{ fontSize:11, color:C.muted, fontFamily:FB }}>{result.hashtags}</p>
                       )}
                     </div>
+
+                    {/* Post to channel — pro_autopilot only */}
+                    {isAutopilot && (result.body || result.caption) && (
+                      <div style={{ marginTop:10 }}>
+                        <button
+                          disabled={posting || postResult?.success}
+                          onClick={async () => {
+                            setPosting(true); setPostResult(null);
+                            try {
+                              const text = [result.body||result.caption, result.hashtags].filter(Boolean).join("\n\n");
+                              const imgUrl = result.imageSource?.startsWith("gpt-image") ? result.imageUrl : null;
+                              let res;
+                              if (channel === "instagram") res = await api.instagram.createPost(businessId, imgUrl||result.imageUrl, text);
+                              else if (channel === "twitter") res = await api.twitter.post(businessId, text);
+                              else if (channel === "tiktok") res = await api.tiktok.post(businessId, text, imgUrl ? [imgUrl] : []);
+                              else { setPostResult({ success:false, msg:`Auto-posting to ${channelOpt?.label||channel} not yet available.`}); setPosting(false); return; }
+                              setPostResult({ success: res.success||!!res.id, msg: res.success||res.id ? `Posted to ${channelOpt?.label||channel}!` : "Post failed — check channel connection." });
+                            } catch(e) {
+                              setPostResult({ success:false, msg: e.message||"Post failed" });
+                            }
+                            setPosting(false);
+                          }}
+                          style={{ ...btn(postResult?.success ? C.ok : posting ? "#9CA3AF" : C.primary,"#fff",11), padding:"5px 14px", display:"flex", alignItems:"center", gap:6 }}>
+                          {posting && <span style={{ ...spin(), width:10, height:10, borderWidth:1.5 }}/>}
+                          {postResult?.success ? "Posted!" : posting ? "Posting…" : `Post to ${channelOpt?.label||channel}`}
+                        </button>
+                        {postResult?.msg && !postResult.success && (
+                          <div style={{ fontSize:11, color:C.err, fontFamily:FB, marginTop:4 }}>{postResult.msg}</div>
+                        )}
+                      </div>
+                    )}
                   </div>
                 </div>
               )}
@@ -1559,7 +1631,7 @@ function ContentLab({ businessId, businessName }) {
 
 // ── MAIN AGENT PANEL ──────────────────────────────────────────────────────────
 
-export default function AgentPanel({ businessId, businessName, metrics, planInfo, integs, setTab }) {
+export default function AgentPanel({ businessId, businessName, metrics, planInfo, integs, setTab, refreshTasks }) {
   const navigate = useNavigate();
 
   // Mode
@@ -1619,6 +1691,17 @@ export default function AgentPanel({ businessId, businessName, metrics, planInfo
     }).catch(()=>{});
     api.agents.getAutopilot(businessId).then(d=>{ if(d.autopilotEnabled) saveAgentMode("auto"); }).catch(()=>{});
   },[businessId]);
+
+  // Enforce plan-based mode restrictions when access data loads
+  useEffect(()=>{
+    if (!access) return;
+    const plan = access.effective?.plan;
+    if ((plan === "starter" || plan === "trial") && agentMode !== "manual") {
+      saveAgentMode("manual");
+    } else if (plan === "pro" && agentMode === "auto") {
+      saveAgentMode("guided");
+    }
+  },[access]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Auto-run analysis every 12h in auto mode — never fires immediately on mount/tab-switch
   useEffect(()=>{
@@ -1690,7 +1773,7 @@ export default function AgentPanel({ businessId, businessName, metrics, planInfo
       }
     } catch(e) {
       console.error(`[AGENT:runAnalysis] FAILED — error="${e.message}"`);
-      setError(e.message||"Analysis failed. Check your daily token limit in the budget bar.");
+      setError(e.message||"Analysis failed. Check your available insights in the footer.");
     }
     setRunning(false);
   };
@@ -1772,10 +1855,24 @@ export default function AgentPanel({ businessId, businessName, metrics, planInfo
   return (
     <div>
       {/* ── Content Lab — top-level standalone feature ── */}
-      <ContentLab businessId={businessId} businessName={businessName} />
+      <ContentLab businessId={businessId} businessName={businessName} plan={access?.effective?.plan} />
 
       {/* Mode toggle */}
-      <ModeToggle mode={agentMode} onChange={saveAgentMode} />
+      {(()=>{
+        const plan = access?.effective?.plan;
+        let allowedModes, planLockedMsg;
+        if (plan === "starter" || plan === "trial") {
+          allowedModes = ["manual"];
+          planLockedMsg = "Guided and Autopilot modes require Pro or higher.";
+        } else if (plan === "pro") {
+          allowedModes = ["manual","guided"];
+          planLockedMsg = "Autopilot mode requires Pro Autopilot.";
+        } else {
+          allowedModes = ["manual","guided","auto"];
+          planLockedMsg = null;
+        }
+        return <ModeToggle mode={agentMode} onChange={saveAgentMode} allowedModes={allowedModes} planLockedMsg={planLockedMsg} />;
+      })()}
 
       {/* 12h guided mode notification */}
       {agentMode==="guided" && is12hOverdue && !running && (
@@ -1810,28 +1907,6 @@ export default function AgentPanel({ businessId, businessName, metrics, planInfo
             </span>
             <StickyNotesPanel businessId={businessId} />
           </div>
-
-          {/* Daily token budget bar */}
-          {access?.tokenBudget && (
-            <div style={{ marginBottom:12 }}>
-              <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:4 }}>
-                <span style={{ fontSize:10, fontWeight:600, color:C.muted, fontFamily:FB, textTransform:"uppercase", letterSpacing:"0.06em" }}>
-                  Daily AI budget ({access.effective?.plan||"starter"})
-                </span>
-                <span style={{ fontSize:10, color: access.tokenBudget.pct>=90?C.err:access.tokenBudget.pct>=70?C.warn:C.muted, fontFamily:FB, fontWeight:600 }}>
-                  {(access.tokenBudget.used/1000).toFixed(1)}K / {(access.tokenBudget.limit/1000).toFixed(0)}K tokens
-                </span>
-              </div>
-              <div style={{ height:5, borderRadius:3, background:C.border }}>
-                <div style={{ height:"100%", width:`${access.tokenBudget.pct}%`, borderRadius:3, background:access.tokenBudget.pct>=90?C.err:access.tokenBudget.pct>=70?C.warn:C.ok, transition:"width 0.5s" }} />
-              </div>
-              {access.tokenBudget.pct>=90 && (
-                <div style={{ fontSize:10, color:C.err, fontFamily:FB, marginTop:3 }}>
-                  Near limit — resets at midnight UTC. Agent will switch to guided mode if auto tasks would exceed the cap.
-                </div>
-              )}
-            </div>
-          )}
 
           {/* Trial/access */}
           {access?.effective?.isTrial && !access.effective.locked && (
@@ -2010,7 +2085,7 @@ export default function AgentPanel({ businessId, businessName, metrics, planInfo
                 Queued — ready to start ({plannedCampaigns.length})
               </p>
               {plannedCampaigns.map(c=>(
-                <CampaignCard key={c.id} campaign={c} onUpdate={updateCampaign} onDelete={deleteCampaign} businessId={businessId} businessName={businessName} setTab={setTab} activeCampaignCount={activeCampaigns.length} />
+                <CampaignCard key={c.id} campaign={c} onUpdate={updateCampaign} onDelete={deleteCampaign} businessId={businessId} businessName={businessName} setTab={setTab} activeCampaignCount={activeCampaigns.length} refreshTasks={refreshTasks} />
               ))}
             </div>
           )}
@@ -2022,7 +2097,7 @@ export default function AgentPanel({ businessId, businessName, metrics, planInfo
                 Active ({activeCampaigns.length})
               </p>
               {activeCampaigns.map(c=>(
-                <CampaignCard key={c.id} campaign={c} onUpdate={updateCampaign} onDelete={deleteCampaign} businessId={businessId} businessName={businessName} setTab={setTab} activeCampaignCount={activeCampaigns.length} />
+                <CampaignCard key={c.id} campaign={c} onUpdate={updateCampaign} onDelete={deleteCampaign} businessId={businessId} businessName={businessName} setTab={setTab} activeCampaignCount={activeCampaigns.length} refreshTasks={refreshTasks} />
               ))}
             </div>
           )}
@@ -2042,7 +2117,7 @@ export default function AgentPanel({ businessId, businessName, metrics, planInfo
                 )}
               </div>
               {monitoringCampaigns.map(c=>(
-                <CampaignCard key={c.id} campaign={c} onUpdate={updateCampaign} onDelete={deleteCampaign} businessId={businessId} businessName={businessName} setTab={setTab} activeCampaignCount={activeCampaigns.length} />
+                <CampaignCard key={c.id} campaign={c} onUpdate={updateCampaign} onDelete={deleteCampaign} businessId={businessId} businessName={businessName} setTab={setTab} activeCampaignCount={activeCampaigns.length} refreshTasks={refreshTasks} />
               ))}
             </div>
           )}
@@ -2070,7 +2145,7 @@ export default function AgentPanel({ businessId, businessName, metrics, planInfo
                 {showArchived?"▲":"▼"} Archived Campaigns ({archivedCampaigns.length})
               </button>
               {showArchived && archivedCampaigns.map(c=>(
-                <CampaignCard key={c.id} campaign={c} onUpdate={updateCampaign} onDelete={deleteCampaign} businessId={businessId} businessName={businessName} setTab={setTab} activeCampaignCount={activeCampaigns.length} />
+                <CampaignCard key={c.id} campaign={c} onUpdate={updateCampaign} onDelete={deleteCampaign} businessId={businessId} businessName={businessName} setTab={setTab} activeCampaignCount={activeCampaigns.length} refreshTasks={refreshTasks} />
               ))}
             </div>
           )}

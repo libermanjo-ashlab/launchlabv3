@@ -236,7 +236,7 @@ async function tryImageModel(client, model, prompt) {
 
   let params;
   if (model === "gpt-image-2") {
-    params = { model, prompt: safePrompt, size: "1024x1024", quality: "high", n: 1 };
+    params = { model, prompt: safePrompt, size: "1024x1024", quality: "low", n: 1 };
   } else if (isGptImage) {
     params = { model, prompt: safePrompt, size: "1024x1024", quality: "medium", n: 1 };
   } else if (model === "dall-e-3") {

@@ -136,7 +136,7 @@ function AddTaskModal({ businessId, onAdd, onClose }) {
 
         {tab === "templates" && (
           <div>
-            <div style={{ fontSize:11, fontWeight:700, color:C.muted, textTransform:"uppercase", letterSpacing:"0.08em", marginBottom:10 }}>AI can generate these instantly</div>
+            <div style={{ fontSize:11, fontWeight:700, color:C.muted, textTransform:"uppercase", letterSpacing:"0.08em", marginBottom:10 }}>Auto-generate these instantly</div>
             <div style={{ display:"flex", flexDirection:"column", gap:8, marginBottom:20 }}>
               {AUTO_TASK_TEMPLATES.map(t => (
                 <div key={t.name} style={{ display:"flex", justifyContent:"space-between", alignItems:"center", padding:"12px 14px", borderRadius:10, border:`1px solid ${C.border}`, background:C.bg }}>
@@ -181,7 +181,7 @@ function AddTaskModal({ businessId, onAdd, onClose }) {
             </div>
             <div style={{ display:"flex", alignItems:"center", gap:10, padding:"12px 14px", borderRadius:10, border:`1px solid ${C.border}`, background:C.bg }}>
               <input type="checkbox" id="canAutomate" checked={custom.canAutomate} onChange={e=>setCustom(p=>({...p,canAutomate:e.target.checked}))} style={{ width:16, height:16, cursor:"pointer" }} />
-              <label htmlFor="canAutomate" style={{ fontFamily:FB, fontSize:13, cursor:"pointer" }}>AI can generate a digital output for this task</label>
+              <label htmlFor="canAutomate" style={{ fontFamily:FB, fontSize:13, cursor:"pointer" }}>Auto-generate a digital output for this task</label>
             </div>
             <button onClick={()=>custom.name.trim()&&add(custom)} disabled={!custom.name.trim()||saving} style={{ ...btn(C.primary,"#fff",13) }}>Add task</button>
           </div>
@@ -218,7 +218,7 @@ function OutputViewer({ outputData, taskName }) {
 
   if (!extracted) return (
     <div style={{ background:C.surface, borderRadius:8, border:`1px solid ${C.border}`, padding:"16px", fontSize:13, color:C.muted, fontFamily:FB, textAlign:"center" }}>
-      No content generated. Use "Generate with AI" or upload your own output.
+      No content generated. Use "Auto-generate" or upload your own output.
     </div>
   );
 
@@ -462,7 +462,7 @@ function TaskCard({ task, businessId, outputs, onUpdate, onDelete }) {
             <div style={{ marginBottom:14 }}>
               <button onClick={generate} disabled={running||status==="running"} style={{ ...btn(running||status==="running"?"#9CA3AF":C.grad,"#fff",12), display:"flex", alignItems:"center", gap:8, marginBottom:4 }}>
                 {(running||status==="running")&&<span style={{ width:11,height:11,borderRadius:"50%",border:"2px solid rgba(255,255,255,0.4)",borderTopColor:"#fff",animation:"spin 0.7s linear infinite" }}/>}
-                {running||status==="running" ? "Generating…" : "Generate with AI"}
+                {running||status==="running" ? "Generating…" : "Auto-generate"}
               </button>
               <div style={{ fontSize:11, color:C.muted, fontFamily:FB }}>or upload your own output below</div>
             </div>
@@ -1056,7 +1056,7 @@ function FilesArchive({ businessId, outputs, tasks }) {
             <div key={i} style={{ display:"flex", justifyContent:"space-between", alignItems:"center", padding:"12px 18px", borderBottom:i<files.length-1?`1px solid ${C.border}`:"none" }}>
               <div>
                 <div style={{ fontSize:13, fontWeight:500, fontFamily:FB }}>{f.name}</div>
-                <div style={{ fontSize:11, color:C.muted, fontFamily:FB }}>{f.source==="generated"?"AI generated":"Task output"} &middot; {f.type}</div>
+                <div style={{ fontSize:11, color:C.muted, fontFamily:FB }}>{f.source==="generated"?"Auto-generated":"Task output"} &middot; {f.type}</div>
               </div>
               <button onClick={()=>download(f)} style={{ ...btnO(C.primary,11), padding:"5px 12px" }}>Download</button>
             </div>
@@ -1420,7 +1420,7 @@ function BrandIdentityPanel({ businessId }) {
         <div>
           <div style={{ fontFamily:FH, fontWeight:700, fontSize:15 }}>Brand &amp; Social Identity</div>
           <div style={{ fontSize:12, color:C.muted, fontFamily:FB, marginTop:2 }}>
-            {identity?.populatedBy === "market_analysis" ? "AI-analyzed from your channels + market data"
+            {identity?.populatedBy === "market_analysis" ? "Auto-analyzed from your channels + market data"
              : identity?.populatedBy === "user" ? "User-defined"
              : "Auto-filled from your business idea"}
             {identity?.populatedAt ? ` · ${new Date(identity.populatedAt).toLocaleDateString()}` : ""}
@@ -1430,7 +1430,7 @@ function BrandIdentityPanel({ businessId }) {
           <button onClick={populate} disabled={populating}
             style={{ ...btnO(C.primary, 11), padding:"5px 12px", display:"flex", alignItems:"center", gap:5 }}>
             {populating && <span style={{ width:10, height:10, borderRadius:"50%", border:`1.5px solid ${C.primary}40`, borderTopColor:C.primary, animation:"spin 0.8s linear infinite", display:"inline-block" }} />}
-            {populating ? "Analyzing…" : "AI Fill"}
+            {populating ? "Analyzing…" : "Auto-fill"}
           </button>
           <button onClick={() => setExpanded(e => !e)} style={{ ...btnO(C.muted, 11), padding:"5px 12px" }}>
             {expanded ? "Collapse" : "Edit"}
@@ -1717,7 +1717,7 @@ function InstagramPanel({ businessId, businessName, integs }) {
                 <textarea value={postCaption} onChange={e=>setPostCaption(e.target.value)} rows={5} style={{ ...inp({ height:110, resize:"vertical" }), fontFamily:FB, fontSize:13 }} placeholder="Write your caption here, or generate one below…" />
               </div>
               <div style={{ display:"flex", gap:8, marginBottom:12, flexWrap:"wrap" }}>
-                <button onClick={generateCaption} disabled={genLoading} style={{ ...btnO(C.primary,12) }}>{genLoading?"Generating…":"Generate caption + image with AI"}</button>
+                <button onClick={generateCaption} disabled={genLoading} style={{ ...btnO(C.primary,12) }}>{genLoading?"Generating…":"Generate caption + image"}</button>
                 <label style={{ ...btnO(C.muted,12), cursor:"pointer", display:"flex", alignItems:"center", gap:6 }}>
                   {uploading?"Uploading…":"Upload your own image"}
                   <input type="file" accept="image/*" style={{ display:"none" }} onChange={e=>{ if(e.target.files[0]) uploadImage(e.target.files[0]); }} disabled={uploading} />
@@ -1880,6 +1880,13 @@ export default function Hub() {
   const [mgmtAns,    setMgmtAns]   = useState("");
   const [chatOpen,   setChatOpen]   = useState(false);
   const [chatMsgs,   setChatMsgs]   = useState([{ role:"ai", text:"I'm here to help. Ask about setup steps, strategy, or anything about your business." }]);
+  const [showTrialExpiredModal, setShowTrialExpiredModal] = useState(false);
+  const [insightsBudget, setInsightsBudget] = useState(null);
+  const [notesOpen,  setNotesOpen]  = useState(false);
+  const [hubNotes,   setHubNotes]   = useState([]);
+  const [noteText,   setNoteText]   = useState("");
+  const [noteColor,  setNoteColor]  = useState(NOTE_BG_COLORS[0]);
+  const [noteAdding, setNoteAdding] = useState(false);
   const navigate = useNavigate();
 
   const age     = user?.age;
@@ -1891,6 +1898,31 @@ export default function Hub() {
   },[businessId]);
 
   useEffect(()=>{ api.subscriptions.me().then(setPlanInfo).catch(()=>{}); },[]);
+  useEffect(()=>{
+    if (!businessId) return;
+    api.agents.access(businessId).then(d=>{ if(d.tokenBudget) setInsightsBudget(d.tokenBudget); }).catch(()=>{});
+  },[businessId]);
+
+  useEffect(()=>{
+    if (!businessId) return;
+    api.agents.notes(businessId).then(d=>setHubNotes(d.notes||[])).catch(()=>{});
+  },[businessId]);
+
+  const addHubNote = async () => {
+    if (!noteText.trim()) return;
+    setNoteAdding(true);
+    try {
+      const { note } = await api.agents.addNote(businessId, noteText.trim(), noteColor);
+      setHubNotes(p=>[note,...p]);
+      setNoteText("");
+    } catch {}
+    setNoteAdding(false);
+  };
+
+  const deleteHubNote = (id) => {
+    setHubNotes(p=>p.filter(n=>n.id!==id));
+    api.agents.deleteNote(businessId, id).catch(()=>{});
+  };
 
   useEffect(()=>{
     Promise.all([
@@ -1904,6 +1936,11 @@ export default function Hub() {
       if(m) { const { prefs:p, ...rest } = m; setMetrics(rest); if(p) setPrefs(p); }
     }).catch(console.error).finally(()=>setLoading(false));
   },[businessId]);
+
+  const refreshTasks = () => api.tasks.list(businessId).then(d => setTasks(d.tasks||[])).catch(()=>{});
+
+  // Re-fetch tasks when switching to tasks tab to keep count current
+  useEffect(()=>{ if (tab==="tasks") refreshTasks(); },[tab]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const dismissTour = () => {
     localStorage.setItem(`earnedlab_toured_${businessId}`, "1");
@@ -1969,6 +2006,34 @@ export default function Hub() {
 
       {showTour && <GuidedTour business={business} user={user} onDone={dismissTour} />}
 
+      {/* Expired trial: transparent click-capture overlay with upgrade modal */}
+      {planInfo?.locked && (
+        <>
+          <div
+            onClick={() => setShowTrialExpiredModal(true)}
+            style={{ position:"fixed", inset:0, zIndex:200, cursor:"pointer" }}
+          />
+          {showTrialExpiredModal && (
+            <div style={{ position:"fixed", inset:0, zIndex:300, display:"flex", alignItems:"center", justifyContent:"center", background:"rgba(0,0,0,0.55)" }}
+              onClick={() => setShowTrialExpiredModal(false)}>
+              <div onClick={e=>e.stopPropagation()} style={{ background:"#fff", borderRadius:16, padding:"32px 36px", maxWidth:400, width:"90%", textAlign:"center", boxShadow:"0 20px 60px rgba(0,0,0,0.25)" }}>
+                <div style={{ fontSize:36, marginBottom:12 }}>🔒</div>
+                <div style={{ fontFamily:FH, fontWeight:700, fontSize:20, marginBottom:8, color:"#111" }}>Your trial has ended</div>
+                <p style={{ fontSize:13, color:"#6B7280", fontFamily:FB, lineHeight:1.6, marginBottom:20 }}>
+                  Your data is safe. Upgrade to a paid plan to continue using all features — your history, tasks, and settings will all be here waiting.
+                </p>
+                <button onClick={()=>navigate("/pricing")} style={{ ...btn(C.primary,"#fff",14), padding:"10px 28px", width:"100%", marginBottom:8 }}>
+                  View Plans & Pricing
+                </button>
+                <button onClick={()=>setShowTrialExpiredModal(false)} style={{ ...btnO(C.muted,12), padding:"7px 20px", width:"100%" }}>
+                  Keep browsing (view only)
+                </button>
+              </div>
+            </div>
+          )}
+        </>
+      )}
+
       {/* Sidebar */}
       <div style={{ width:220, background:C.dark, display:"flex", flexDirection:"column", flexShrink:0, position:"relative", overflow:"hidden" }}>
         <div style={{ position:"absolute", top:0, right:0, width:120, height:120, background:`radial-gradient(ellipse,${C.primary}18,transparent 70%)`, pointerEvents:"none" }} />
@@ -2005,6 +2070,27 @@ export default function Hub() {
         <div style={{ padding:"10px 8px", borderTop:"1px solid rgba(255,255,255,0.06)" }}>
           <div onClick={()=>setShowTour(true)} style={{ padding:"8px 12px", borderRadius:8, color:"rgba(255,255,255,0.3)", cursor:"pointer", fontSize:12, fontFamily:FB }}>Replay tour</div>
           <div onClick={()=>navigate("/dashboard")} style={{ padding:"8px 12px", borderRadius:8, color:"rgba(255,255,255,0.2)", cursor:"pointer", fontSize:12, fontFamily:FB }}>All businesses</div>
+
+          {/* Available Insights footer bar */}
+          {insightsBudget && (() => {
+            const usedIns  = Math.round(insightsBudget.used  / 1.5);
+            const limitIns = Math.round(insightsBudget.limit / 1.5);
+            const pct      = insightsBudget.pct || 0;
+            const barColor = pct >= 90 ? "#EF4444" : pct >= 70 ? "#F59E0B" : "#4ADE80";
+            return (
+              <div style={{ padding:"8px 12px", marginTop:4 }}>
+                <div style={{ display:"flex", justifyContent:"space-between", marginBottom:4 }}>
+                  <span style={{ fontSize:9, color:"rgba(255,255,255,0.3)", fontFamily:FB, textTransform:"uppercase", letterSpacing:"0.05em" }}>Insights</span>
+                  <span style={{ fontSize:9, color: pct>=90?"#EF4444":pct>=70?"#F59E0B":"rgba(255,255,255,0.3)", fontFamily:FB }}>
+                    {usedIns.toLocaleString()}/{limitIns.toLocaleString()}
+                  </span>
+                </div>
+                <div style={{ height:3, borderRadius:2, background:"rgba(255,255,255,0.08)" }}>
+                  <div style={{ height:"100%", width:`${Math.min(100,pct)}%`, borderRadius:2, background:barColor, transition:"width 0.5s" }} />
+                </div>
+              </div>
+            );
+          })()}
         </div>
       </div>
 
@@ -2116,10 +2202,7 @@ export default function Hub() {
             <div>
               <div style={{ fontFamily:FH, fontWeight:700, fontSize:24, letterSpacing:"-0.04em", marginBottom:4 }}>Marketing Agent</div>
               <p style={{ color:C.muted, fontSize:14, marginBottom:24, fontFamily:FB }}>Analyzes your connected channels and metrics to surface the highest-impact opportunities. Works with any channel — add more in the Hub to broaden coverage.</p>
-              {integs.some(i=>i.provider==="instagram") && (
-                <InstagramPanel businessId={businessId} businessName={business?.name || ""} integs={integs} />
-              )}
-              <AgentPanel businessId={businessId} businessName={business?.name || ""} metrics={metrics} planInfo={planInfo} integs={integs} setTab={setTab}/>
+              <AgentPanel businessId={businessId} businessName={business?.name || ""} metrics={metrics} planInfo={planInfo} integs={integs} setTab={setTab} refreshTasks={refreshTasks}/>
             </div>
           )}
 
@@ -2179,6 +2262,47 @@ export default function Hub() {
       </div>
 
       {chatOpen && <GuidePanel messages={chatMsgs} onClose={()=>setChatOpen(false)} onSend={sendChat} businessId={businessId}/>}
+
+      {/* Floating Notes Panel */}
+      {notesOpen && (
+        <div style={{ position:"fixed", bottom:120, right:chatOpen?360:24, zIndex:200, width:300, background:"#fff", borderRadius:14, boxShadow:"0 8px 40px rgba(0,0,0,0.15)", border:"1px solid #E5E7EB", overflow:"hidden" }}>
+          <div style={{ padding:"12px 14px", borderBottom:"1px solid #F3F4F6", display:"flex", justifyContent:"space-between", alignItems:"center" }}>
+            <span style={{ fontFamily:FH, fontWeight:700, fontSize:13, color:"#111827" }}>Notes {hubNotes.length>0 && <span style={{ background:C.primary, color:"#fff", borderRadius:10, padding:"1px 6px", fontSize:10, marginLeft:4 }}>{hubNotes.length}</span>}</span>
+            <button onClick={()=>setNotesOpen(false)} style={{ background:"none", border:"none", cursor:"pointer", color:"#9CA3AF", fontSize:18, lineHeight:1, padding:0 }}>×</button>
+          </div>
+          <div style={{ maxHeight:260, overflowY:"auto", padding:"10px 12px" }}>
+            {hubNotes.length===0 && <div style={{ fontSize:12, color:"#9CA3AF", textAlign:"center", padding:"12px 0", fontFamily:FB }}>No notes yet.</div>}
+            {hubNotes.map(n=>(
+              <div key={n.id} style={{ background:n.color||NOTE_BG_COLORS[0], borderRadius:8, padding:"8px 10px", marginBottom:6, display:"flex", gap:6 }}>
+                <div style={{ flex:1, fontSize:12, color:"#374151", fontFamily:FB, lineHeight:1.5, wordBreak:"break-word" }}>{n.text}</div>
+                <button onClick={()=>deleteHubNote(n.id)} style={{ background:"none", border:"none", cursor:"pointer", color:"#9CA3AF", fontSize:14, padding:0, flexShrink:0, alignSelf:"flex-start" }}>×</button>
+              </div>
+            ))}
+          </div>
+          <div style={{ padding:"8px 12px", borderTop:"1px solid #F3F4F6" }}>
+            <div style={{ display:"flex", gap:4, marginBottom:6 }}>
+              {NOTE_BG_COLORS.map(clr=>(
+                <div key={clr} onClick={()=>setNoteColor(clr)} style={{ width:18, height:18, borderRadius:"50%", background:clr, cursor:"pointer", border:noteColor===clr?"2px solid #374151":"2px solid transparent" }} />
+              ))}
+            </div>
+            <div style={{ display:"flex", gap:6 }}>
+              <input value={noteText} onChange={e=>setNoteText(e.target.value)}
+                onKeyDown={e=>e.key==="Enter"&&addHubNote()}
+                placeholder="Add a note…"
+                style={{ flex:1, fontSize:12, padding:"6px 10px", border:"1px solid #E5E7EB", borderRadius:8, fontFamily:FB, outline:"none" }}
+              />
+              <button onClick={addHubNote} disabled={noteAdding||!noteText.trim()} style={{ ...btn(C.primary,"#fff",11), padding:"6px 12px", flexShrink:0 }}>
+                {noteAdding?"…":"Add"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      <button onClick={()=>setNotesOpen(o=>!o)} style={{ background:notesOpen?"#F3F4F6":"#fff", color:notesOpen?C.primary:"#6B7280", border:`1px solid ${notesOpen?C.primary:"#E5E7EB"}`, borderRadius:24, padding:"10px 16px", fontSize:13, fontWeight:500, cursor:"pointer", position:"fixed", bottom:72, right:chatOpen?336:24, boxShadow:"0 2px 10px rgba(0,0,0,0.08)", zIndex:99, transition:"right 0.25s", fontFamily:FB, display:"flex", alignItems:"center", gap:6 }}>
+        Notes{hubNotes.length>0 && <span style={{ background:C.primary, color:"#fff", borderRadius:10, padding:"1px 6px", fontSize:10 }}>{hubNotes.length}</span>}
+      </button>
+
       <button onClick={()=>setChatOpen(o=>!o)} style={{ background:C.grad, color:"#fff", border:"none", borderRadius:24, padding:"10px 20px", fontSize:13, fontWeight:500, cursor:"pointer", position:"fixed", bottom:24, right:chatOpen?336:24, boxShadow:`0 4px 20px rgba(124,58,237,0.3)`, zIndex:100, transition:"right 0.25s", fontFamily:FB }}>
         Ask guide
       </button>
