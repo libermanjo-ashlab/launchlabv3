@@ -992,8 +992,8 @@ const CHANNEL_OPTS = [
   { value:"general",   label:"General",     hasImage:true  },
 ];
 const TONE_OPTS = ["professional","educational","bold","casual","inspirational","direct"];
-const SRC_BADGE = { dalle3:"DALL-E 3", canvas:"Canvas", svg_fallback:"SVG (DALL-E failed)", svg_no_openai:"SVG (no key)", null:"—" };
-const SRC_CLR   = { dalle3:C.ok, canvas:C.warn, svg_fallback:C.err, svg_no_openai:C.muted };
+const SRC_BADGE = { dalle3:"DALL-E 3", dalle2:"DALL-E 2", canvas:"Canvas", svg_fallback:"SVG (DALL-E failed)", svg_no_openai:"SVG (no key)", null:"—" };
+const SRC_CLR   = { dalle3:C.ok, dalle2:C.ok, canvas:C.warn, svg_fallback:C.err, svg_no_openai:C.muted };
 
 function ContentLab({ businessId, businessName }) {
   const [open,     setOpen]     = useState(true);

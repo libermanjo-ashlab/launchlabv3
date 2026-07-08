@@ -232,14 +232,14 @@ router.post("/:id/run", requireAuth, async (req, res, next) => {
           let dalleError = null;
 
           if (process.env.OPENAI_API_KEY) {
-            log.info("TASK", "Attempting DALL-E 3 image generation", { taskId: task.id, appUrl, keyPrefix: process.env.OPENAI_API_KEY.slice(0, 7) });
+            log.info("TASK", "Attempting DALL-E image generation", { taskId: task.id, appUrl, keyPrefix: process.env.OPENAI_API_KEY.slice(0, 7) });
             try {
-              const imgBuf = await openaiSvc.generatePostImage(business.name, captionResult.body, brandId);
+              const { buf: imgBuf, model: dalleModel } = await openaiSvc.generatePostImage(business.name, captionResult.body, brandId);
               const imageId = imgGen.storeImage(imgBuf);
               imageUrl = `${appUrl}/api/instagram/images/${imageId}`;
-              imageSource = "dalle3";
-              log.info("TASK", "DALL-E 3 image generated and stored", {
-                taskId: task.id, imageId, imageUrl, bytes: imgBuf.length,
+              imageSource = dalleModel === "dall-e-2" ? "dalle2" : "dalle3";
+              log.info("TASK", "DALL-E image generated and stored", {
+                taskId: task.id, model: dalleModel, imageId, imageUrl, bytes: imgBuf.length,
               });
             } catch (imgErr) {
               dalleError = imgErr.message || String(imgErr);
