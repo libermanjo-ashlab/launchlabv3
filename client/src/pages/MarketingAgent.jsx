@@ -992,8 +992,19 @@ const CHANNEL_OPTS = [
   { value:"general",   label:"General",     hasImage:true  },
 ];
 const TONE_OPTS = ["professional","educational","bold","casual","inspirational","direct"];
-const SRC_BADGE = { dalle3:"DALL-E 3", dalle2:"DALL-E 2", canvas:"Canvas", svg_fallback:"SVG (DALL-E failed)", svg_no_openai:"SVG (no key)", null:"—" };
-const SRC_CLR   = { dalle3:C.ok, dalle2:C.ok, canvas:C.warn, svg_fallback:C.err, svg_no_openai:C.muted };
+const SRC_BADGE = {
+  "gpt-image-1":"GPT Image 1", "gpt-image-1.5":"GPT Image 1.5", "gpt-image-1-mini":"GPT Image 1 Mini",
+  "gpt-image-2":"GPT Image 2", "chatgpt-image-latest":"GPT Image (latest)",
+  "dalle3":"DALL-E 3", "dall-e-3":"DALL-E 3", "dalle2":"DALL-E 2", "dall-e-2":"DALL-E 2",
+  canvas:"Canvas", svg_fallback:"SVG (image failed)", svg_no_openai:"SVG (no key)",
+  image_failed:"Image failed", dalle3_failed:"Image failed", null:"—",
+};
+const SRC_CLR = {
+  "gpt-image-1":C.ok, "gpt-image-1.5":C.ok, "gpt-image-1-mini":C.ok,
+  "gpt-image-2":C.ok, "chatgpt-image-latest":C.ok,
+  "dalle3":C.ok, "dall-e-3":C.ok, "dalle2":C.ok, "dall-e-2":C.ok,
+  canvas:C.warn, svg_fallback:C.err, svg_no_openai:C.muted, image_failed:C.err, dalle3_failed:C.err,
+};
 
 function ContentLab({ businessId, businessName }) {
   const [open,     setOpen]     = useState(true);
@@ -1083,11 +1094,9 @@ function ContentLab({ businessId, businessName }) {
               {/* DALL-E error banner */}
               {result.dalleError && (
                 <div style={{ ...card("8px 12px"), background:"#FEF2F2", border:"1px solid #FECACA", marginBottom:10, fontSize:12, color:C.err, fontFamily:FB }}>
-                  <strong>DALL-E failed:</strong> {result.dalleError}
+                  <strong>Image generation failed:</strong> {result.dalleError}
                   <div style={{ fontSize:10, color:"#9CA3AF", marginTop:4 }}>
-                    {result.dalleError?.includes("does not exist") && result.dalleError?.includes("DALL-E 2")
-                      ? "Both models blocked — your API key is likely in a restricted OpenAI Project. Fix: platform.openai.com → API Keys → your key → Project settings → enable Image generation. Or create a new key from the Default project."
-                      : "Common fixes: add billing at platform.openai.com · check OPENAI_API_KEY in Railway · ensure image generation is enabled for this API key"}
+                    Check that your OpenAI API key has image generation enabled in its Project settings at platform.openai.com
                   </div>
                 </div>
               )}

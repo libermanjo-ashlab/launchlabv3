@@ -281,13 +281,13 @@ router.post("/:businessId/management/implement", requireAuth, async (req, res, n
       let imageSource;
       if (process.env.OPENAI_API_KEY) {
         try {
-          const { buf: imgBuf, model: dalleModel } = await openaiSvc.generatePostImage(biz.name, captionResult.body, brandId2);
+          const { buf: imgBuf, model: imgModel } = await openaiSvc.generatePostImage(biz.name, captionResult.body, brandId2);
           const imageId = imgGen.storeImage(imgBuf);
           generatedImageUrl = `${appUrl}/api/instagram/images/${imageId}`;
-          imageSource = dalleModel === "dall-e-2" ? "dalle2" : "dalle3";
-          log.info("IMPLEMENT", "DALL-E image stored", { model: dalleModel, imageId, generatedImageUrl });
+          imageSource = imgModel;
+          log.info("IMPLEMENT", "Image generated and stored", { model: imgModel, imageId, generatedImageUrl });
         } catch (imgErr) {
-          log.error("IMPLEMENT", "DALL-E 3 FAILED — using SVG fallback", { error: imgErr.message, status: imgErr.status });
+          log.error("IMPLEMENT", "Image generation failed — using SVG fallback", { error: imgErr.message, status: imgErr.status });
           const imageId = await imgGen.generatePostImage(biz.name, context2);
           generatedImageUrl = `${appUrl}/api/instagram/images/${imageId}`;
           imageSource = "svg_fallback";
@@ -636,21 +636,21 @@ router.post("/:businessId/campaigns/task-content", requireAuth, async (req, res,
       let imageSource;
       let dalleError = null;
       try {
-        const { buf: imgBuf, model: dalleModel } = await openaiSvc.generatePostImage(biz.name, captionResult.body, brandId);
+        const { buf: imgBuf, model: imgModel } = await openaiSvc.generatePostImage(biz.name, captionResult.body, brandId);
         const imageId = imgGen.storeImage(imgBuf);
         imageUrl = `${appUrl}/api/instagram/images/${imageId}`;
-        imageSource = dalleModel === "dall-e-2" ? "dalle2" : "dalle3";
-        log.info("CONTENT", "DALL-E image stored for task-content", { model: dalleModel, imageId, imageUrl, ms: Date.now() - t0 });
+        imageSource = imgModel;
+        log.info("CONTENT", "Image generated for task-content", { model: imgModel, imageId, imageUrl, ms: Date.now() - t0 });
       } catch (imgErr) {
         dalleError = imgErr.message || String(imgErr);
-        log.error("CONTENT", "DALL-E 3 FAILED for task-content", {
+        log.error("CONTENT", "Image generation failed for task-content", {
           error: dalleError,
           status: imgErr.status,
           code: imgErr.code,
           keyPrefix: process.env.OPENAI_API_KEY ? process.env.OPENAI_API_KEY.slice(0, 7) : "NOT_SET",
         });
         imageUrl = null;
-        imageSource = "dalle3_failed";
+        imageSource = "image_failed";
       }
 
       log.info("CONTENT", "task-content Instagram response ready", {
@@ -835,19 +835,19 @@ router.post("/:businessId/content-lab", requireAuth, async (req, res, next) => {
     const needsImage = ["instagram","twitter","linkedin","tiktok","general"].includes(channel);
     if (needsImage) {
       if (process.env.OPENAI_API_KEY) {
-        log.info("CONTENT-LAB", "Attempting DALL-E 3", {
+        log.info("CONTENT-LAB", "Attempting image generation", {
           businessId: req.params.businessId, channel,
           keyPrefix: process.env.OPENAI_API_KEY.slice(0, 10),
         });
         try {
-          const { buf: imgBuf, model: dalleModel } = await openaiSvc.generatePostImage(biz.name, captionResult?.body || context, brandId);
+          const { buf: imgBuf, model: imgModel } = await openaiSvc.generatePostImage(biz.name, captionResult?.body || context, brandId);
           const imageId = imgGen.storeImage(imgBuf);
           imageUrl = `${appUrl}/api/instagram/images/${imageId}`;
-          imageSource = dalleModel === "dall-e-2" ? "dalle2" : "dalle3";
-          log.info("CONTENT-LAB", "DALL-E success", { model: dalleModel, bytes: imgBuf.length, imageUrl });
+          imageSource = imgModel;
+          log.info("CONTENT-LAB", "Image generation success", { model: imgModel, bytes: imgBuf.length, imageUrl });
         } catch(e) {
           dalleError = e.message || String(e);
-          log.error("CONTENT-LAB", "DALL-E 3 FAILED", {
+          log.error("CONTENT-LAB", "Image generation failed", {
             error: dalleError, status: e.status, code: e.code,
           });
           const imageId = await imgGen.generatePostImage(biz.name, context);

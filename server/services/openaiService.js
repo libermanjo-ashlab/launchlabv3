@@ -256,27 +256,44 @@ OUTPUT: A single, publication-ready social media image that feels premium and br
  * Downloads the image and returns a Buffer stored in our memory store.
  */
 /**
- * Try one DALL-E model. Returns { url, model } on success, throws on failure.
- * DALL-E 2 prompt limit is 1000 chars; DALL-E 3 allows up to 4000.
+ * Try one image model. Returns { buf, model } on success, throws on failure.
+ * gpt-image-* returns base64 directly; dall-e-* returns a URL we must download.
  */
-async function tryDalleModel(client, model, prompt) {
+async function tryImageModel(client, model, prompt) {
+  const isGptImage = model.startsWith("gpt-image");
   const safePrompt = model === "dall-e-2" ? prompt.slice(0, 950) : prompt;
-  const params = model === "dall-e-3"
-    ? { model, prompt: safePrompt, size: "1024x1024", quality: "standard", n: 1 }
-    : { model, prompt: safePrompt, size: "1024x1024", n: 1 };
+  const params = isGptImage
+    ? { model, prompt: safePrompt, size: "1024x1024", quality: "medium", n: 1 }
+    : model === "dall-e-3"
+      ? { model, prompt: safePrompt, size: "1024x1024", quality: "standard", n: 1 }
+      : { model, prompt: safePrompt, size: "1024x1024", n: 1 };
+
   const t0 = Date.now();
   const response = await client.images.generate(params);
-  const url = response.data[0]?.url;
-  if (!url) throw new Error(`${model} returned no image URL`);
-  log.info("IMAGE", `${model} generation complete`, { ms: Date.now() - t0, urlPrefix: url.slice(0, 60) });
-  return { url, model };
+  const item = response.data[0];
+
+  if (isGptImage) {
+    const b64 = item?.b64_json;
+    if (!b64) throw new Error(`${model} returned no image data`);
+    const buf = Buffer.from(b64, "base64");
+    log.info("IMAGE", `${model} generation complete`, { ms: Date.now() - t0, bytes: buf.length });
+    return { buf, model };
+  } else {
+    const url = item?.url;
+    if (!url) throw new Error(`${model} returned no image URL`);
+    log.info("IMAGE", `${model} generation complete`, { ms: Date.now() - t0, urlPrefix: url.slice(0, 60) });
+    const imgRes = await fetch(url);
+    if (!imgRes.ok) throw new Error(`Failed to download ${model} image (HTTP ${imgRes.status})`);
+    const buf = Buffer.from(await imgRes.arrayBuffer());
+    log.info("IMAGE", `${model} image downloaded`, { bytes: buf.length });
+    return { buf, model };
+  }
 }
 
 /**
  * Generate a social post image.
- * Tries DALL-E 3 first; if the account doesn't have access (e.g. usage tier < 1),
- * automatically falls back to DALL-E 2 which is available on all paid accounts.
- * Returns { buf, model } — callers set imageSource from model.
+ * Tries gpt-image-1 first (available on all paid accounts), then falls back to
+ * dall-e-3 (requires tier 1) and dall-e-2. Returns { buf, model }.
  */
 async function generatePostImage(businessName, captionBody, brandIdentity) {
   log.info("IMAGE", "generatePostImage called", {
@@ -289,39 +306,19 @@ async function generatePostImage(businessName, captionBody, brandIdentity) {
   const prompt = buildImagePrompt(businessName, captionBody, brandIdentity);
   log.debug("IMAGE", "prompt built", { promptLen: prompt.length });
 
-  let result;
-  try {
-    result = await tryDalleModel(client, "dall-e-3", prompt);
-  } catch (err3) {
-    log.warn("IMAGE", "DALL-E 3 unavailable — trying DALL-E 2", {
-      error: err3.message, status: err3.status,
-    });
+  const modelsToTry = ["gpt-image-1", "dall-e-3", "dall-e-2"];
+  const errors = [];
+
+  for (const model of modelsToTry) {
     try {
-      result = await tryDalleModel(client, "dall-e-2", prompt);
-    } catch (err2) {
-      log.error("IMAGE", "Both DALL-E 3 and DALL-E 2 FAILED", {
-        err3: err3.message, err2: err2.message,
-      });
-      const combined = new Error(`DALL-E 3: ${err3.message} | DALL-E 2: ${err2.message}`);
-      combined.status = err3.status;
-      throw combined;
+      return await tryImageModel(client, model, prompt);
+    } catch (err) {
+      log.warn("IMAGE", `${model} failed`, { error: err.message, status: err.status });
+      errors.push(`${model}: ${err.message}`);
     }
   }
 
-  // Download immediately — DALL-E URLs expire after ~1 hour
-  const t1 = Date.now();
-  try {
-    const imgRes = await fetch(result.url);
-    if (!imgRes.ok) {
-      throw new Error(`Failed to download DALL-E image (HTTP ${imgRes.status})`);
-    }
-    const buf = Buffer.from(await imgRes.arrayBuffer());
-    log.info("IMAGE", "DALL-E image downloaded", { model: result.model, ms: Date.now() - t1, bytes: buf.length });
-    return { buf, model: result.model };
-  } catch (err) {
-    log.error("IMAGE", "DALL-E image download threw", { error: err.message });
-    throw err;
-  }
+  throw new Error(errors.join(" | "));
 }
 
 // ── Brand identity population ─────────────────────────────────────────────────
