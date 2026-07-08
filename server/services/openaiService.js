@@ -227,21 +227,23 @@ Soft and uncluttered — designed as a background that will have text overlaid o
 }
 
 /**
- * Generate a social post image using DALL-E 3.
- * Downloads the image and returns a Buffer stored in our memory store.
- */
-/**
  * Try one image model. Returns { buf, model } on success, throws on failure.
  * gpt-image-* returns base64 directly; dall-e-* returns a URL we must download.
  */
 async function tryImageModel(client, model, prompt) {
   const isGptImage = model.startsWith("gpt-image");
   const safePrompt = model === "dall-e-2" ? prompt.slice(0, 950) : prompt;
-  const params = isGptImage
-    ? { model, prompt: safePrompt, size: "1024x1024", quality: "medium", n: 1 }
-    : model === "dall-e-3"
-      ? { model, prompt: safePrompt, size: "1024x1024", quality: "standard", n: 1 }
-      : { model, prompt: safePrompt, size: "1024x1024", n: 1 };
+
+  let params;
+  if (model === "gpt-image-2") {
+    params = { model, prompt: safePrompt, size: "1024x1024", quality: "high", n: 1, response_format: "b64_json" };
+  } else if (isGptImage) {
+    params = { model, prompt: safePrompt, size: "1024x1024", quality: "medium", n: 1, response_format: "b64_json" };
+  } else if (model === "dall-e-3") {
+    params = { model, prompt: safePrompt, size: "1024x1024", quality: "standard", n: 1 };
+  } else {
+    params = { model, prompt: safePrompt, size: "1024x1024", n: 1 };
+  }
 
   const t0 = Date.now();
   const response = await client.images.generate(params);
@@ -267,8 +269,8 @@ async function tryImageModel(client, model, prompt) {
 
 /**
  * Generate a social post image.
- * Tries gpt-image-1 first (available on all paid accounts), then falls back to
- * dall-e-3 (requires tier 1) and dall-e-2. Returns { buf, model }.
+ * Tries gpt-image-2 (highest quality) first, then falls back through gpt-image-1,
+ * dall-e-3, and dall-e-2. Returns { buf, model }.
  */
 async function generatePostImage(businessName, captionBody, brandIdentity) {
   log.info("IMAGE", "generatePostImage called", {
@@ -281,7 +283,7 @@ async function generatePostImage(businessName, captionBody, brandIdentity) {
   const prompt = buildImagePrompt(businessName, captionBody, brandIdentity);
   log.debug("IMAGE", "prompt built", { promptLen: prompt.length });
 
-  const modelsToTry = ["gpt-image-1", "dall-e-3", "dall-e-2"];
+  const modelsToTry = ["gpt-image-2", "gpt-image-1", "dall-e-3", "dall-e-2"];
   const errors = [];
 
   for (const model of modelsToTry) {
