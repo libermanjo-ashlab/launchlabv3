@@ -1,25 +1,25 @@
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
 :root {
-  --bg:       #F8F7F5;
+  --bg:       #FFFFFF;
   --surface:  #FFFFFF;
   --dark:     #0A0A0F;
-  --border:   #E2E0DB;
+  --border:   #E2E8F0;
   --text:     #18181B;
-  --muted:    #71717A;
-  --subtle:   #A1A1AA;
+  --muted:    #64748B;
+  --subtle:   #94A3B8;
 
-  --primary:    #7C3AED;
-  --primary-bg: #F5F3FF;
+  --primary:    #2563EB;
+  --primary-bg: #EFF6FF;
   --accent:     #0891B2;
-  --accent-bg:  #ECFEFF;
-  --grad:       linear-gradient(135deg, #7C3AED, #0891B2);
+  --accent-bg:  #F0F9FF;
+  --grad:       linear-gradient(135deg, #2563EB, #0891B2);
 
   --ok:   #059669; --ok-bg:   #ECFDF5;
   --warn: #D97706; --warn-bg: #FFFBEB;
   --err:  #DC2626; --err-bg:  #FEF2F2;
 
-  --font-head: 'Space Grotesk', 'Helvetica Neue', sans-serif;
+  --font-head: 'DM Sans', 'Helvetica Neue', sans-serif;
   --font-body: 'DM Sans', 'Helvetica Neue', sans-serif;
 
   --radius-sm: 8px;

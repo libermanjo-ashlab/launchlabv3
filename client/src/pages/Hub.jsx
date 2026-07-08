@@ -832,7 +832,6 @@ function TasksPanel({ businessId, businessOutputs, hubNotes, stickyAssignments, 
         // Campaign tab: show grouped campaign tasks
         campaignTasks.length === 0 ? (
           <div style={{ ...card("28px"), textAlign:"center", color:C.muted }}>
-            <div style={{ fontSize:28, marginBottom:10 }}>📋</div>
             <div style={{ fontFamily:FH, fontWeight:600, fontSize:15, marginBottom:6 }}>No campaign tasks yet</div>
             <p style={{ fontSize:13, lineHeight:1.65 }}>Campaign tasks are created when you start a campaign in the Marketing Agent.</p>
           </div>
@@ -866,9 +865,7 @@ function TasksPanel({ businessId, businessOutputs, hubNotes, stickyAssignments, 
           {/* Regular (non-campaign) tasks */}
           {visibleNonCampaign.length === 0 && campaignTasks.length === 0 && (
             <div style={{ ...card("28px"), textAlign:"center", color:C.muted }}>
-              <div style={{ fontSize:28, marginBottom:10 }}>📋</div>
-              <div style={{ fontFamily:FH, fontWeight:600, fontSize:15, marginBottom:6 }}>No tasks yet</div>
-              <p style={{ fontSize:13, lineHeight:1.65, marginBottom:16 }}>Add tasks to track your progress and generate business assets.</p>
+              <div style={{ fontFamily:FH, fontWeight:600, fontSize:15, marginBottom:16 }}>No tasks yet</div>
               <button onClick={()=>setShowAdd(true)} style={{ ...btn(C.primary,"#fff",13) }}>Add your first task</button>
             </div>
           )}
@@ -986,7 +983,7 @@ function AutopilotToggle({ on, onToggle, label, disabled }) {
           <div style={{ fontSize:12, fontWeight:600, fontFamily:FB, color:disabled?C.muted:on?C.ok:C.muted }}>Autopilot {disabled?"— Pro Autopilot":on?"ON":"OFF"}</div>
           {label && <div style={{ fontSize:11, color:C.muted, fontFamily:FB, marginTop:1 }}>{label}</div>}
         </div>
-        {disabled && <span style={{ fontSize:10, color:"#7C3AED", background:"#F5F3FF", border:"1px solid #DDD6FE", padding:"2px 8px", borderRadius:20, fontFamily:FB, fontWeight:600, marginLeft:"auto", cursor:"pointer" }}>Upgrade</span>}
+        {disabled && <span style={{ fontSize:10, color:"#2563EB", background:"#EFF6FF", border:"1px solid #BFDBFE", padding:"2px 8px", borderRadius:20, fontFamily:FB, fontWeight:600, marginLeft:"auto", cursor:"pointer" }}>Upgrade</span>}
       </div>
       {showPlans && <PlansModal highlightPlan="pro_autopilot" onClose={()=>setShowPlans(false)} />}
     </>
@@ -997,7 +994,7 @@ function SetupGuide({ steps }) {
   const [open, setOpen] = useState(false);
   return (
     <div style={{ marginBottom:14, borderRadius:10, border:`1px solid ${C.primary}20`, overflow:"hidden" }}>
-      <div onClick={()=>setOpen(o=>!o)} style={{ display:"flex", justifyContent:"space-between", alignItems:"center", padding:"10px 14px", background:"#F5F3FF", cursor:"pointer" }}>
+      <div onClick={()=>setOpen(o=>!o)} style={{ display:"flex", justifyContent:"space-between", alignItems:"center", padding:"10px 14px", background:"#EFF6FF", cursor:"pointer" }}>
         <span style={{ fontSize:12, fontWeight:700, color:C.primary, fontFamily:FB }}>Step-by-step setup guide</span>
         <span style={{ fontSize:13, color:C.primary, transform:open?"rotate(180deg)":"none", transition:"transform 0.15s", display:"inline-block" }}>▾</span>
       </div>
@@ -1656,7 +1653,6 @@ function BusinessPrefsCard({ prefs, onSave, compact }) {
         <label style={lbl}>Current goals (optional)</label>
         <input style={inp()} value={prefs.goals||""} onChange={e=>onSave({...prefs,goals:e.target.value})} placeholder="e.g. reach 100 clients by Q3, expand to a second city, launch a course" />
       </div>
-      <div style={{ fontSize:11, color:C.muted, marginTop:10, fontFamily:FB }}>Preferences are saved automatically and used by all agents and the guide chat.</div>
     </div>
   );
 }
@@ -1906,7 +1902,7 @@ function InstagramPanel({ businessId, businessName, integs }) {
                 {c.replied && <span style={{ fontSize:10, color:C.ok, fontFamily:FB }}>Replied</span>}
               </div>
               {!c.replied && c.suggestedReply && (
-                <div style={{ background:"#F5F3FF", borderRadius:8, padding:"8px 12px", marginTop:6 }}>
+                <div style={{ background:"#EFF6FF", borderRadius:8, padding:"8px 12px", marginTop:6 }}>
                   <div style={{ fontSize:11, color:C.primary, fontWeight:600, fontFamily:FB, marginBottom:4 }}>Suggested reply</div>
                   <div style={{ fontSize:12, fontFamily:FB, color:C.text, marginBottom:8 }}>{c.suggestedReply}</div>
                   <div style={{ display:"flex", gap:6 }}>
@@ -2203,11 +2199,11 @@ export default function Hub() {
           <div style={{ fontFamily:FH, fontWeight:600, fontSize:14, color:"#fff", marginBottom:4, lineHeight:1.3 }}>{business?.name}</div>
           <div style={{ display:"flex", alignItems:"center", gap:6, marginBottom:8 }}>
             <div style={{ width:5, height:5, borderRadius:"50%", background:"#4ADE80" }} />
-            <span style={{ fontSize:11, color:"rgba(255,255,255,0.35)", fontFamily:FB }}>{business?.location}</span>
+            <span style={{ fontSize:11, color:"rgba(255,255,255,0.65)", fontFamily:FB }}>{business?.location}</span>
           </div>
           {planInfo && (
-            <div onClick={()=>navigate("/pricing")} style={{ cursor:"pointer", display:"inline-flex", alignItems:"center", gap:5, background:planInfo.locked?"rgba(220,38,38,0.15)":`${C.primary}20`, border:`1px solid ${planInfo.locked?"#DC262640":C.primary+"40"}`, borderRadius:6, padding:"3px 8px" }}>
-              <span style={{ fontSize:10, color:planInfo.locked?"#FCA5A5":"#A78BFA", fontWeight:600, textTransform:"uppercase", letterSpacing:"0.04em", fontFamily:FB }}>
+            <div onClick={()=>navigate("/pricing")} style={{ cursor:"pointer", display:"inline-flex", alignItems:"center", gap:5, background:planInfo.locked?"rgba(220,38,38,0.15)":`${C.primary}25`, border:`1px solid ${planInfo.locked?"#DC262650":C.primary+"50"}`, borderRadius:6, padding:"3px 8px" }}>
+              <span style={{ fontSize:10, color:planInfo.locked?"#FCA5A5":"#93C5FD", fontWeight:600, textTransform:"uppercase", letterSpacing:"0.04em", fontFamily:FB }}>
                 {planInfo.isAdmin ? `Admin${planInfo.simulating?" — "+planInfo.simulating.replace("_"," "):""}` : planInfo.locked?"Trial expired":planInfo.isTrial?`Trial — ${planInfo.trialDaysLeft}d left`:planInfo.plan}
               </span>
             </div>
@@ -2216,36 +2212,37 @@ export default function Hub() {
 
         <nav style={{ padding:"12px 8px", flex:1 }}>
           {navItems.map(({id,label})=>(
-            <div key={id} onClick={()=>setTab(id)} style={{ padding:"10px 14px", borderRadius:10, marginBottom:3, background:tab===id?`${C.primary}25`:"transparent", color:tab===id?"#fff":"rgba(255,255,255,0.45)", cursor:"pointer", fontSize:13, fontWeight:tab===id?600:400, fontFamily:FB, borderLeft:tab===id?`3px solid ${C.primary}`:"3px solid transparent", transition:"all 0.12s", display:"flex", justifyContent:"space-between", alignItems:"center" }}>
+            <div key={id} onClick={()=>setTab(id)} style={{ padding:"10px 14px", borderRadius:10, marginBottom:3, background:tab===id?`${C.primary}30`:"transparent", color:tab===id?"#fff":"rgba(255,255,255,0.7)", cursor:"pointer", fontSize:13, fontWeight:tab===id?600:400, fontFamily:FB, borderLeft:tab===id?`3px solid ${C.primary}`:"3px solid transparent", transition:"all 0.12s", display:"flex", justifyContent:"space-between", alignItems:"center" }}>
               <span>{label}</span>
               {id==="tasks" && tasksTotal > 0 && (
-                <span style={{ fontSize:10, background:tasksDone===tasksTotal?"#4ADE8030":"rgba(255,255,255,0.08)", color:tasksDone===tasksTotal?"#4ADE80":"rgba(255,255,255,0.4)", padding:"1px 7px", borderRadius:20, fontWeight:700 }}>{tasksDone}/{tasksTotal}</span>
+                <span style={{ fontSize:10, background:tasksDone===tasksTotal?"#4ADE8030":"rgba(255,255,255,0.12)", color:tasksDone===tasksTotal?"#4ADE80":"rgba(255,255,255,0.65)", padding:"1px 7px", borderRadius:20, fontWeight:700 }}>{tasksDone}/{tasksTotal}</span>
               )}
             </div>
           ))}
         </nav>
 
-        <div style={{ padding:"10px 8px", borderTop:"1px solid rgba(255,255,255,0.06)" }}>
-          <div onClick={()=>setShowTour(true)} style={{ padding:"8px 12px", borderRadius:8, color:"rgba(255,255,255,0.3)", cursor:"pointer", fontSize:12, fontFamily:FB }}>Replay tour</div>
-          <div onClick={()=>navigate("/dashboard")} style={{ padding:"8px 12px", borderRadius:8, color:"rgba(255,255,255,0.2)", cursor:"pointer", fontSize:12, fontFamily:FB }}>All businesses</div>
+        <div style={{ padding:"10px 8px", borderTop:"1px solid rgba(255,255,255,0.08)" }}>
+          <div onClick={()=>setShowTour(true)} style={{ padding:"8px 12px", borderRadius:8, color:"rgba(255,255,255,0.55)", cursor:"pointer", fontSize:12, fontFamily:FB }}>Replay tour</div>
+          <div onClick={()=>navigate("/dashboard")} style={{ padding:"8px 12px", borderRadius:8, color:"rgba(255,255,255,0.45)", cursor:"pointer", fontSize:12, fontFamily:FB }}>All businesses</div>
 
-          {/* Available Insights footer bar — always visible when plan is known */}
-          {planInfo && (()=>{
-            const rawLimit = insightsBudget?.limit || (planInfo.plan==="pro_autopilot"?110000:planInfo.plan==="pro"?50000:20000);
+          {/* Daily Insights tracker — always visible */}
+          {(()=>{
+            const plan = planInfo?.plan;
+            const rawLimit = insightsBudget?.limit || (plan==="pro_autopilot"?110000:plan==="pro"?50000:20000);
             const rawUsed  = insightsBudget?.used  || 0;
             const usedIns  = Math.round(rawUsed  / 1.5);
             const limitIns = Math.round(rawLimit / 1.5);
             const pct      = Math.min(100, rawLimit > 0 ? Math.round(rawUsed / rawLimit * 100) : 0);
             const barColor = pct >= 90 ? "#EF4444" : pct >= 70 ? "#F59E0B" : "#4ADE80";
             return (
-              <div style={{ padding:"8px 12px", marginTop:4, borderTop:"1px solid rgba(255,255,255,0.04)" }}>
+              <div style={{ padding:"8px 12px", marginTop:4, borderTop:"1px solid rgba(255,255,255,0.08)" }}>
                 <div style={{ display:"flex", justifyContent:"space-between", marginBottom:4 }}>
-                  <span style={{ fontSize:9, color:"rgba(255,255,255,0.3)", fontFamily:FB, textTransform:"uppercase", letterSpacing:"0.05em" }}>Daily Insights</span>
-                  <span style={{ fontSize:9, color:pct>=90?"#EF4444":pct>=70?"#F59E0B":"rgba(255,255,255,0.3)", fontFamily:FB }}>
+                  <span style={{ fontSize:9, color:"rgba(255,255,255,0.6)", fontFamily:FB, textTransform:"uppercase", letterSpacing:"0.05em" }}>Daily Insights</span>
+                  <span style={{ fontSize:9, color:pct>=90?"#EF4444":pct>=70?"#F59E0B":"rgba(255,255,255,0.6)", fontFamily:FB }}>
                     {usedIns.toLocaleString()}/{limitIns.toLocaleString()}
                   </span>
                 </div>
-                <div style={{ height:3, borderRadius:2, background:"rgba(255,255,255,0.08)" }}>
+                <div style={{ height:3, borderRadius:2, background:"rgba(255,255,255,0.12)" }}>
                   <div style={{ height:"100%", width:`${pct}%`, borderRadius:2, background:barColor, transition:"width 0.5s" }} />
                 </div>
               </div>
@@ -2362,7 +2359,6 @@ export default function Hub() {
           {tab==="marketing" && (
             <div>
               <div style={{ fontFamily:FH, fontWeight:700, fontSize:24, letterSpacing:"-0.04em", marginBottom:4 }}>Marketing Agent</div>
-              <p style={{ color:C.muted, fontSize:14, marginBottom:24, fontFamily:FB }}>Analyzes your connected channels and metrics to surface the highest-impact opportunities. Works with any channel — add more in the Hub to broaden coverage.</p>
               <AgentPanel businessId={businessId} businessName={business?.name || ""} metrics={metrics} planInfo={planInfo} integs={integs} setTab={setTab} refreshTasks={refreshTasks} hubNotes={hubNotes} stickyAssignments={stickyAssignments} onAssignSticky={assignSticky} onUnstickNote={unstickNote}/>
             </div>
           )}

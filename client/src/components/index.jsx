@@ -4,15 +4,15 @@ import * as Sentry from "@sentry/react";
 const SUPPORT = "support@earnedlab.com";
 
 export const C = {
-  bg:"#F8F7F5", surface:"#FFFFFF", dark:"#0A0A0F", border:"#E2E0DB",
-  text:"#18181B", muted:"#71717A", subtle:"#A1A1AA",
-  primary:"#7C3AED", primaryBg:"#F5F3FF",
-  accent:"#0891B2",  accentBg:"#ECFEFF",
+  bg:"#FFFFFF", surface:"#FFFFFF", dark:"#0A0A0F", border:"#E2E8F0",
+  text:"#18181B", muted:"#64748B", subtle:"#94A3B8",
+  primary:"#2563EB", primaryBg:"#EFF6FF",
+  accent:"#0891B2",  accentBg:"#F0F9FF",
   ok:"#059669", okBg:"#ECFDF5", warn:"#D97706", warnBg:"#FFFBEB",
   err:"#DC2626", errBg:"#FEF2F2",
-  grad:"linear-gradient(135deg,#7C3AED,#0891B2)",
+  grad:"linear-gradient(135deg,#2563EB,#0891B2)",
 };
-export const FH = "'Space Grotesk','Helvetica Neue',sans-serif";
+export const FH = "'DM Sans','Helvetica Neue',sans-serif";
 export const FB = "'DM Sans','Helvetica Neue',sans-serif";
 
 export const card  = (p="18px 20px",e={}) => ({ background:C.surface,borderRadius:12,border:`1px solid ${C.border}`,padding:p,boxShadow:"0 1px 3px rgba(0,0,0,0.05)",...e });

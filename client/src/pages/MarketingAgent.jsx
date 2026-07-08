@@ -107,12 +107,12 @@ function ModeToggle({ mode, onChange, allowedModes }) {
                 }}
                 style={{ flex:1, padding:"8px 10px", borderRadius:9, border:"none", cursor:"pointer",
                   fontFamily:FB, fontWeight:600, fontSize:12, transition:"all 0.15s",
-                  background: mode===o.value ? (o.value==="auto"?C.primary:o.value==="guided"?"#4F46E5":"#374151") : "transparent",
+                  background: mode===o.value ? (o.value==="auto"?C.primary:o.value==="guided"?"#1D4ED8":"#374151") : "transparent",
                   color: locked ? "#9CA3AF" : mode===o.value ? "#fff" : C.muted,
                   boxShadow: mode===o.value ? "0 1px 5px rgba(0,0,0,0.18)" : "none",
                   position:"relative" }}>
                 {o.label}
-                {locked && <span style={{ position:"absolute", top:-6, right:-4, fontSize:8, background:"#7C3AED", color:"#fff", borderRadius:8, padding:"1px 4px", fontWeight:700 }}>PRO</span>}
+                {locked && <span style={{ position:"absolute", top:-6, right:-4, fontSize:8, background:"#2563EB", color:"#fff", borderRadius:8, padding:"1px 4px", fontWeight:700 }}>PRO</span>}
               </button>
             );
           })}
@@ -392,7 +392,7 @@ function VideoSlideTaskBlock({ content, businessName, backgroundUrl }) {
   };
 
   return (
-    <div style={{ background:"#F5F3FF", border:`1px solid ${C.primary}30`, borderRadius:8, padding:"10px 12px", marginTop:8 }}>
+    <div style={{ background:"#EFF6FF", border:`1px solid ${C.primary}30`, borderRadius:8, padding:"10px 12px", marginTop:8 }}>
       <div style={{ fontSize:11, fontWeight:700, color:C.primary, textTransform:"uppercase", letterSpacing:"0.05em", marginBottom:8, fontFamily:FB }}>
         Video Reel — {content.slides?.length || 0} slides
       </div>
@@ -1448,7 +1448,7 @@ function ContentLab({ businessId, businessName, plan }) {
       {/* Header */}
       <button onClick={() => isStarter ? setShowPlans(true) : setOpen(o => !o)} style={{
         width:"100%", border:"none", cursor:"pointer",
-        background: open ? "#FAFAFA" : "linear-gradient(135deg,#F5F3FF 0%,#EFF6FF 100%)",
+        background: open ? "#FAFAFA" : "linear-gradient(135deg,#EFF6FF 0%,#F0F9FF 100%)",
         display:"flex", alignItems:"center", justifyContent:"space-between",
         padding:"14px 18px", borderBottom: open ? `1px solid ${C.border}` : "none",
       }}>
@@ -1456,12 +1456,12 @@ function ContentLab({ businessId, businessName, plan }) {
           <div style={{ textAlign:"left" }}>
             <div style={{ fontFamily:FH, fontWeight:700, fontSize:15, color:C.text }}>Content Lab</div>
             <div style={{ fontSize:11, color:C.muted, fontFamily:FB, marginTop:1 }}>
-              {isStarter ? "Pro feature — upgrade to generate branded content" : "Generate, preview & download branded content for any channel"}
+              {isStarter ? "Pro feature" : "Branded content for any channel"}
             </div>
           </div>
         </div>
         <div style={{ display:"flex", alignItems:"center", gap:8 }}>
-          {isStarter && <span style={{ fontSize:9, fontWeight:700, background:"#7C3AED", color:"#fff", borderRadius:8, padding:"2px 8px", fontFamily:FB }}>PRO</span>}
+          {isStarter && <span style={{ fontSize:9, fontWeight:700, background:"#2563EB", color:"#fff", borderRadius:8, padding:"2px 8px", fontFamily:FB }}>PRO</span>}
           {!isStarter && <span style={{ fontSize:11, color:C.muted, fontFamily:FB }}>{open ? "▲" : "▼"}</span>}
         </div>
       </button>
@@ -1521,7 +1521,7 @@ function ContentLab({ businessId, businessName, plan }) {
                         </button>
                       </>
                     ) : (
-                      <div style={{ ...card("18px 12px"), background:"#F5F3FF", border:`1px solid ${C.primary}30`, borderRadius:8, textAlign:"center" }}>
+                      <div style={{ ...card("18px 12px"), background:"#EFF6FF", border:`1px solid ${C.primary}30`, borderRadius:8, textAlign:"center" }}>
                         <div style={{ fontSize:28, marginBottom:8 }}>🎬</div>
                         <div style={{ fontSize:12, color:C.text, fontFamily:FB, marginBottom:12, lineHeight:1.5 }}>
                           {result.slides.length} slides ready<br/>
@@ -2024,9 +2024,6 @@ export default function AgentPanel({ businessId, businessName, metrics, planInfo
                       <p style={{ fontSize:12, color:C.muted, fontFamily:FB }}>{overview.missingChannels.join(", ")}</p>
                     </div>
                   )}
-                  <div style={{ fontSize:11, color:C.muted, fontFamily:FB, marginTop:4, padding:"8px 0", borderTop:`1px solid ${C.border}` }}>
-                    Full AI analysis available in <strong>Guided</strong> or <strong>Autopilot</strong> mode.
-                  </div>
                 </div>
               ) : (
                 <>
