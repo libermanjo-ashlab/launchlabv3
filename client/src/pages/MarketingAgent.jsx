@@ -16,6 +16,7 @@ import { useNavigate } from "react-router-dom";
 import { api } from "../lib/api";
 import { C, FH, FB, btn, btnO, card, inp, lbl } from "../components";
 import { generatePostImageBlob } from "../lib/postImageCanvas";
+import { generateSlideshowBlob } from "../lib/slideshowVideo";
 
 // ── Design helpers ────────────────────────────────────────────────────────────
 
@@ -285,6 +286,97 @@ function ContentPreviewBlock({ content, channel, mode }) {
   );
 }
 
+// ── Video slideshow block for task cards ─────────────────────────────────────
+
+function VideoSlideTaskBlock({ content, businessName, backgroundUrl }) {
+  const [videoBlob,    setVideoBlob]    = useState(null);
+  const [videoLoading, setVideoLoading] = useState(false);
+  const [copied,       setCopied]       = useState(false);
+  const [error,        setError]        = useState("");
+
+  const videoUrl = useMemo(() => videoBlob ? URL.createObjectURL(videoBlob) : null, [videoBlob]);
+  useEffect(() => () => { if (videoUrl) URL.revokeObjectURL(videoUrl); }, [videoUrl]);
+
+  const create = async () => {
+    setVideoLoading(true); setError("");
+    try {
+      const bgUrl = content.imageSource?.startsWith("gpt-image") ? (backgroundUrl || content.imageUrl) : null;
+      const blob  = await generateSlideshowBlob(content.slides, bgUrl, businessName || "Business");
+      setVideoBlob(blob);
+    } catch(e) {
+      setError(e.message);
+    }
+    setVideoLoading(false);
+  };
+
+  const download = () => {
+    if (!videoBlob) return;
+    const url = URL.createObjectURL(videoBlob);
+    const a   = document.createElement("a");
+    a.href    = url;
+    a.download = `${(businessName || "post").replace(/\s+/g, "-").toLowerCase()}-reel.webm`;
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  };
+
+  const copyCaption = async () => {
+    const parts = [content.body || content.caption, content.hashtags].filter(Boolean);
+    try { await navigator.clipboard.writeText(parts.join("\n\n")); } catch {}
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
+
+  return (
+    <div style={{ background:"#F5F3FF", border:`1px solid ${C.primary}30`, borderRadius:8, padding:"10px 12px", marginTop:8 }}>
+      <div style={{ fontSize:11, fontWeight:700, color:C.primary, textTransform:"uppercase", letterSpacing:"0.05em", marginBottom:8, fontFamily:FB }}>
+        Video Reel — {content.slides?.length || 0} slides
+      </div>
+      {/* Slide preview */}
+      <div style={{ display:"flex", flexDirection:"column", gap:4, marginBottom:10 }}>
+        {(content.slides || []).map((sl, i) => (
+          <div key={i} style={{ display:"flex", gap:8, alignItems:"flex-start", fontSize:11, fontFamily:FB }}>
+            <span style={{ color:C.primary, fontWeight:700, minWidth:16 }}>{i+1}</span>
+            <div>
+              <span style={{ fontWeight:600, color:C.text }}>{sl.headline}</span>
+              {sl.subtext && <span style={{ color:C.muted }}> — {sl.subtext}</span>}
+            </div>
+          </div>
+        ))}
+      </div>
+      {/* Caption */}
+      {(content.body || content.caption) && (
+        <div style={{ background:"rgba(255,255,255,0.7)", borderRadius:6, padding:"6px 8px", marginBottom:10 }}>
+          <p style={{ fontSize:12, color:"#374151", fontFamily:FB, lineHeight:1.6, marginBottom: content.hashtags ? 4 : 0 }}>
+            {content.body || content.caption}
+          </p>
+          {content.hashtags && <p style={{ fontSize:11, color:C.muted, fontFamily:FB }}>{content.hashtags}</p>}
+        </div>
+      )}
+      {error && <div style={{ fontSize:11, color:C.err, fontFamily:FB, marginBottom:6 }}>{error}</div>}
+      <div style={{ display:"flex", gap:6 }}>
+        {videoUrl ? (
+          <button onClick={download} style={{ ...btn(C.ok,"#fff",11), padding:"4px 12px" }}>
+            ↓ Download Video
+          </button>
+        ) : (
+          <button onClick={create} disabled={videoLoading}
+            style={{ ...btn(videoLoading ? "#9CA3AF" : C.primary,"#fff",11), padding:"4px 12px",
+              display:"inline-flex", alignItems:"center", gap:5 }}>
+            {videoLoading && <span style={{ ...spin(), width:10, height:10, borderWidth:1.5 }} />}
+            {videoLoading ? "Rendering…" : "Create Video"}
+          </button>
+        )}
+        <button onClick={copyCaption} style={{ ...btnO(C.ok,11), padding:"4px 10px" }}>
+          {copied ? "✓ Copied" : "Copy caption"}
+        </button>
+      </div>
+      {videoBlob && (
+        <video src={videoUrl} controls style={{ width:"100%", borderRadius:6, marginTop:8, maxHeight:220 }} />
+      )}
+    </div>
+  );
+}
+
 // ── Suggestion Card (analysis insights) ──────────────────────────────────────
 
 function SuggestionCard({ suggestion:s, mode, onAddToCampaign, onImplement, implementing, implemented, access, navigate }) {
@@ -408,9 +500,9 @@ function CampaignTaskRow({ task:t, mode, channel, businessId, businessName, onCo
       console.log(`[TASK:getContent] Server response — channel=${c?.channel} imageSource=${c?.imageSource} hasImageUrl=${!!c?.imageUrl} captionLen=${c?.caption?.length || 0}`);
       if (c?.dalleError) console.error(`[TASK:getContent] DALL-E error: ${c.dalleError}`);
 
-      // For visual channel tasks with an image, composite canvas text over the AI background
+      // For visual channel tasks with an image (but not video/slideshow), composite canvas text
       const taskChannel = channel || c?.channel || "general";
-      if (!c?.isGuided && c?.imageUrl && VISUAL_CHANNEL_SET.has(taskChannel)) {
+      if (!c?.isGuided && !c?.isVideo && c?.imageUrl && VISUAL_CHANNEL_SET.has(taskChannel)) {
         const bgUrl = c?.imageSource?.startsWith("gpt-image") ? c.imageUrl : null;
         console.log(`[TASK:getContent] Canvas composite — channel=${taskChannel} bgSource=${bgUrl ? c.imageSource : "gradient"}`);
         try {
@@ -513,11 +605,12 @@ function CampaignTaskRow({ task:t, mode, channel, businessId, businessName, onCo
                 </div>
               ))}
             </div>
+          ) : content?.isGuided ? (
+            <GuidanceBlock content={content} />
+          ) : content?.isVideo && content?.slides ? (
+            <VideoSlideTaskBlock content={content} businessName={businessName} backgroundUrl={content.imageUrl} />
           ) : (
-            {content?.isGuided
-              ? <GuidanceBlock content={content} />
-              : <ContentPreviewBlock content={content} channel={channel} mode={mode} />
-            }
+            <ContentPreviewBlock content={content} channel={channel} mode={mode} />
           )}
           {/* Guided mode: Post to Instagram button after content generated */}
           {mode === "guided" && channel === "instagram" && !content?.isGuided && (content?.caption || content?.body) && content?.imageUrl && !content?.published && (
@@ -1050,31 +1143,35 @@ const SRC_CLR = {
 };
 
 function ContentLab({ businessId, businessName }) {
-  const [open,         setOpen]         = useState(false);
-  const [channel,      setChannel]      = useState("instagram");
-  const [context,      setContext]      = useState("");
-  const [tone,         setTone]         = useState("professional");
-  const [loading,      setLoading]      = useState(false);
-  const [result,       setResult]       = useState(null);
-  const [composedBlob, setComposedBlob] = useState(null);
-  const [copied,       setCopied]       = useState(false);
-  const [error,        setError]        = useState("");
+  const [open,           setOpen]           = useState(false);
+  const [channel,        setChannel]        = useState("instagram");
+  const [context,        setContext]        = useState("");
+  const [tone,           setTone]           = useState("professional");
+  const [loading,        setLoading]        = useState(false);
+  const [result,         setResult]         = useState(null);
+  const [composedBlob,   setComposedBlob]   = useState(null);
+  const [videoBlob,      setVideoBlob]      = useState(null);
+  const [videoLoading,   setVideoLoading]   = useState(false);
+  const [copied,         setCopied]         = useState(false);
+  const [error,          setError]          = useState("");
 
   const channelOpt = CHANNEL_OPTS.find(o => o.value === channel);
   const hasImage   = channelOpt?.hasImage;
 
-  // Stable object URL for the composed image — revoked when blob changes
+  // Stable object URLs — revoked when blob changes
   const composedUrl = useMemo(() => composedBlob ? URL.createObjectURL(composedBlob) : null, [composedBlob]);
   useEffect(() => () => { if (composedUrl) URL.revokeObjectURL(composedUrl); }, [composedUrl]);
+  const videoUrl = useMemo(() => videoBlob ? URL.createObjectURL(videoBlob) : null, [videoBlob]);
+  useEffect(() => () => { if (videoUrl) URL.revokeObjectURL(videoUrl); }, [videoUrl]);
 
   const generate = async () => {
     if (!context.trim()) return;
-    setLoading(true); setError(""); setResult(null); setComposedBlob(null);
+    setLoading(true); setError(""); setResult(null); setComposedBlob(null); setVideoBlob(null);
     try {
       const data = await api.agents.contentLab(businessId, { channel, context: context.trim(), tone });
       setResult(data);
-      // Composite canvas text over the AI background for visual channels
-      if (hasImage && data.imageUrl) {
+      // For visual channels, composite canvas text over the AI background
+      if (hasImage && data.imageUrl && !data.isVideo) {
         try {
           const bgUrl = data.imageSource?.startsWith("gpt-image") ? data.imageUrl : null;
           const blob  = await generatePostImageBlob(businessName || "Business", data.body || data.caption, bgUrl);
@@ -1089,15 +1186,36 @@ function ContentLab({ businessId, businessName }) {
     setLoading(false);
   };
 
+  const createVideo = async () => {
+    if (!result?.slides) return;
+    setVideoLoading(true);
+    try {
+      const bgUrl = result.imageSource?.startsWith("gpt-image") ? result.imageUrl : null;
+      const blob  = await generateSlideshowBlob(result.slides, bgUrl, businessName || "Business");
+      setVideoBlob(blob);
+    } catch(e) {
+      console.error("[ContentLab] Slideshow generation failed:", e.message);
+    }
+    setVideoLoading(false);
+  };
+
   const downloadImage = () => {
     if (!composedBlob) return;
     const url = URL.createObjectURL(composedBlob);
     const a   = document.createElement("a");
     a.href    = url;
     a.download = `${(businessName || "post").replace(/\s+/g, "-").toLowerCase()}-${channel}.png`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  };
+
+  const downloadVideo = () => {
+    if (!videoBlob) return;
+    const url = URL.createObjectURL(videoBlob);
+    const a   = document.createElement("a");
+    a.href    = url;
+    a.download = `${(businessName || "post").replace(/\s+/g, "-").toLowerCase()}-${channel}.webm`;
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
     URL.revokeObjectURL(url);
   };
 
@@ -1169,72 +1287,148 @@ function ContentLab({ businessId, businessName }) {
           )}
 
           {result && (
-            <div style={{ display:"grid", gridTemplateColumns: (hasImage && (composedUrl || result.imageUrl)) ? "260px 1fr" : "1fr", gap:16, alignItems:"start" }}>
+            <div style={{ display:"flex", flexDirection:"column", gap:14 }}>
 
-              {/* ── Image column ── */}
-              {hasImage && (
-                <div>
-                  {composedUrl ? (
-                    <>
-                      <img src={composedUrl} alt="Generated post" style={{ width:"100%", borderRadius:8, display:"block", marginBottom:8 }} />
-                      <div style={{ display:"flex", gap:6, alignItems:"center" }}>
-                        <button onClick={downloadImage}
-                          style={{ ...btn(C.ok,"#fff",11), padding:"5px 0", flex:1, textAlign:"center" }}>
-                          ↓ Download PNG
+              {/* ── Video slideshow result ── */}
+              {result.isVideo && result.slides && (
+                <div style={{ display:"grid", gridTemplateColumns: videoUrl ? "260px 1fr" : "1fr", gap:16, alignItems:"start" }}>
+                  {/* Preview / create button */}
+                  <div>
+                    {videoUrl ? (
+                      <>
+                        <video src={videoUrl} controls style={{ width:"100%", borderRadius:8, display:"block", marginBottom:8 }} />
+                        <button onClick={downloadVideo}
+                          style={{ ...btn(C.ok,"#fff",11), padding:"5px 0", width:"100%", textAlign:"center" }}>
+                          ↓ Download Video (.webm)
                         </button>
-                        <span style={{
-                          fontSize:9, fontWeight:700, fontFamily:FB, padding:"5px 8px", borderRadius:6,
-                          background: (SRC_CLR[result.imageSource] || C.muted) + "20",
-                          color: SRC_CLR[result.imageSource] || C.muted,
-                          textTransform:"uppercase", letterSpacing:"0.04em",
-                        }}>
-                          {SRC_BADGE[result.imageSource] || result.imageSource}
-                        </span>
+                      </>
+                    ) : (
+                      <div style={{ ...card("18px 12px"), background:"#F5F3FF", border:`1px solid ${C.primary}30`, borderRadius:8, textAlign:"center" }}>
+                        <div style={{ fontSize:28, marginBottom:8 }}>🎬</div>
+                        <div style={{ fontSize:12, color:C.text, fontFamily:FB, marginBottom:12, lineHeight:1.5 }}>
+                          {result.slides.length} slides ready<br/>
+                          <span style={{ fontSize:11, color:C.muted }}>~{result.slides.length * 4}s video</span>
+                        </div>
+                        <button onClick={createVideo} disabled={videoLoading}
+                          style={{ ...btn(videoLoading ? "#9CA3AF" : C.primary,"#fff",12), padding:"7px 18px",
+                            display:"inline-flex", alignItems:"center", gap:6 }}>
+                          {videoLoading && <div style={spin()} />}
+                          {videoLoading ? "Rendering…" : "Create Video"}
+                        </button>
+                        {videoLoading && (
+                          <div style={{ fontSize:10, color:C.muted, fontFamily:FB, marginTop:8 }}>
+                            Rendering {result.slides.length * 4}s of canvas frames…
+                          </div>
+                        )}
                       </div>
-                    </>
-                  ) : result.imageUrl ? (
-                    <div style={{ ...card("12px"), background:"#F3F4F6", textAlign:"center", color:C.muted, fontSize:12, fontFamily:FB, borderRadius:8 }}>
-                      Compositing…
-                    </div>
-                  ) : result.dalleError ? (
-                    <div style={{ ...card("10px 12px"), background:"#FEF2F2", border:"1px solid #FECACA", fontSize:11, color:C.err, fontFamily:FB, borderRadius:8 }}>
-                      <strong>Image failed:</strong> {result.dalleError}
-                      <div style={{ fontSize:10, color:"#9CA3AF", marginTop:4 }}>
-                        Check OpenAI Project settings → enable image generation
+                    )}
+                  </div>
+
+                  {/* Slides + caption */}
+                  <div style={{ display:"flex", flexDirection:"column", gap:10 }}>
+                    {/* Slide list */}
+                    <div style={{ ...card("10px 12px"), background:"#FAFAFA", border:`1px solid ${C.border}` }}>
+                      <div style={{ fontSize:10, fontWeight:700, color:C.muted, fontFamily:FB, textTransform:"uppercase", letterSpacing:"0.05em", marginBottom:8 }}>
+                        Slides
+                      </div>
+                      <div style={{ display:"flex", flexDirection:"column", gap:6 }}>
+                        {result.slides.map((sl, i) => (
+                          <div key={i} style={{ display:"flex", gap:8, alignItems:"flex-start" }}>
+                            <span style={{ fontSize:10, fontWeight:700, color:C.primary, fontFamily:FB, minWidth:18, paddingTop:1 }}>{i + 1}</span>
+                            <div>
+                              <div style={{ fontSize:12, fontWeight:600, color:C.text, fontFamily:FH }}>{sl.headline}</div>
+                              {sl.subtext && <div style={{ fontSize:11, color:C.muted, fontFamily:FB, marginTop:1 }}>{sl.subtext}</div>}
+                            </div>
+                          </div>
+                        ))}
                       </div>
                     </div>
-                  ) : null}
+                    {/* Caption */}
+                    <div style={{ ...card("10px 12px"), background:"#F0FDF4", border:`1px solid ${C.ok}25` }}>
+                      <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:6 }}>
+                        <span style={{ fontSize:10, fontWeight:700, color:C.ok, fontFamily:FB, textTransform:"uppercase", letterSpacing:"0.05em" }}>Caption</span>
+                        <button onClick={copyText} style={{ ...btn(copied ? C.ok : "#6B7280","#fff",10), padding:"3px 10px" }}>
+                          {copied ? "✓ Copied" : "Copy text"}
+                        </button>
+                      </div>
+                      <p style={{ fontSize:12, color:"#374151", fontFamily:FB, lineHeight:1.6, marginBottom: result.hashtags ? 4 : 0 }}>
+                        {result.body || result.caption}
+                      </p>
+                      {result.hashtags && <p style={{ fontSize:11, color:C.muted, fontFamily:FB }}>{result.hashtags}</p>}
+                    </div>
+                  </div>
                 </div>
               )}
 
-              {/* ── Text column ── */}
-              <div>
-                {result.captionError && (
-                  <div style={{ fontSize:11, color:"#92400E", fontFamily:FB, marginBottom:8, background:"#FFFBEB", padding:"6px 10px", borderRadius:6 }}>
-                    OpenAI failed — Claude fallback used
-                  </div>
-                )}
-                <div style={{ ...card("12px 14px"), background:"#F0FDF4", border:`1px solid ${C.ok}25` }}>
-                  <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:8 }}>
-                    <span style={{ fontSize:10, fontWeight:700, color:C.ok, fontFamily:FB, textTransform:"uppercase", letterSpacing:"0.05em" }}>
-                      {channelOpt?.label || channel} copy
-                    </span>
-                    <div style={{ display:"flex", gap:6, alignItems:"center" }}>
-                      <span style={{ fontSize:9, color:C.muted, fontFamily:FB }}>{result.captionSource}</span>
-                      <button onClick={copyText}
-                        style={{ ...btn(copied ? C.ok : "#6B7280","#fff",10), padding:"3px 10px" }}>
-                        {copied ? "✓ Copied" : "Copy text"}
-                      </button>
+              {/* ── Static image result ── */}
+              {!result.isVideo && (
+                <div style={{ display:"grid", gridTemplateColumns: (hasImage && (composedUrl || result.imageUrl)) ? "260px 1fr" : "1fr", gap:16, alignItems:"start" }}>
+                  {/* Image column */}
+                  {hasImage && (
+                    <div>
+                      {composedUrl ? (
+                        <>
+                          <img src={composedUrl} alt="Generated post" style={{ width:"100%", borderRadius:8, display:"block", marginBottom:8 }} />
+                          <div style={{ display:"flex", gap:6, alignItems:"center" }}>
+                            <button onClick={downloadImage}
+                              style={{ ...btn(C.ok,"#fff",11), padding:"5px 0", flex:1, textAlign:"center" }}>
+                              ↓ Download PNG
+                            </button>
+                            <span style={{
+                              fontSize:9, fontWeight:700, fontFamily:FB, padding:"5px 8px", borderRadius:6,
+                              background: (SRC_CLR[result.imageSource] || C.muted) + "20",
+                              color: SRC_CLR[result.imageSource] || C.muted,
+                              textTransform:"uppercase", letterSpacing:"0.04em",
+                            }}>
+                              {SRC_BADGE[result.imageSource] || result.imageSource}
+                            </span>
+                          </div>
+                        </>
+                      ) : result.imageUrl ? (
+                        <div style={{ ...card("12px"), background:"#F3F4F6", textAlign:"center", color:C.muted, fontSize:12, fontFamily:FB, borderRadius:8 }}>
+                          Compositing…
+                        </div>
+                      ) : result.dalleError ? (
+                        <div style={{ ...card("10px 12px"), background:"#FEF2F2", border:"1px solid #FECACA", fontSize:11, color:C.err, fontFamily:FB, borderRadius:8 }}>
+                          <strong>Image failed:</strong> {result.dalleError}
+                          <div style={{ fontSize:10, color:"#9CA3AF", marginTop:4 }}>
+                            Check OpenAI Project settings → enable image generation
+                          </div>
+                        </div>
+                      ) : null}
+                    </div>
+                  )}
+
+                  {/* Text column */}
+                  <div>
+                    {result.captionError && (
+                      <div style={{ fontSize:11, color:"#92400E", fontFamily:FB, marginBottom:8, background:"#FFFBEB", padding:"6px 10px", borderRadius:6 }}>
+                        OpenAI failed — Claude fallback used
+                      </div>
+                    )}
+                    <div style={{ ...card("12px 14px"), background:"#F0FDF4", border:`1px solid ${C.ok}25` }}>
+                      <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:8 }}>
+                        <span style={{ fontSize:10, fontWeight:700, color:C.ok, fontFamily:FB, textTransform:"uppercase", letterSpacing:"0.05em" }}>
+                          {channelOpt?.label || channel} copy
+                        </span>
+                        <div style={{ display:"flex", gap:6, alignItems:"center" }}>
+                          <span style={{ fontSize:9, color:C.muted, fontFamily:FB }}>{result.captionSource}</span>
+                          <button onClick={copyText}
+                            style={{ ...btn(copied ? C.ok : "#6B7280","#fff",10), padding:"3px 10px" }}>
+                            {copied ? "✓ Copied" : "Copy text"}
+                          </button>
+                        </div>
+                      </div>
+                      <p style={{ fontSize:13, color:"#374151", fontFamily:FB, lineHeight:1.65, marginBottom: result.hashtags ? 6 : 0, whiteSpace:"pre-wrap" }}>
+                        {result.body || result.caption}
+                      </p>
+                      {result.hashtags && (
+                        <p style={{ fontSize:11, color:C.muted, fontFamily:FB }}>{result.hashtags}</p>
+                      )}
                     </div>
                   </div>
-                  <p style={{ fontSize:13, color:"#374151", fontFamily:FB, lineHeight:1.65, marginBottom: result.hashtags ? 6 : 0, whiteSpace:"pre-wrap" }}>
-                    {result.body || result.caption}
-                  </p>
-                  {result.hashtags && (
-                    <p style={{ fontSize:11, color:C.muted, fontFamily:FB }}>{result.hashtags}</p>
-                  )}
                 </div>
-              </div>
+              )}
             </div>
           )}
         </div>

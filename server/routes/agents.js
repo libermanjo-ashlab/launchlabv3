@@ -607,6 +607,35 @@ router.post("/:businessId/campaigns/task-content", requireAuth, async (req, res,
     const isVideoTask      = stepsData[0]?.isVideoTask      || /\bfilm\b|\brecord\b|\bshoot\b|\bedit\s+(and|the)\b|\bvoiceover\b|\bscreencast\b|\bslideshow\b/i.test(taskText);
     const isEngagementTask = stepsData[0]?.isEngagementTask || /\bengage\s+with\b|\bfollow\s+(\d+|targeted|accounts)\b|\blike\s+\d+\b|\bcomment\s+on\b|\bdm\b|\bdirect\s+message\b|\bmanually\s+(engage|follow|like)\b/i.test(taskText);
 
+    // TikTok video tasks → generate actual slide content for the slideshow builder
+    const VIDEO_SLIDE_CHANNELS = new Set(["tiktok"]);
+    if (isVideoTask && VIDEO_SLIDE_CHANNELS.has(ch) && process.env.OPENAI_API_KEY) {
+      log.info("CONTENT", "TikTok video task — generating slides", { taskName: task.name });
+      try {
+        const imgGen = require("../services/imageGen");
+        const appUrl = log.getAppUrl();
+        const { slides, captionBody, hashtags } = await openaiSvc.generateSlideContent({
+          businessName: biz.name, context: task.name, brandIdentity: brandId, channel: ch,
+        });
+        let imageUrl = null, imageSource = null, dalleError = null;
+        try {
+          const { buf, model } = await openaiSvc.generatePostImage(biz.name, task.name, brandId);
+          const imageId = imgGen.storeImage(buf);
+          imageUrl = `${appUrl}/api/instagram/images/${imageId}`;
+          imageSource = model;
+        } catch(imgErr) {
+          dalleError = imgErr.message;
+        }
+        return res.json({ content: {
+          channel: ch, isVideo: true,
+          slides, body: captionBody, caption: captionBody, hashtags,
+          imageUrl, imageSource, dalleError,
+        }});
+      } catch(slideErr) {
+        log.error("CONTENT", "Slide generation failed — falling back to guidance", { error: slideErr.message });
+      }
+    }
+
     if (isVideoTask || isEngagementTask) {
       log.info("CONTENT", "Guided task detected — generating strategy", { taskName: task.name, isVideoTask, isEngagementTask });
       const guidance = process.env.OPENAI_API_KEY
@@ -803,8 +832,53 @@ router.post("/:businessId/content-lab", requireAuth, async (req, res, next) => {
     if (!biz) return res.status(404).json({ error:"Business not found" });
 
     const { channel = "instagram", context = "value tip post", tone = "professional" } = req.body;
+    const VIDEO_CHANNELS = new Set(["tiktok"]);
+    const isVideo = VIDEO_CHANNELS.has(channel);
     let idea = {}; try { idea = JSON.parse(biz.ideaData||"{}"); } catch {}
     const brandId = await getBrandIdentity(req.params.businessId);
+    const imgGen = require("../services/imageGen");
+    const appUrl = log.getAppUrl();
+
+    // ── Background image (shared by both paths) ───────────────────────────────
+    let imageUrl = null, imageSource = null, dalleError = null;
+    const needsImage = ["instagram","twitter","linkedin","tiktok","google","facebook","general"].includes(channel);
+    if (needsImage && process.env.OPENAI_API_KEY) {
+      try {
+        const { buf: imgBuf, model: imgModel } = await openaiSvc.generatePostImage(biz.name, context, brandId);
+        const imageId = imgGen.storeImage(imgBuf);
+        imageUrl = `${appUrl}/api/instagram/images/${imageId}`;
+        imageSource = imgModel;
+        log.info("CONTENT-LAB", "Background image generated", { model: imgModel, channel });
+      } catch(e) {
+        dalleError = e.message || String(e);
+        log.error("CONTENT-LAB", "Image generation failed", { error: dalleError });
+        const imageId = await imgGen.generatePostImage(biz.name, context);
+        imageUrl = `${appUrl}/api/instagram/images/${imageId}`;
+        imageSource = "svg_fallback";
+      }
+    } else if (needsImage) {
+      dalleError = "OPENAI_API_KEY is not set";
+      const imageId = await imgGen.generatePostImage(biz.name, context);
+      imageUrl = `${appUrl}/api/instagram/images/${imageId}`;
+      imageSource = "svg_no_openai";
+    }
+
+    // ── Video (TikTok etc.): generate slides ──────────────────────────────────
+    if (isVideo && process.env.OPENAI_API_KEY) {
+      try {
+        const { slides, captionBody, hashtags } = await openaiSvc.generateSlideContent({
+          businessName: biz.name, context, brandIdentity: brandId, channel,
+        });
+        return res.json({
+          channel, isVideo: true,
+          slides, body: captionBody, caption: captionBody, hashtags,
+          imageUrl, imageSource, dalleError,
+          hasOpenAIKey: !!process.env.OPENAI_API_KEY,
+        });
+      } catch(slideErr) {
+        log.error("CONTENT-LAB", "generateSlideContent failed — falling back to caption", { error: slideErr.message });
+      }
+    }
 
     // ── Caption (channel-appropriate) ─────────────────────────────────────────
     const ig = require("../services/instagram");
@@ -829,48 +903,13 @@ router.post("/:businessId/content-lab", requireAuth, async (req, res, next) => {
       captionResult = await ig.generateCaption(biz.name, idea.name, context, tone, {});
     }
 
-    // ── Image ────────────────────────────────────────────────────────────────
-    const imgGen = require("../services/imageGen");
-    const appUrl = log.getAppUrl();
-    let imageUrl = null, imageSource = null, dalleError = null;
-
-    const needsImage = ["instagram","twitter","linkedin","tiktok","google","facebook","general"].includes(channel);
-    if (needsImage) {
-      if (process.env.OPENAI_API_KEY) {
-        log.info("CONTENT-LAB", "Attempting image generation", {
-          businessId: req.params.businessId, channel,
-          keyPrefix: process.env.OPENAI_API_KEY.slice(0, 10),
-        });
-        try {
-          const { buf: imgBuf, model: imgModel } = await openaiSvc.generatePostImage(biz.name, captionResult?.body || context, brandId);
-          const imageId = imgGen.storeImage(imgBuf);
-          imageUrl = `${appUrl}/api/instagram/images/${imageId}`;
-          imageSource = imgModel;
-          log.info("CONTENT-LAB", "Image generation success", { model: imgModel, bytes: imgBuf.length, imageUrl });
-        } catch(e) {
-          dalleError = e.message || String(e);
-          log.error("CONTENT-LAB", "Image generation failed", {
-            error: dalleError, status: e.status, code: e.code,
-          });
-          const imageId = await imgGen.generatePostImage(biz.name, context);
-          imageUrl = `${appUrl}/api/instagram/images/${imageId}`;
-          imageSource = "svg_fallback";
-        }
-      } else {
-        dalleError = "OPENAI_API_KEY is not set — add it to Railway environment variables";
-        const imageId = await imgGen.generatePostImage(biz.name, context);
-        imageUrl = `${appUrl}/api/instagram/images/${imageId}`;
-        imageSource = "svg_no_openai";
-      }
-    }
-
     return res.json({
       channel,
-      caption:       captionResult?.caption || null,
-      body:          captionResult?.body    || null,
-      hashtags:      captionResult?.hashtags || null,
+      caption:  captionResult?.caption || null,
+      body:     captionResult?.body    || null,
+      hashtags: captionResult?.hashtags || null,
       imageUrl, imageSource, dalleError, captionError, captionSource,
-      hasOpenAIKey:  !!process.env.OPENAI_API_KEY,
+      hasOpenAIKey: !!process.env.OPENAI_API_KEY,
     });
   } catch(e) { next(e); }
 });

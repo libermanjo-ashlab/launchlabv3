@@ -438,6 +438,56 @@ Return valid JSON with EXACTLY these fields (no extras, no markdown):
 }
 
 /**
+ * Generate slide content for a video slideshow (TikTok/Reels/video tasks).
+ * Returns { slides: [{ headline, subtext }], captionBody, hashtags }
+ * Slides follow the Hook → Problem → Solution → Proof → CTA structure.
+ */
+async function generateSlideContent({ businessName, context, brandIdentity, channel }) {
+  const client = getClient();
+  const bi       = brandIdentity || {};
+  const voice    = bi.voice    || "confident, direct";
+  const bizType  = bi.businessType || bi.businessCategory || "service business";
+  const audience = bi.targetAudience || "potential customers";
+
+  const t0 = Date.now();
+  try {
+    const msg = await client.chat.completions.create({
+      model: "gpt-4o",
+      max_tokens: 600,
+      response_format: { type: "json_object" },
+      messages: [
+        {
+          role: "system",
+          content: `You are a social video copywriter for ${businessName}, a ${bizType}. Voice: ${voice}. Target: ${audience}. Write punchy, scroll-stopping slide text. Respond with JSON only.`,
+        },
+        {
+          role: "user",
+          content: `Create a ${channel || "TikTok"} slideshow for: "${context}"
+
+Return JSON with:
+- "slides": array of exactly 5 slides, each { "headline": "max 8 words, ALL CAPS ok", "subtext": "optional 1 sentence detail or empty string" }
+  Structure: [Hook, Problem/Insight, Solution, Social Proof/Example, CTA]
+- "captionBody": 1-2 sentence caption for the post description
+- "hashtags": 5-8 relevant hashtags as a single string
+
+Keep headlines punchy — these are the words appearing on screen.`,
+        },
+      ],
+    });
+    const parsed = JSON.parse(msg.choices[0]?.message?.content || "{}");
+    log.info("SLIDES", "Slide content generated", { context: context?.slice(0, 60), ms: Date.now() - t0, slideCount: parsed.slides?.length });
+    return {
+      slides:      Array.isArray(parsed.slides) ? parsed.slides.slice(0, 5) : [],
+      captionBody: parsed.captionBody || "",
+      hashtags:    parsed.hashtags    || "",
+    };
+  } catch (err) {
+    log.error("SLIDES", "generateSlideContent failed", { error: err.message });
+    throw err;
+  }
+}
+
+/**
  * Generate step-by-step guidance for tasks that can't be automated via API
  * (engagement, follow/DM, video production). Returns { why, steps, tips }.
  */
@@ -490,6 +540,7 @@ Return JSON with:
 module.exports = {
   generateInstagramCaption,
   generateChannelCaption,
+  generateSlideContent,
   generateTaskGuidance,
   generatePostImage,
   populateBrandIdentityFromData,
