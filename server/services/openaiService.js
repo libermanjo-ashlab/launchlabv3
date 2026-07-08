@@ -200,55 +200,30 @@ async function generateChannelCaption({ businessName, channel, context, brandIde
  * Build a rich, brand-specific DALL-E 3 prompt from brand identity and caption.
  */
 function buildImagePrompt(businessName, captionBody, brandIdentity) {
-  const bi = brandIdentity || {};
-  const visualStyle  = bi.visualStyle  || "clean, modern, professional";
-  const palette      = bi.colorPalette || "deep purple and navy";
-  const audience     = bi.targetAudience || "professionals";
-  const voice        = bi.voice        || "professional";
-  const unique       = bi.uniqueAngle  || "";
-  const pillars      = Array.isArray(bi.contentPillars) ? bi.contentPillars[0] || "" : "";
-  const bizType      = bi.businessType || bi.businessCategory || "service business";
+  const bi          = brandIdentity || {};
+  const palette     = bi.colorPalette || "deep purple and navy";
+  const voice       = bi.voice        || "professional";
+  const bizType     = bi.businessType || bi.businessCategory || "service business";
+  const visualStyle = bi.visualStyle  || "clean, modern, professional";
 
-  // Extract the core concept from caption (first sentence, before any hashtag)
-  const firstSentence = (captionBody || "")
-    .split(/[.!?\n]/)[0]?.replace(/#\w+/g, "").trim() || "";
-  const concept = firstSentence.slice(0, 120);
-
-  // Mood words derived from voice/tone
   const moodMap = {
     educational: "informative, trustworthy",
     bold:        "striking, high-contrast",
     warm:        "inviting, soft-lit",
-    minimal:     "whitespace-heavy, refined",
+    minimal:     "refined, airy",
     professional:"polished, executive",
     creative:    "artistic, dynamic",
-    direct:      "no-nonsense, clear",
+    direct:      "bold, clear",
   };
-  const voiceWords = voice.toLowerCase().split(/[,\s]+/);
-  const mood = voiceWords.map(w => moodMap[w]).filter(Boolean)[0] || "polished, professional";
+  const mood = voice.toLowerCase().split(/[,\s]+/).map(w => moodMap[w]).filter(Boolean)[0] || "polished, professional";
 
-  return `Professional Instagram post image for "${businessName}", a ${bizType}.
+  const concept = (captionBody || "").split(/[.!?\n]/)[0]?.replace(/#\w+/g, "").trim().slice(0, 80) || "";
 
-VISUAL REQUIREMENTS:
-- Style: ${visualStyle}
-- Color palette: ${palette}
-- Mood: ${mood}
-- 1:1 square format (1024×1024), Instagram-ready
-- Clean gradient background in ${palette}
-- Central frosted/translucent text card with space for a headline
-- Geometric accent elements (circles, abstract lines) for depth
-- Bold, readable typography area — NO actual text rendered
-- NO stock photography, NO generic office scenes, NO clipart
-- NO people unless critically relevant
-
-BRAND CONTEXT:
-- Business: ${businessName} (${bizType})
-- Audience: ${audience}
-${unique ? `- Differentiator: ${unique}` : ""}
-${pillars ? `- Content theme: ${pillars}` : ""}
-${concept ? `- Post concept to visualize: ${concept}` : ""}
-
-OUTPUT: A single, publication-ready social media image that feels premium and brand-consistent. The design should communicate ${concept || "expertise and trustworthiness"} through composition and color alone.`;
+  return `Abstract background image for an Instagram post. Color palette: ${palette}. Style: ${visualStyle}, ${mood}. \
+Business type: ${bizType}.${concept ? ` Theme: ${concept}.` : ""} \
+1:1 square, 1024×1024. Abstract gradient, geometric shapes, or texture pattern. \
+NO text, NO words, NO typography. NO people, NO logos, NO stock photography. \
+Soft and uncluttered — designed as a background that will have text overlaid on top.`;
 }
 
 /**

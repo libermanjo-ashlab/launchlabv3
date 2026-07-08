@@ -67,16 +67,15 @@ function wrapLines(ctx, text, maxWidth, maxLines) {
  * Generate a 1080×1080 branded post image as a PNG Blob.
  * Renders entirely in the browser so system fonts are always available.
  *
- * @param {string} businessName  — used for palette + name label
- * @param {string} [captionBody] — caption text (first sentence displayed as headline)
+ * @param {string} businessName    — used for palette + name label
+ * @param {string} [captionBody]   — caption text (first sentence displayed as headline)
+ * @param {string} [backgroundUrl] — optional AI-generated background to draw behind the text overlay
  * @returns {Promise<Blob>}
  */
-export async function generatePostImageBlob(businessName, captionBody = "") {
-  // Mix businessName with a random nonce so each post gets unique geometry
-  // (previously seeded by businessName alone → identical image every time)
+export async function generatePostImageBlob(businessName, captionBody = "", backgroundUrl = null) {
   const nonce = Math.random().toString(36).slice(2, 8);
   const seed  = `${businessName}:${nonce}`;
-  console.log(`[CANVAS] generatePostImageBlob — businessName="${businessName}" nonce=${nonce} captionBodyLen=${captionBody?.length}`);
+  console.log(`[CANVAS] generatePostImageBlob — businessName="${businessName}" nonce=${nonce} captionBodyLen=${captionBody?.length} hasBackground=${!!backgroundUrl}`);
 
   const W = 1080, H = 1080;
   const canvas = document.createElement("canvas");
@@ -85,46 +84,65 @@ export async function generatePostImageBlob(businessName, captionBody = "") {
   const ctx = canvas.getContext("2d");
   const r = seededRng(seed);
 
-  // Gradient background — palette picked from business name (stable brand color)
-  const [c1, c2] = pickPalette(businessName);
-  const grad = ctx.createLinearGradient(0, 0, W, H);
-  grad.addColorStop(0, c1);
-  grad.addColorStop(1, c2);
-  ctx.fillStyle = grad;
-  ctx.fillRect(0, 0, W, H);
+  if (backgroundUrl) {
+    // Draw AI-generated background image; fall back to gradient if it fails to load
+    try {
+      const img = await new Promise((resolve, reject) => {
+        const el = new Image();
+        el.crossOrigin = "anonymous";
+        el.onload  = () => resolve(el);
+        el.onerror = () => reject(new Error("bg load failed"));
+        el.src = backgroundUrl;
+      });
+      ctx.drawImage(img, 0, 0, W, H);
+    } catch {
+      console.warn("[CANVAS] Background image failed to load — falling back to gradient");
+      backgroundUrl = null;
+    }
+  }
 
-  // Geometric accents — same layout algorithm as server imageGen.js
-  ctx.fillStyle = "rgba(255,255,255,0.06)";
-  ctx.beginPath();
-  ctx.arc(r(680, 950), r(60, 260), r(180, 280), 0, Math.PI * 2);
-  ctx.fill();
+  if (!backgroundUrl) {
+    // Gradient background — palette picked from business name
+    const [c1, c2] = pickPalette(businessName);
+    const grad = ctx.createLinearGradient(0, 0, W, H);
+    grad.addColorStop(0, c1);
+    grad.addColorStop(1, c2);
+    ctx.fillStyle = grad;
+    ctx.fillRect(0, 0, W, H);
 
-  ctx.fillStyle = "rgba(255,255,255,0.04)";
-  ctx.beginPath();
-  ctx.arc(r(80, 300), r(680, 900), r(100, 170), 0, Math.PI * 2);
-  ctx.fill();
+    // Geometric accents
+    ctx.fillStyle = "rgba(255,255,255,0.06)";
+    ctx.beginPath();
+    ctx.arc(r(680, 950), r(60, 260), r(180, 280), 0, Math.PI * 2);
+    ctx.fill();
 
-  ctx.strokeStyle = "rgba(255,255,255,0.07)";
-  ctx.lineWidth = 1.5;
-  ctx.beginPath();
-  ctx.arc(r(480, 580), r(420, 560), r(180, 250), 0, Math.PI * 2);
-  ctx.stroke();
+    ctx.fillStyle = "rgba(255,255,255,0.04)";
+    ctx.beginPath();
+    ctx.arc(r(80, 300), r(680, 900), r(100, 170), 0, Math.PI * 2);
+    ctx.fill();
 
-  ctx.fillStyle = "rgba(255,255,255,0.12)";
-  roundRectPath(ctx, r(60, 110), r(60, 110), 28, 28, 5);
-  ctx.fill();
+    ctx.strokeStyle = "rgba(255,255,255,0.07)";
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.arc(r(480, 580), r(420, 560), r(180, 250), 0, Math.PI * 2);
+    ctx.stroke();
 
-  ctx.fillStyle = "rgba(255,255,255,0.07)";
-  roundRectPath(ctx, r(120, 180), r(70, 130), 16, 16, 3);
-  ctx.fill();
+    ctx.fillStyle = "rgba(255,255,255,0.12)";
+    roundRectPath(ctx, r(60, 110), r(60, 110), 28, 28, 5);
+    ctx.fill();
 
-  ctx.strokeStyle = "rgba(255,255,255,0.14)";
-  ctx.lineWidth = 2.5;
-  ctx.lineCap = "round";
-  ctx.beginPath();
-  ctx.moveTo(r(820, 920), r(680, 780));
-  ctx.lineTo(r(880, 980), r(800, 900));
-  ctx.stroke();
+    ctx.fillStyle = "rgba(255,255,255,0.07)";
+    roundRectPath(ctx, r(120, 180), r(70, 130), 16, 16, 3);
+    ctx.fill();
+
+    ctx.strokeStyle = "rgba(255,255,255,0.14)";
+    ctx.lineWidth = 2.5;
+    ctx.lineCap = "round";
+    ctx.beginPath();
+    ctx.moveTo(r(820, 920), r(680, 780));
+    ctx.lineTo(r(880, 980), r(800, 900));
+    ctx.stroke();
+  }
 
   const fontStack = '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif';
 

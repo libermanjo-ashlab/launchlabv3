@@ -375,11 +375,12 @@ function CampaignTaskRow({ task:t, mode, channel, businessId, businessName, onCo
       console.log(`[TASK:getContent] Server response — channel=${c?.channel} imageSource=${c?.imageSource} hasImageUrl=${!!c?.imageUrl} captionLen=${c?.caption?.length || 0}`);
       if (c?.dalleError) console.error(`[TASK:getContent] DALL-E error: ${c.dalleError}`);
 
-      // For Instagram tasks, replace server-generated image with Canvas-rendered one
+      // For Instagram tasks, composite canvas text over AI background (or gradient fallback)
       if (c?.caption && (channel === "instagram" || /instagram/i.test(t.name))) {
-        console.log(`[TASK:getContent] Generating Canvas image — businessName="${businessName || "Business"}" captionLen=${(c.body || c.caption)?.length}`);
+        const bgUrl = c?.imageUrl && c?.imageSource?.startsWith("gpt-image") ? c.imageUrl : null;
+        console.log(`[TASK:getContent] Generating Canvas image — businessName="${businessName || "Business"}" captionLen=${(c.body || c.caption)?.length} bgSource=${bgUrl ? c.imageSource : "gradient"}`);
         try {
-          const blob = await generatePostImageBlob(businessName || "Business", c.body || c.caption);
+          const blob = await generatePostImageBlob(businessName || "Business", c.body || c.caption, bgUrl);
           console.log(`[TASK:getContent] Canvas blob generated — size=${blob.size} type=${blob.type}`);
           const { imageUrl } = await api.instagram.uploadImage(blob);
           console.log(`[TASK:getContent] Canvas image uploaded — imageUrl=${imageUrl}`);
@@ -608,13 +609,14 @@ function CampaignCard({ campaign:c, onUpdate, onDelete, businessId, businessName
           lastCaption = output.body || output.caption;
         }
 
-        // For Instagram prep tasks with no canvas image yet: generate one client-side for display
+        // For Instagram prep tasks with no canvas image yet: composite canvas text over AI background
         if (campChannel === "instagram" && output?.caption && !runBody.imageUrl) {
           try {
-            const blob = await generatePostImageBlob(businessName || "Business", output.body || output.caption);
+            const bgUrl = output?.imageUrl && output?.imageSource?.startsWith("gpt-image") ? output.imageUrl : null;
+            const blob = await generatePostImageBlob(businessName || "Business", output.body || output.caption, bgUrl);
             const { imageUrl: canvasUrl } = await api.instagram.uploadImage(blob);
             output = { ...output, imageUrl: canvasUrl, imageSource: "canvas" };
-            console.log(`[AUTOPILOT:runTasksAuto] Canvas display image generated for prep task "${task.name}" — url=${canvasUrl}`);
+            console.log(`[AUTOPILOT:runTasksAuto] Canvas display image generated for prep task "${task.name}" — url=${canvasUrl} bgSource=${bgUrl ? output.imageSource : "gradient"}`);
           } catch(displayErr) {
             console.warn(`[AUTOPILOT:runTasksAuto] Canvas display image failed for "${task.name}" — ${displayErr.message}`);
           }
@@ -834,10 +836,11 @@ function ImplementResult({ result, businessId, businessName }) {
     if (!result?.caption) return;
     let cancelled = false;
     const effectiveName = businessName || "Business";
-    console.log(`[IMPLEMENT:canvas] Starting Canvas image generation — businessName="${effectiveName}" captionLen=${(result.body || result.caption)?.length} serverImageSource=${result.imageSource || "unknown"} serverImageUrl=${result.imageUrl || "none"}`);
+    const bgUrl = result?.imageUrl && result?.imageSource?.startsWith("gpt-image") ? result.imageUrl : null;
+    console.log(`[IMPLEMENT:canvas] Starting Canvas image generation — businessName="${effectiveName}" captionLen=${(result.body || result.caption)?.length} bgSource=${bgUrl ? result.imageSource : "gradient"}`);
     (async () => {
       try {
-        const blob = await generatePostImageBlob(effectiveName, result.body || result.caption);
+        const blob = await generatePostImageBlob(effectiveName, result.body || result.caption, bgUrl);
         console.log(`[IMPLEMENT:canvas] Blob generated — size=${blob.size} type=${blob.type}`);
         const { imageUrl } = await api.instagram.uploadImage(blob);
         console.log(`[IMPLEMENT:canvas] Upload complete — imageUrl=${imageUrl}`);
