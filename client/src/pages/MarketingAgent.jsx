@@ -36,34 +36,90 @@ function spin() {
 
 // ── Mode Toggle ───────────────────────────────────────────────────────────────
 
-function ModeToggle({ mode, onChange, allowedModes, planLockedMsg }) {
+const PLAN_TIERS_MA = [
+  { id:"starter", name:"Starter", price:39, color:"#6366F1", tagline:"Insights, reports, and manual tracking.", features:["Unlimited marketing insights","Revenue & lead tracking","Business planning tools","Email support"] },
+  { id:"pro", name:"Pro", price:89, color:"#7C3AED", popular:true, tagline:"Agents act on your request.", features:["Everything in Starter","Management agent implements changes","Live website updates on demand","Marketing + Management agents work together","Priority support"] },
+  { id:"pro_autopilot", name:"Pro Autopilot", price:199, color:"#DB2777", tagline:"Fully autonomous — just watch it run.", features:["Everything in Pro","Agents run on their own schedule","Zero manual input required","White-glove onboarding","Dedicated support"] },
+];
+
+function PlansModalMA({ onClose, highlightPlan }) {
+  const navigate = useNavigate();
+  return (
+    <div style={{ position:"fixed", inset:0, zIndex:400, display:"flex", alignItems:"center", justifyContent:"center", background:"rgba(0,0,0,0.65)", padding:16 }}
+      onClick={onClose}>
+      <div onClick={e=>e.stopPropagation()} style={{ background:"#0F0E17", borderRadius:20, maxWidth:960, width:"100%", maxHeight:"90vh", overflowY:"auto", padding:"36px 28px", boxShadow:"0 24px 80px rgba(0,0,0,0.5)" }}>
+        <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", marginBottom:28 }}>
+          <div>
+            <div style={{ fontSize:11, fontWeight:700, color:"#F59E0B", textTransform:"uppercase", letterSpacing:"0.1em", fontFamily:FB, marginBottom:8 }}>PLANS</div>
+            <div style={{ fontFamily:FH, fontWeight:700, fontSize:"clamp(22px,3vw,32px)", color:"#fff", letterSpacing:"-0.04em" }}>Start free. Upgrade when you're ready.</div>
+            <p style={{ fontSize:13, color:"rgba(255,255,255,0.45)", fontFamily:FB, marginTop:6 }}>7-day free trial on all plans. No credit card required to start.</p>
+          </div>
+          <button onClick={onClose} style={{ background:"rgba(255,255,255,0.08)", border:"none", color:"rgba(255,255,255,0.5)", fontSize:20, cursor:"pointer", borderRadius:8, width:36, height:36, display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0, marginLeft:16 }}>×</button>
+        </div>
+        <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit,minmax(260px,1fr))", gap:16 }}>
+          {PLAN_TIERS_MA.map(t=>(
+            <div key={t.id} style={{ background:"rgba(255,255,255,0.04)", border:`1.5px solid ${(highlightPlan===t.id||t.popular)?t.color+"60":"rgba(255,255,255,0.1)"}`, borderRadius:16, padding:"24px 20px", position:"relative" }}>
+              {t.popular && <div style={{ position:"absolute", top:-11, left:"50%", transform:"translateX(-50%)", background:t.color, color:"#fff", fontSize:9, fontWeight:700, padding:"3px 12px", borderRadius:20, textTransform:"uppercase", letterSpacing:"0.06em", whiteSpace:"nowrap" }}>Most popular</div>}
+              <div style={{ fontSize:10, fontWeight:700, color:t.color, textTransform:"uppercase", letterSpacing:"0.08em", fontFamily:FB, marginBottom:8 }}>{t.name}</div>
+              <div style={{ display:"flex", alignItems:"baseline", gap:4, marginBottom:6 }}>
+                <span style={{ fontFamily:FH, fontWeight:700, fontSize:32, color:"#fff", letterSpacing:"-0.04em" }}>${t.price}</span>
+                <span style={{ fontSize:12, color:"rgba(255,255,255,0.3)", fontFamily:FB }}>/month</span>
+              </div>
+              <p style={{ fontSize:12, color:"rgba(255,255,255,0.4)", lineHeight:1.6, marginBottom:20, fontFamily:FB }}>{t.tagline}</p>
+              <ul style={{ margin:"0 0 24px", padding:0, listStyle:"none", display:"flex", flexDirection:"column", gap:8 }}>
+                {t.features.map(f=>(
+                  <li key={f} style={{ display:"flex", gap:8, fontSize:12, color:"rgba(255,255,255,0.55)", lineHeight:1.5, fontFamily:FB }}>
+                    <span style={{ color:t.color, fontWeight:700, flexShrink:0 }}>✓</span>{f}
+                  </li>
+                ))}
+              </ul>
+              <button onClick={()=>{ onClose(); navigate("/pricing"); }} style={{ background:t.popular?t.color:"transparent", color:"#fff", border:t.popular?"none":"1px solid rgba(255,255,255,0.15)", borderRadius:10, width:"100%", padding:"10px", fontSize:12, fontWeight:600, cursor:"pointer", fontFamily:FB }}>
+                Get started
+              </button>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function ModeToggle({ mode, onChange, allowedModes }) {
+  const [showPlans, setShowPlans] = useState(false);
+  const [highlightPlan, setHighlightPlan] = useState("pro");
   const opts = [
     { value:"manual",  label:"Manual",    desc:"Track your own work with general tips" },
-    { value:"guided",  label:"Guided",    desc:"Data-driven content, you implement manually" },
-    { value:"auto",    label:"Autopilot", desc:"Fully agentic — runs every 12h, executes campaigns" },
+    { value:"guided",  label:"Guided",    desc:"Data-driven content, you implement manually", minPlan:"pro" },
+    { value:"auto",    label:"Autopilot", desc:"Fully agentic — runs every 12h, executes campaigns", minPlan:"pro_autopilot" },
   ];
   const allowed = allowedModes || ["manual","guided","auto"];
   return (
-    <div>
-      <div style={{ display:"flex", background:"#F1F0EF", borderRadius:12, padding:3, gap:2, marginBottom:4 }}>
-        {opts.map(o=>{
-          const locked = !allowed.includes(o.value);
-          return (
-            <button key={o.value} title={locked ? (planLockedMsg||"Upgrade to unlock") : o.desc}
-              onClick={()=>{ if (!locked) onChange(o.value); }}
-              style={{ flex:1, padding:"8px 10px", borderRadius:9, border:"none",
-                cursor: locked ? "not-allowed" : "pointer",
-                fontFamily:FB, fontWeight:600, fontSize:12, transition:"all 0.15s", opacity: locked ? 0.35 : 1,
-                background: mode===o.value ? (o.value==="auto"?C.primary:o.value==="guided"?"#4F46E5":"#374151") : "transparent",
-                color: mode===o.value ? "#fff" : C.muted,
-                boxShadow: mode===o.value ? "0 1px 5px rgba(0,0,0,0.18)" : "none" }}>
-              {o.label}
-            </button>
-          );
-        })}
+    <>
+      <div>
+        <div style={{ display:"flex", background:"#F1F0EF", borderRadius:12, padding:3, gap:2, marginBottom:4 }}>
+          {opts.map(o=>{
+            const locked = !allowed.includes(o.value);
+            return (
+              <button key={o.value}
+                onClick={()=>{
+                  if (locked) { setHighlightPlan(o.minPlan||"pro"); setShowPlans(true); }
+                  else onChange(o.value);
+                }}
+                style={{ flex:1, padding:"8px 10px", borderRadius:9, border:"none", cursor:"pointer",
+                  fontFamily:FB, fontWeight:600, fontSize:12, transition:"all 0.15s",
+                  background: mode===o.value ? (o.value==="auto"?C.primary:o.value==="guided"?"#4F46E5":"#374151") : "transparent",
+                  color: locked ? "#9CA3AF" : mode===o.value ? "#fff" : C.muted,
+                  boxShadow: mode===o.value ? "0 1px 5px rgba(0,0,0,0.18)" : "none",
+                  position:"relative" }}>
+                {o.label}
+                {locked && <span style={{ position:"absolute", top:-6, right:-4, fontSize:8, background:"#7C3AED", color:"#fff", borderRadius:8, padding:"1px 4px", fontWeight:700 }}>PRO</span>}
+              </button>
+            );
+          })}
+        </div>
       </div>
-      {planLockedMsg && <div style={{ fontSize:10, color:C.muted, fontFamily:FB, marginBottom:14, paddingLeft:2 }}>{planLockedMsg}</div>}
-    </div>
+      {showPlans && <PlansModalMA highlightPlan={highlightPlan} onClose={()=>setShowPlans(false)} />}
+    </>
   );
 }
 
@@ -1296,6 +1352,7 @@ const SRC_CLR = {
 
 function ContentLab({ businessId, businessName, plan }) {
   const [open,           setOpen]           = useState(false);
+  const [showPlans,      setShowPlans]      = useState(false);
   const [channel,        setChannel]        = useState("instagram");
   const [context,        setContext]        = useState("");
   const [tone,           setTone]           = useState("professional");
@@ -1385,9 +1442,11 @@ function ContentLab({ businessId, businessName, plan }) {
   };
 
   return (
+    <>
+    {showPlans && <PlansModalMA highlightPlan="pro" onClose={()=>setShowPlans(false)} />}
     <div style={{ ...card("0"), marginBottom:20, overflow:"hidden", border:`1px solid ${C.primary}20`, borderRadius:12 }}>
       {/* Header */}
-      <button onClick={() => setOpen(o => !o)} style={{
+      <button onClick={() => isStarter ? setShowPlans(true) : setOpen(o => !o)} style={{
         width:"100%", border:"none", cursor:"pointer",
         background: open ? "#FAFAFA" : "linear-gradient(135deg,#F5F3FF 0%,#EFF6FF 100%)",
         display:"flex", alignItems:"center", justifyContent:"space-between",
@@ -1397,24 +1456,15 @@ function ContentLab({ businessId, businessName, plan }) {
           <div style={{ textAlign:"left" }}>
             <div style={{ fontFamily:FH, fontWeight:700, fontSize:15, color:C.text }}>Content Lab</div>
             <div style={{ fontSize:11, color:C.muted, fontFamily:FB, marginTop:1 }}>
-              Generate, preview & download branded content for any channel
+              {isStarter ? "Pro feature — upgrade to generate branded content" : "Generate, preview & download branded content for any channel"}
             </div>
           </div>
         </div>
-        <span style={{ fontSize:11, color:C.muted, fontFamily:FB }}>{open ? "▲" : "▼"}</span>
-      </button>
-
-      {open && isStarter && (
-        <div style={{ padding:"20px 18px", textAlign:"center" }}>
-          <div style={{ fontFamily:FH, fontWeight:600, fontSize:14, color:C.text, marginBottom:6 }}>Content Lab is a Pro feature</div>
-          <div style={{ fontSize:12, color:C.muted, fontFamily:FB, marginBottom:14, lineHeight:1.6 }}>
-            Generate branded content for any channel — images, captions, hashtags, and video scripts. Upgrade to Pro ($89/mo) to unlock.
-          </div>
-          <button onClick={()=>window.location.href="/pricing"} style={{ ...btn(C.primary,"#fff",12), padding:"7px 18px" }}>
-            Upgrade to Pro
-          </button>
+        <div style={{ display:"flex", alignItems:"center", gap:8 }}>
+          {isStarter && <span style={{ fontSize:9, fontWeight:700, background:"#7C3AED", color:"#fff", borderRadius:8, padding:"2px 8px", fontFamily:FB }}>PRO</span>}
+          {!isStarter && <span style={{ fontSize:11, color:C.muted, fontFamily:FB }}>{open ? "▲" : "▼"}</span>}
         </div>
-      )}
+      </button>
 
       {open && !isStarter && (
         <div style={{ padding:"16px 18px" }}>
@@ -1641,6 +1691,7 @@ function ContentLab({ businessId, businessName, plan }) {
         </div>
       )}
     </div>
+    </>
   );
 }
 
@@ -1875,18 +1926,15 @@ export default function AgentPanel({ businessId, businessName, metrics, planInfo
       {/* Mode toggle */}
       {(()=>{
         const plan = access?.effective?.plan;
-        let allowedModes, planLockedMsg;
+        let allowedModes;
         if (plan === "starter" || plan === "trial") {
           allowedModes = ["manual"];
-          planLockedMsg = "Guided and Autopilot modes require Pro or higher.";
         } else if (plan === "pro") {
           allowedModes = ["manual","guided"];
-          planLockedMsg = "Autopilot mode requires Pro Autopilot.";
         } else {
           allowedModes = ["manual","guided","auto"];
-          planLockedMsg = null;
         }
-        return <ModeToggle mode={agentMode} onChange={saveAgentMode} allowedModes={allowedModes} planLockedMsg={planLockedMsg} />;
+        return <ModeToggle mode={agentMode} onChange={saveAgentMode} allowedModes={allowedModes} />;
       })()}
 
       {/* 12h guided mode notification */}

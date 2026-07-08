@@ -657,7 +657,7 @@ function CampaignGroup({ title, tasks, businessId, outputs, onUpdate, onDelete, 
   );
 }
 
-function TasksPanel({ businessId, businessOutputs, hubNotes, stickyAssignments, onAssignSticky, onUnstickNote }) {
+function TasksPanel({ businessId, businessOutputs, hubNotes, stickyAssignments, onAssignSticky, onUnstickNote, onTasksChanged }) {
   const [tasks,      setTasks]      = useState([]);
   const [loading,    setLoading]    = useState(true);
   const [showAdd,    setShowAdd]    = useState(false);
@@ -670,12 +670,13 @@ function TasksPanel({ businessId, businessOutputs, hubNotes, stickyAssignments, 
     api.tasks.list(businessId).then(d => setTasks(d.tasks||[])).catch(()=>{}).finally(()=>setLoading(false));
   }, [businessId]);
 
-  const onAdd    = task  => setTasks(p => [...p, task]);
-  const onUpdate = task  => setTasks(p => p.map(t => t.id===task.id ? task : t));
+  const onAdd    = task  => { setTasks(p => [...p, task]); onTasksChanged?.(); };
+  const onUpdate = task  => { setTasks(p => p.map(t => t.id===task.id ? task : t)); onTasksChanged?.(); };
   const onDelete = async id => {
     await api.tasks.delete(id).catch(()=>{});
     setTasks(p => p.filter(t => t.id !== id));
     setSelected(p => { const n=new Set(p); n.delete(id); return n; });
+    onTasksChanged?.();
   };
 
   const toggleSelect = id => setSelected(p => {
@@ -706,6 +707,7 @@ function TasksPanel({ businessId, businessOutputs, hubNotes, stickyAssignments, 
         setTasks(p => p.map(t => ids.includes(t.id) ? { ...t, status:"pending" } : t));
       }
       setSelected(new Set());
+      onTasksChanged?.();
     } catch (e) { alert(e.message); }
     setBulkBusy(false);
   };
@@ -903,18 +905,87 @@ function TasksPanel({ businessId, businessOutputs, hubNotes, stickyAssignments, 
 
 // ── HUB / INTEGRATIONS ────────────────────────────────────────────────────────
 
-function AutopilotToggle({ on, onToggle, label, disabled }) {
+// ── Inline plans upgrade modal ────────────────────────────────────────────────
+const PLAN_TIERS = [
+  {
+    id:"starter", name:"Starter", price:39, color:"#6366F1",
+    tagline:"Insights, reports, and manual tracking.",
+    features:["Unlimited marketing insights","Revenue & lead tracking","Business planning tools","Email support"],
+  },
+  {
+    id:"pro", name:"Pro", price:89, color:"#7C3AED", popular:true,
+    tagline:"Agents act on your request.",
+    features:["Everything in Starter","Management agent implements changes","Live website updates on demand","Marketing + Management agents work together","Priority support"],
+  },
+  {
+    id:"pro_autopilot", name:"Pro Autopilot", price:199, color:"#DB2777",
+    tagline:"Fully autonomous — just watch it run.",
+    features:["Everything in Pro","Agents run on their own schedule","Zero manual input required","White-glove onboarding","Dedicated support"],
+  },
+];
+
+function PlansModal({ onClose, highlightPlan }) {
+  const navigate = useNavigate();
   return (
-    <div style={{ display:"flex", alignItems:"center", gap:8, padding:"10px 14px", borderRadius:10, background:on?"#F0FDF4":"#F9F9F9", border:`1px solid ${on?C.ok+"40":C.border}`, cursor:disabled?"default":"pointer" }} onClick={disabled?undefined:onToggle}>
-      <div style={{ width:32, height:18, borderRadius:9, background:on?C.ok:"#D1D5DB", position:"relative", flexShrink:0, transition:"background 0.2s" }}>
-        <div style={{ position:"absolute", top:2, left:on?14:2, width:14, height:14, borderRadius:"50%", background:"#fff", transition:"left 0.2s", boxShadow:"0 1px 3px rgba(0,0,0,0.2)" }} />
+    <div style={{ position:"fixed", inset:0, zIndex:400, display:"flex", alignItems:"center", justifyContent:"center", background:"rgba(0,0,0,0.65)", padding:16 }}
+      onClick={onClose}>
+      <div onClick={e=>e.stopPropagation()} style={{ background:"#0F0E17", borderRadius:20, maxWidth:960, width:"100%", maxHeight:"90vh", overflowY:"auto", padding:"36px 28px", boxShadow:"0 24px 80px rgba(0,0,0,0.5)" }}>
+        <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", marginBottom:28 }}>
+          <div>
+            <div style={{ fontSize:11, fontWeight:700, color:"#F59E0B", textTransform:"uppercase", letterSpacing:"0.1em", fontFamily:FB, marginBottom:8 }}>PLANS</div>
+            <div style={{ fontFamily:FH, fontWeight:700, fontSize:"clamp(22px,3vw,32px)", color:"#fff", letterSpacing:"-0.04em" }}>Start free. Upgrade when you're ready.</div>
+            <p style={{ fontSize:13, color:"rgba(255,255,255,0.45)", fontFamily:FB, marginTop:6 }}>7-day free trial on all plans. No credit card required to start.</p>
+          </div>
+          <button onClick={onClose} style={{ background:"rgba(255,255,255,0.08)", border:"none", color:"rgba(255,255,255,0.5)", fontSize:20, cursor:"pointer", borderRadius:8, width:36, height:36, display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0, marginLeft:16 }}>×</button>
+        </div>
+
+        <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit,minmax(260px,1fr))", gap:16 }}>
+          {PLAN_TIERS.map(t=>(
+            <div key={t.id} style={{ background:"rgba(255,255,255,0.04)", border:`1.5px solid ${(highlightPlan===t.id||t.popular)?t.color+"60":"rgba(255,255,255,0.1)"}`, borderRadius:16, padding:"24px 20px", position:"relative" }}>
+              {t.popular && (
+                <div style={{ position:"absolute", top:-11, left:"50%", transform:"translateX(-50%)", background:t.color, color:"#fff", fontSize:9, fontWeight:700, padding:"3px 12px", borderRadius:20, textTransform:"uppercase", letterSpacing:"0.06em", whiteSpace:"nowrap" }}>Most popular</div>
+              )}
+              <div style={{ fontSize:10, fontWeight:700, color:t.color, textTransform:"uppercase", letterSpacing:"0.08em", fontFamily:FB, marginBottom:8 }}>{t.name}</div>
+              <div style={{ display:"flex", alignItems:"baseline", gap:4, marginBottom:6 }}>
+                <span style={{ fontFamily:FH, fontWeight:700, fontSize:32, color:"#fff", letterSpacing:"-0.04em" }}>${t.price}</span>
+                <span style={{ fontSize:12, color:"rgba(255,255,255,0.3)", fontFamily:FB }}>/month</span>
+              </div>
+              <p style={{ fontSize:12, color:"rgba(255,255,255,0.4)", lineHeight:1.6, marginBottom:20, fontFamily:FB }}>{t.tagline}</p>
+              <ul style={{ margin:"0 0 24px", padding:0, listStyle:"none", display:"flex", flexDirection:"column", gap:8 }}>
+                {t.features.map(f=>(
+                  <li key={f} style={{ display:"flex", gap:8, fontSize:12, color:"rgba(255,255,255,0.55)", lineHeight:1.5, fontFamily:FB }}>
+                    <span style={{ color:t.color, fontWeight:700, flexShrink:0 }}>✓</span>{f}
+                  </li>
+                ))}
+              </ul>
+              <button onClick={()=>{ onClose(); navigate("/pricing"); }} style={{ ...btn(t.popular?t.color:"transparent","#fff",12), width:"100%", padding:"10px", border:t.popular?"none":`1px solid rgba(255,255,255,0.15)`, borderRadius:10 }}>
+                Get started
+              </button>
+            </div>
+          ))}
+        </div>
       </div>
-      <div>
-        <div style={{ fontSize:12, fontWeight:600, fontFamily:FB, color:on?C.ok:C.muted }}>Autopilot {on?"ON":"OFF"}</div>
-        {label && <div style={{ fontSize:11, color:C.muted, fontFamily:FB, marginTop:1 }}>{label}</div>}
-      </div>
-      {disabled && <span style={{ fontSize:10, color:C.muted, background:C.border, padding:"2px 8px", borderRadius:20, fontFamily:FB, marginLeft:"auto" }}>Coming soon</span>}
     </div>
+  );
+}
+
+function AutopilotToggle({ on, onToggle, label, disabled }) {
+  const [showPlans, setShowPlans] = useState(false);
+  return (
+    <>
+      <div style={{ display:"flex", alignItems:"center", gap:8, padding:"10px 14px", borderRadius:10, background:on?"#F0FDF4":"#F9F9F9", border:`1px solid ${on?C.ok+"40":C.border}`, cursor:"pointer" }}
+        onClick={disabled ? ()=>setShowPlans(true) : onToggle}>
+        <div style={{ width:32, height:18, borderRadius:9, background:disabled?"#E5E7EB":on?C.ok:"#D1D5DB", position:"relative", flexShrink:0, transition:"background 0.2s" }}>
+          <div style={{ position:"absolute", top:2, left:on&&!disabled?14:2, width:14, height:14, borderRadius:"50%", background:"#fff", transition:"left 0.2s", boxShadow:"0 1px 3px rgba(0,0,0,0.2)" }} />
+        </div>
+        <div>
+          <div style={{ fontSize:12, fontWeight:600, fontFamily:FB, color:disabled?C.muted:on?C.ok:C.muted }}>Autopilot {disabled?"— Pro Autopilot":on?"ON":"OFF"}</div>
+          {label && <div style={{ fontSize:11, color:C.muted, fontFamily:FB, marginTop:1 }}>{label}</div>}
+        </div>
+        {disabled && <span style={{ fontSize:10, color:"#7C3AED", background:"#F5F3FF", border:"1px solid #DDD6FE", padding:"2px 8px", borderRadius:20, fontFamily:FB, fontWeight:600, marginLeft:"auto", cursor:"pointer" }}>Upgrade</span>}
+      </div>
+      {showPlans && <PlansModal highlightPlan="pro_autopilot" onClose={()=>setShowPlans(false)} />}
+    </>
   );
 }
 
@@ -950,6 +1021,7 @@ function IntegrationCard({ provider, label, desc, fields, savedMeta, onSave, isC
   const [saved,      setSaved]      = useState(false);
   const [testing,    setTesting]    = useState(false);
   const [testMsg,    setTestMsg]    = useState("");
+  const [showPlans,  setShowPlans]  = useState(false);
   const fileRef = useRef();
 
   const autopilotOn = !!(vals.autopilot || savedMeta?.autopilot);
@@ -988,10 +1060,11 @@ function IntegrationCard({ provider, label, desc, fields, savedMeta, onSave, isC
           </div>
         </div>
         <div style={{ display:"flex", gap:8, alignItems:"center", flexShrink:0, marginLeft:12 }}>
-          <div onClick={toggleAutopilot} style={{ cursor:autopilotDisabled?"default":"pointer", display:"flex", alignItems:"center", gap:5, padding:"4px 10px", borderRadius:20, background:autopilotOn?"#DCFCE7":C.bg, border:`1px solid ${autopilotOn?C.ok+"50":C.border}` }}>
-            <div style={{ width:6, height:6, borderRadius:"50%", background:autopilotOn?C.ok:"#D1D5DB" }} />
-            <span style={{ fontSize:10, fontWeight:700, color:autopilotOn?C.ok:C.muted, fontFamily:FB, whiteSpace:"nowrap" }}>
-              {autopilotDisabled ? "Soon" : autopilotOn ? "Auto ON" : "Auto OFF"}
+          <div onClick={autopilotDisabled ? ()=>setShowPlans(true) : toggleAutopilot}
+            style={{ cursor:"pointer", display:"flex", alignItems:"center", gap:5, padding:"4px 10px", borderRadius:20, background:autopilotDisabled?"#F5F3FF":autopilotOn?"#DCFCE7":C.bg, border:`1px solid ${autopilotDisabled?"#DDD6FE":autopilotOn?C.ok+"50":C.border}` }}>
+            <div style={{ width:6, height:6, borderRadius:"50%", background:autopilotDisabled?"#7C3AED":autopilotOn?C.ok:"#D1D5DB" }} />
+            <span style={{ fontSize:10, fontWeight:700, color:autopilotDisabled?"#7C3AED":autopilotOn?C.ok:C.muted, fontFamily:FB, whiteSpace:"nowrap" }}>
+              {autopilotDisabled ? "Pro only" : autopilotOn ? "Auto ON" : "Auto OFF"}
             </span>
           </div>
           <span style={{ color:C.muted, fontSize:14, transform:open?"rotate(180deg)":"none", transition:"transform 0.15s", display:"inline-block", cursor:"pointer" }} onClick={()=>setOpen(p=>!p)}>▾</span>
@@ -1054,6 +1127,7 @@ function IntegrationCard({ provider, label, desc, fields, savedMeta, onSave, isC
           </button>
         </div>
       )}
+      {showPlans && <PlansModal highlightPlan="pro_autopilot" onClose={()=>setShowPlans(false)} />}
     </div>
   );
 }
@@ -2261,7 +2335,7 @@ export default function Hub() {
           )}
 
           {/* TASKS */}
-          {tab==="tasks" && <TasksPanel businessId={businessId} businessOutputs={outputs} hubNotes={hubNotes} stickyAssignments={stickyAssignments} onAssignSticky={assignSticky} onUnstickNote={unstickNote}/>}
+          {tab==="tasks" && <TasksPanel businessId={businessId} businessOutputs={outputs} hubNotes={hubNotes} stickyAssignments={stickyAssignments} onAssignSticky={assignSticky} onUnstickNote={unstickNote} onTasksChanged={refreshTasks}/>}
 
           {/* HUB */}
           {tab==="hub" && (
