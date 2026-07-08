@@ -302,8 +302,9 @@ async function generatePostImage(businessName, captionBody, brandIdentity) {
       log.error("IMAGE", "Both DALL-E 3 and DALL-E 2 FAILED", {
         err3: err3.message, err2: err2.message,
       });
-      // Throw the original DALL-E 3 error so the caller knows why the primary failed
-      throw err3;
+      const combined = new Error(`DALL-E 3: ${err3.message} | DALL-E 2: ${err2.message}`);
+      combined.status = err3.status;
+      throw combined;
     }
   }
 
