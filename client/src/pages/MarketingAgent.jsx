@@ -424,16 +424,11 @@ function SuggestionCard({ suggestion:s, mode, onAddToCampaign, onImplement, impl
         </div>
       )}
 
-      <div style={{ display:"flex", gap:6, flexWrap:"wrap" }}>
-        {mode !== "manual" && (
+      <div style={{ display:"flex", gap:6, flexWrap:"wrap", alignItems:"center" }}>
+        {/* Guided: move suggestion to campaign manager */}
+        {mode === "guided" && (
           <button onClick={()=>onAddToCampaign(s)} style={{ ...btnO(C.primary,11), flex:1, textAlign:"center", padding:"5px 10px" }}>
             + Add to campaigns
-          </button>
-        )}
-        {mode === "auto" && (
-          <button onClick={()=>onAddToCampaign({...s, autoStart:true})}
-            style={{ ...btn(C.primary,"#fff",11), flex:1, textAlign:"center", padding:"5px 10px" }}>
-            ▶ Auto-run now
           </button>
         )}
         {mode === "guided" && access?.management?.allowed && !isImplemented && (
@@ -443,10 +438,23 @@ function SuggestionCard({ suggestion:s, mode, onAddToCampaign, onImplement, impl
             {isImplementing?"Running…":"Implement now"}
           </button>
         )}
+        {/* Auto: already queued automatically — show indicator + manual override */}
+        {mode === "auto" && (
+          <>
+            <span style={{ fontSize:10, color:C.ok, fontFamily:FB, background:C.okBg, padding:"3px 8px", borderRadius:20 }}>
+              ✓ Auto-queued
+            </span>
+            <button onClick={()=>onAddToCampaign({...s, autoStart:true})}
+              style={{ ...btnO(C.primary,11), padding:"5px 10px" }}>
+              ▶ Run now
+            </button>
+          </>
+        )}
+        {/* Manual: suggestions are read-only — prompt to use campaign form */}
         {mode === "manual" && (
-          <button onClick={()=>onAddToCampaign(s)} style={{ ...btnO(C.muted,11), flex:1, textAlign:"center", padding:"5px 10px" }}>
-            Note this tip
-          </button>
+          <span style={{ fontSize:11, color:C.muted, fontFamily:FB, fontStyle:"italic" }}>
+            → Create a campaign below to act on this
+          </span>
         )}
       </div>
     </div>
@@ -455,13 +463,16 @@ function SuggestionCard({ suggestion:s, mode, onAddToCampaign, onImplement, impl
 
 // ── Campaign task row ─────────────────────────────────────────────────────────
 
-function CampaignTaskRow({ task:t, mode, channel, businessId, businessName, onComplete, onSkip, autoRun, isAutoRunning }) {
-  const [running,   setRunning]   = useState(false);
-  const [content,   setContent]   = useState(null);
-  const [showContent, setShowContent] = useState(false);
-  const [error,     setError]     = useState("");
-  const [posting,   setPosting]   = useState(false);
-  const [postMsg,   setPostMsg]   = useState("");
+function CampaignTaskRow({ task:t, mode, channel, businessId, businessName, onComplete, onSkip, onRemove, autoRun, isAutoRunning }) {
+  const [running,       setRunning]       = useState(false);
+  const [content,       setContent]       = useState(null);
+  const [showContent,   setShowContent]   = useState(false);
+  const [error,         setError]         = useState("");
+  const [posting,       setPosting]       = useState(false);
+  const [postMsg,       setPostMsg]       = useState("");
+  const [extraChannels, setExtraChannels] = useState({});  // { channelKey: contentObj }
+  const [loadingCh,     setLoadingCh]     = useState(null); // which extra channel is loading
+  const [showExtra,     setShowExtra]     = useState(false);
 
   const isDone     = t.status === "completed" || t.status === "done";
   const isFailed   = t.status === "failed";
@@ -515,6 +526,7 @@ function CampaignTaskRow({ task:t, mode, channel, businessId, businessName, onCo
       }
       setContent(c);
       setShowContent(true);
+      setExtraChannels({});
     } catch(e) {
       console.error(`[TASK:getContent] FAILED — taskName="${t.name}" error="${e.message}"`);
       setError(e.message);
@@ -583,6 +595,7 @@ function CampaignTaskRow({ task:t, mode, channel, businessId, businessName, onCo
               </>
             )}
             <button onClick={()=>onSkip(t.id)} style={{ ...btnO("#9CA3AF",10), padding:"3px 6px" }}>Skip</button>
+            {onRemove && <button onClick={()=>onRemove(t.id)} style={{ ...btnO(C.err,10), padding:"3px 6px" }}>Remove</button>}
           </div>
         )}
       </div>
@@ -638,6 +651,58 @@ function CampaignTaskRow({ task:t, mode, channel, businessId, businessName, onCo
               {postMsg && <div style={{ fontSize:11, color:postMsg.startsWith("✓")?C.ok:C.err, fontFamily:FB, marginTop:4 }}>{postMsg}</div>}
             </div>
           )}
+
+          {/* Multi-channel content: repurpose across other channels */}
+          {mode === "guided" && !content?.isGuided && (content?.caption || content?.body) && (
+            <div style={{ marginTop:10, borderTop:`1px solid ${C.border}`, paddingTop:8 }}>
+              <button onClick={()=>setShowExtra(o=>!o)} style={{ background:"none", border:"none", cursor:"pointer", color:C.muted, fontSize:11, fontFamily:FB, padding:"2px 0" }}>
+                {showExtra?"▲":"▼"} Repurpose for other channels
+              </button>
+              {showExtra && (
+                <div style={{ marginTop:8 }}>
+                  <div style={{ fontSize:11, color:C.muted, fontFamily:FB, marginBottom:8 }}>
+                    Generate this content for additional channels:
+                  </div>
+                  <div style={{ display:"flex", flexWrap:"wrap", gap:6 }}>
+                    {["twitter","linkedin","email","tiktok","google"].filter(ch=>ch!==channel).map(ch=>(
+                      <div key={ch} style={{ flex:1, minWidth:140 }}>
+                        {extraChannels[ch] ? (
+                          <div style={{ background:"#F9FAFB", borderRadius:7, padding:"8px 10px" }}>
+                            <div style={{ fontSize:10, fontWeight:700, color:C.primary, fontFamily:FB, textTransform:"uppercase", marginBottom:4 }}>
+                              {CH_LABELS[ch]||ch}
+                            </div>
+                            <p style={{ fontSize:11, color:C.text, fontFamily:FB, lineHeight:1.5, marginBottom:4 }}>
+                              {extraChannels[ch].body || extraChannels[ch].caption}
+                            </p>
+                            {extraChannels[ch].hashtags && (
+                              <p style={{ fontSize:10, color:C.muted, fontFamily:FB }}>{extraChannels[ch].hashtags}</p>
+                            )}
+                            <button onClick={()=>{
+                              const txt = [extraChannels[ch].body||extraChannels[ch].caption, extraChannels[ch].hashtags].filter(Boolean).join("\n\n");
+                              navigator.clipboard.writeText(txt).catch(()=>{});
+                            }} style={{ ...btnO(C.ok,9), padding:"2px 6px", marginTop:4 }}>Copy</button>
+                          </div>
+                        ) : (
+                          <button onClick={async()=>{
+                            setLoadingCh(ch);
+                            try {
+                              const res = await api.agents.taskContent(businessId, t, ch, mode);
+                              setExtraChannels(p=>({...p,[ch]:res.content}));
+                            } catch {}
+                            setLoadingCh(null);
+                          }} disabled={loadingCh===ch}
+                            style={{ ...btnO(C.muted,10), width:"100%", padding:"5px 8px", display:"flex", alignItems:"center", gap:4 }}>
+                            {loadingCh===ch && <span style={{ ...spin(), width:9, height:9, borderWidth:1.5, borderTopColor:C.muted, borderColor:"rgba(0,0,0,0.1)" }}/>}
+                            {loadingCh===ch ? "…" : `+ ${CH_LABELS[ch]||ch}`}
+                          </button>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
         </div>
       )}
     </div>
@@ -650,6 +715,7 @@ function CampaignCard({ campaign:c, onUpdate, onDelete, businessId, businessName
   const [expanded,    setExpanded]    = useState(c.status==="active");
   const [starting,    setStarting]    = useState(false);
   const [autoRunning, setAutoRunning] = useState(false);
+  const hasAutoStartedRef = useRef(false);
   const abortRef = useRef(false);
 
   const tasks     = c.tasks || [];
@@ -658,6 +724,15 @@ function CampaignCard({ campaign:c, onUpdate, onDelete, businessId, businessName
   const pct       = total > 0 ? Math.round(completed/total*100) : (c.progressTarget > 0 ? Math.min(100,Math.round((c.progressCurrent||0)/c.progressTarget*100)) : 0);
   const mode      = c.mode || "guided";
   const statusColor = STAT_CLR[c.status] || C.muted;
+
+  // Auto mode: auto-start planned campaigns without any user input
+  useEffect(() => {
+    if (mode === "auto" && c.status === "planned" && !hasAutoStartedRef.current) {
+      hasAutoStartedRef.current = true;
+      const delay = 800 + Math.random() * 1200; // stagger multiple campaigns
+      setTimeout(() => startCampaign(), delay);
+    }
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const startCampaign = async () => {
     console.log(`[CAMPAIGN:startCampaign] Starting — campaignId=${c.id} title="${c.title}" channel=${c.channel} mode=${mode}`);
@@ -782,6 +857,9 @@ function CampaignCard({ campaign:c, onUpdate, onDelete, businessId, businessName
   const skipTask = (taskId) => {
     onUpdate({ ...c, tasks:tasks.map(t=>t.id===taskId?{...t,status:"skipped"}:t) });
   };
+  const removeTask = (taskId) => {
+    onUpdate({ ...c, tasks:tasks.filter(t=>t.id!==taskId) });
+  };
 
   const markDone = () => onUpdate({ ...c, status:"monitoring", completedAt:new Date().toISOString() });
   const archive  = () => onUpdate({ ...c, status:"archived", archivedAt:new Date().toISOString() });
@@ -802,11 +880,18 @@ function CampaignCard({ campaign:c, onUpdate, onDelete, businessId, businessName
           </div>
           <div style={{ fontSize:13, fontWeight:600, fontFamily:FH, lineHeight:1.4 }}>{c.title}</div>
         </div>
-        <button onClick={()=>onDelete(c.id)} style={{ background:"none", border:"none", cursor:"pointer", color:C.muted, fontSize:16, padding:0, flexShrink:0 }}>×</button>
+        <button onClick={()=>onDelete(c.id)} title="Remove campaign" style={{ background:"none", border:"none", cursor:"pointer", color:C.muted, fontSize:16, padding:0, flexShrink:0 }}>×</button>
       </div>
 
       {c.rationale && <p style={{ fontSize:12, color:C.muted, fontFamily:FB, lineHeight:1.5, marginBottom:8 }}>{c.rationale}</p>}
       {c.expectedImpact && <div style={{ background:C.okBg, borderRadius:6, padding:"4px 8px", fontSize:11, color:C.ok, fontFamily:FB, marginBottom:8 }}>Goal: {c.expectedImpact}</div>}
+
+      {/* 15-min warning */}
+      {c.estimatedMinutes > 15 && c.status === "planned" && (
+        <div style={{ background:"#FFFBEB", border:"1px solid #FDE68A", borderRadius:6, padding:"5px 10px", fontSize:11, color:"#92400E", fontFamily:FB, marginBottom:8 }}>
+          This campaign may take ~{c.estimatedMinutes} min. Consider running it in two sessions.
+        </div>
+      )}
 
       {/* Progress bar */}
       {(total>0 || (c.progressTarget||0)>0) && c.status !== "planned" && (
@@ -818,6 +903,19 @@ function CampaignCard({ campaign:c, onUpdate, onDelete, businessId, businessName
           <div style={{ height:5, borderRadius:3, background:C.border }}>
             <div style={{ height:"100%", width:`${pct}%`, borderRadius:3, background:pct>=100?C.ok:statusColor, transition:"width 0.4s" }} />
           </div>
+          {c.status==="monitoring" && (
+            <div style={{ fontSize:10, color:C.muted, fontFamily:FB, marginTop:4 }}>
+              Progress updates each time you re-run marketing analysis
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Auto mode: starting indicator */}
+      {mode==="auto" && c.status==="planned" && (
+        <div style={{ display:"flex", alignItems:"center", gap:6, fontSize:11, color:C.primary, fontFamily:FB, marginBottom:8 }}>
+          <span style={spin()} />
+          Setting up campaign automatically…
         </div>
       )}
 
@@ -831,7 +929,7 @@ function CampaignCard({ campaign:c, onUpdate, onDelete, businessId, businessName
             <div>
               {tasks.map((t,ti)=>(
                 <CampaignTaskRow key={t.id||ti} task={t} mode={mode} channel={c.channel}
-                  businessId={businessId} businessName={businessName} onComplete={completeTask} onSkip={skipTask}
+                  businessId={businessId} businessName={businessName} onComplete={completeTask} onSkip={skipTask} onRemove={removeTask}
                   autoRun={autoRunning} isAutoRunning={autoRunning} />
               ))}
               {tasks.length > 0 && <button onClick={()=>setTab("tasks")} style={{ ...btnO(C.muted,10), padding:"3px 8px", marginTop:6 }}>All tasks ↗</button>}
@@ -842,11 +940,11 @@ function CampaignCard({ campaign:c, onUpdate, onDelete, businessId, businessName
 
       {/* Actions */}
       <div style={{ display:"flex", gap:6, flexWrap:"wrap" }}>
-        {c.status==="planned" && (
+        {c.status==="planned" && mode!=="auto" && (
           <button onClick={startCampaign} disabled={starting}
-            style={{ ...btn(mode==="auto"?C.primary:C.warn,"#fff",11), padding:"5px 12px", display:"flex", gap:4, alignItems:"center" }}>
+            style={{ ...btn(C.warn,"#fff",11), padding:"5px 12px", display:"flex", gap:4, alignItems:"center" }}>
             {starting&&<span style={spin()}/>}
-            {starting?"Setting up…":mode==="auto"?"▶ Auto-run campaign":"Start campaign"}
+            {starting?"Setting up…":"Start campaign"}
           </button>
         )}
         {c.status==="active" && mode==="auto" && !autoRunning && activeTasks.length>0 && (
@@ -863,7 +961,15 @@ function CampaignCard({ campaign:c, onUpdate, onDelete, businessId, businessName
         )}
         {c.status==="active" && (
           <button onClick={()=>onUpdate({...c,status:"monitoring",completedAt:new Date().toISOString()})}
-            style={{ ...btnO(C.muted,11), padding:"5px 10px" }}>Skip to monitoring</button>
+            style={{ ...btnO(C.muted,11), padding:"5px 10px" }}>Move to Run Campaigns</button>
+        )}
+        {/* Remove campaign — available in all non-auto states */}
+        {mode !== "auto" && (
+          <button onClick={()=>onDelete(c.id)} style={{ ...btnO(C.err,11), padding:"5px 10px", marginLeft:"auto" }}>Remove</button>
+        )}
+        {/* Auto mode: only Pause is allowed during run; Remove always available */}
+        {mode === "auto" && !autoRunning && (
+          <button onClick={()=>onDelete(c.id)} style={{ ...btnO(C.err,11), padding:"5px 10px", marginLeft:"auto" }}>Remove</button>
         )}
       </div>
     </div>
@@ -876,6 +982,7 @@ function AddCampaignForm({ mode, onAdd }) {
   const [open,      setOpen]      = useState(false);
   const [title,     setTitle]     = useState("");
   const [channel,   setChannel]   = useState("general");
+  const [action,    setAction]    = useState("");
   const [target,    setTarget]    = useState("");
   const [goal,      setGoal]      = useState("");
   const [timeframe, setTimeframe] = useState("7 days");
@@ -883,10 +990,12 @@ function AddCampaignForm({ mode, onAdd }) {
 
   const add = () => {
     if (!title.trim()) return;
-    onAdd({ id:Date.now().toString(), title:title.trim(), channel, expectedImpact:target.trim()||undefined,
-      rationale:"", goal:goal.trim(), timeframe, status:"planned", mode:campaignMode,
+    onAdd({ id:Date.now().toString(), title:title.trim(), channel,
+      rationale: action.trim() || undefined,
+      expectedImpact:target.trim()||undefined,
+      goal:goal.trim(), timeframe, status:"planned", mode:campaignMode,
       createdAt:new Date().toISOString() });
-    setTitle(""); setTarget(""); setGoal(""); setOpen(false);
+    setTitle(""); setAction(""); setTarget(""); setGoal(""); setOpen(false);
   };
 
   if (!open) return (
@@ -921,6 +1030,12 @@ function AddCampaignForm({ mode, onAdd }) {
             <option value="manual">Manual</option>
           </select>
         </div>
+      </div>
+
+      <div style={{ marginBottom:8 }}>
+        <label style={lbl}>Action — what specifically will you do?</label>
+        <input value={action} onChange={e=>setAction(e.target.value)} placeholder="e.g. Write and publish 3 Instagram posts with product photos"
+          style={{ ...inp() }} />
       </div>
 
       <div style={{ marginBottom:8 }}>
@@ -1524,15 +1639,18 @@ export default function AgentPanel({ businessId, businessName, metrics, planInfo
       api.agents.activity(businessId).then(d=>setActivity(d.activity||[])).catch(()=>{});
       refreshAccess();
 
-      // In auto mode: auto-add high-priority suggestions as campaigns
+      // Update monitoring campaign progress based on new analysis
+      if (data.insights?.length) updateMonitoringProgress(data.insights);
+
+      // In auto mode: auto-add high-priority suggestions as campaigns (dedup by title)
       if (agentMode==="auto" && data.insights?.length) {
         const highPri = data.insights.filter(i=>i.priority==="high");
         if (highPri.length) {
-          const existingTitles = campaigns.map(c=>c.title);
+          const existingTitles = new Set(campaigns.map(c=>c.title));
           const newCampaigns = highPri
-            .filter(i=>!existingTitles.includes(i.title||i.recommendation))
-            .map(i=>({
-              id: Date.now().toString()+Math.random(),
+            .filter(i=>!existingTitles.has(i.title||i.recommendation))
+            .map((i,idx)=>({
+              id: `${Date.now()}${idx}${Math.random().toString(36).slice(2,6)}`,
               title: i.title||i.recommendation,
               rationale: i.rationale||i.agentObservation,
               channel: i.channel||i.implementationChannel,
@@ -1602,10 +1720,29 @@ export default function AgentPanel({ businessId, businessName, metrics, planInfo
   const [showArchived, setShowArchived] = useState(false);
 
   const nextRunIn = ranAt ? Math.max(0, Math.round((12*3600*1000-(Date.now()-new Date(ranAt).getTime()))/3600000)) : null;
+  const is12hOverdue = ranAt && (Date.now() - new Date(ranAt).getTime()) > 12*3600*1000;
 
   const connectedChannels = (integs||[]).filter(i=>{
     try { const m=JSON.parse(i.metadata||"{}"); return Object.values(m).some(v=>typeof v==="string"&&v.length>3); } catch { return false; }
   }).map(i=>i.provider);
+
+  // When analysis runs in auto mode, update monitoring campaign progress based on new insights
+  const updateMonitoringProgress = useCallback((newInsights) => {
+    if (!monitoringCampaigns.length || !newInsights.length) return;
+    saveCampaigns(prev => prev.map(c => {
+      if (c.status !== "monitoring") return c;
+      // Bump progress if the campaign's channel has new positive insights
+      const positiveInsight = newInsights.find(i =>
+        (i.channel === c.channel || i.implementationChannel === c.channel) && i.priority !== "high"
+      );
+      if (positiveInsight && c.progressTarget > 0) {
+        const bump = Math.max(1, Math.floor(c.progressTarget * 0.15));
+        const newCurrent = Math.min(c.progressTarget, (c.progressCurrent||0) + bump);
+        return { ...c, progressCurrent: newCurrent };
+      }
+      return c;
+    }));
+  }, [monitoringCampaigns, saveCampaigns]);
 
   return (
     <div>
@@ -1614,6 +1751,21 @@ export default function AgentPanel({ businessId, businessName, metrics, planInfo
 
       {/* Mode toggle */}
       <ModeToggle mode={agentMode} onChange={saveAgentMode} />
+
+      {/* 12h guided mode notification */}
+      {agentMode==="guided" && is12hOverdue && !running && (
+        <div style={{ display:"flex", alignItems:"center", gap:10, background:"#FFFBEB", border:"1px solid #FDE68A", borderRadius:10, padding:"10px 14px", marginBottom:14 }}>
+          <span style={{ fontSize:16 }}>⏰</span>
+          <div style={{ flex:1 }}>
+            <div style={{ fontSize:13, fontWeight:600, color:"#92400E", fontFamily:FH }}>Time to re-run your marketing analysis</div>
+            <div style={{ fontSize:11, color:"#B45309", fontFamily:FB }}>It's been over 12 hours since your last run — fresh insights may be available.</div>
+          </div>
+          <button onClick={runAnalysis} disabled={running||(access&&!access.marketing.allowed)}
+            style={{ ...btn("#D97706","#fff",11), padding:"6px 14px", flexShrink:0 }}>
+            Run now
+          </button>
+        </div>
+      )}
 
       {/* Error */}
       {error && (
@@ -1770,9 +1922,14 @@ export default function AgentPanel({ businessId, businessName, metrics, planInfo
 
               {insights.length>0 && (
                 <div>
-                  <p style={{ fontSize:11, fontWeight:700, color:C.muted, textTransform:"uppercase", letterSpacing:"0.07em", marginBottom:8, fontFamily:FB }}>
-                    {agentMode==="auto" ? "Auto-queued campaigns" : "Suggested campaigns"}
-                  </p>
+                  <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:8 }}>
+                    <p style={{ fontSize:11, fontWeight:700, color:C.muted, textTransform:"uppercase", letterSpacing:"0.07em", fontFamily:FB }}>
+                      {agentMode==="auto" ? "Analysis — campaigns auto-queued →" : "Suggested campaigns"}
+                    </p>
+                    {agentMode==="guided" && (
+                      <span style={{ fontSize:10, color:C.muted, fontFamily:FB }}>Click "Add to campaigns" to move →</span>
+                    )}
+                  </div>
                   {insights.map((s,i)=>(
                     <div key={i}>
                       <SuggestionCard suggestion={s} mode={agentMode}
@@ -1823,12 +1980,20 @@ export default function AgentPanel({ businessId, businessName, metrics, planInfo
             </div>
           )}
 
-          {/* Run Campaigns (monitoring) */}
+          {/* Run Campaigns (monitoring) — tracks goal progress via future analysis */}
           {monitoringCampaigns.length>0 && (
             <div style={{ marginBottom:14 }}>
-              <p style={{ fontSize:11, fontWeight:700, color:"#8B5CF6", textTransform:"uppercase", letterSpacing:"0.07em", marginBottom:6, fontFamily:FB }}>
-                Run Campaigns — tracking to goal ({monitoringCampaigns.length})
-              </p>
+              <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:6 }}>
+                <p style={{ fontSize:11, fontWeight:700, color:"#8B5CF6", textTransform:"uppercase", letterSpacing:"0.07em", fontFamily:FB }}>
+                  Run Campaigns — tracking goal ({monitoringCampaigns.length})
+                </p>
+                {agentMode!=="manual" && (
+                  <button onClick={runAnalysis} disabled={running}
+                    style={{ ...btnO("#8B5CF6",10), padding:"3px 8px" }}>
+                    {running?"Checking…":"Re-check progress"}
+                  </button>
+                )}
+              </div>
               {monitoringCampaigns.map(c=>(
                 <CampaignCard key={c.id} campaign={c} onUpdate={updateCampaign} onDelete={deleteCampaign} businessId={businessId} businessName={businessName} setTab={setTab} />
               ))}
