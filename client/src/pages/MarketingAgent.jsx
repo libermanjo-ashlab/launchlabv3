@@ -884,7 +884,15 @@ function CampaignCard({ campaign:c, onUpdate, onDelete, businessId, businessName
       </div>
 
       {c.rationale && <p style={{ fontSize:12, color:C.muted, fontFamily:FB, lineHeight:1.5, marginBottom:8 }}>{c.rationale}</p>}
-      {c.contentPreview && <div style={{ background:"#F9FAFB", border:`1px solid ${C.border}`, borderRadius:6, padding:"6px 10px", fontSize:12, color:C.text, fontFamily:FB, lineHeight:1.5, marginBottom:8, fontStyle:"italic" }}>"{c.contentPreview}"</div>}
+      {c.contentPreview && (() => {
+        const prev = c.contentPreview;
+        const ch   = c.channel || "general";
+        const sub  = prev[ch] || prev.instagram || prev.tiktok || prev.twitter || prev.email || prev.website || prev.manual;
+        if (!sub) return null;
+        const snippet = sub.caption || sub.tweet || sub.bodyHook || sub.newContent || sub.concept || sub.tip || "";
+        if (!snippet) return null;
+        return <div style={{ background:"#F9FAFB", border:`1px solid ${C.border}`, borderRadius:6, padding:"6px 10px", fontSize:12, color:C.text, fontFamily:FB, lineHeight:1.5, marginBottom:8, fontStyle:"italic" }}>"{snippet.length > 140 ? snippet.slice(0, 137) + "…" : snippet}"</div>;
+      })()}
       {c.expectedImpact && <div style={{ background:C.okBg, borderRadius:6, padding:"4px 8px", fontSize:11, color:C.ok, fontFamily:FB, marginBottom:8 }}>Goal: {c.expectedImpact}</div>}
 
       {/* 15-min warning */}
