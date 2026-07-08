@@ -1021,7 +1021,6 @@ function IntegrationCard({ provider, label, desc, fields, savedMeta, onSave, isC
   const [saved,      setSaved]      = useState(false);
   const [testing,    setTesting]    = useState(false);
   const [testMsg,    setTestMsg]    = useState("");
-  const [showPlans,  setShowPlans]  = useState(false);
   const fileRef = useRef();
 
   const autopilotOn = !!(vals.autopilot || savedMeta?.autopilot);
@@ -1060,13 +1059,15 @@ function IntegrationCard({ provider, label, desc, fields, savedMeta, onSave, isC
           </div>
         </div>
         <div style={{ display:"flex", gap:8, alignItems:"center", flexShrink:0, marginLeft:12 }}>
-          <div onClick={autopilotDisabled ? ()=>setShowPlans(true) : toggleAutopilot}
-            style={{ cursor:"pointer", display:"flex", alignItems:"center", gap:5, padding:"4px 10px", borderRadius:20, background:autopilotDisabled?"#F5F3FF":autopilotOn?"#DCFCE7":C.bg, border:`1px solid ${autopilotDisabled?"#DDD6FE":autopilotOn?C.ok+"50":C.border}` }}>
-            <div style={{ width:6, height:6, borderRadius:"50%", background:autopilotDisabled?"#7C3AED":autopilotOn?C.ok:"#D1D5DB" }} />
-            <span style={{ fontSize:10, fontWeight:700, color:autopilotDisabled?"#7C3AED":autopilotOn?C.ok:C.muted, fontFamily:FB, whiteSpace:"nowrap" }}>
-              {autopilotDisabled ? "Pro only" : autopilotOn ? "Auto ON" : "Auto OFF"}
-            </span>
-          </div>
+          {!autopilotDisabled && (
+            <div onClick={toggleAutopilot}
+              style={{ cursor:"pointer", display:"flex", alignItems:"center", gap:5, padding:"4px 10px", borderRadius:20, background:autopilotOn?"#DCFCE7":C.bg, border:`1px solid ${autopilotOn?C.ok+"50":C.border}` }}>
+              <div style={{ width:6, height:6, borderRadius:"50%", background:autopilotOn?C.ok:"#D1D5DB" }} />
+              <span style={{ fontSize:10, fontWeight:700, color:autopilotOn?C.ok:C.muted, fontFamily:FB, whiteSpace:"nowrap" }}>
+                {autopilotOn ? "Auto ON" : "Auto OFF"}
+              </span>
+            </div>
+          )}
           <span style={{ color:C.muted, fontSize:14, transform:open?"rotate(180deg)":"none", transition:"transform 0.15s", display:"inline-block", cursor:"pointer" }} onClick={()=>setOpen(p=>!p)}>▾</span>
         </div>
       </div>
@@ -1127,7 +1128,6 @@ function IntegrationCard({ provider, label, desc, fields, savedMeta, onSave, isC
           </button>
         </div>
       )}
-      {showPlans && <PlansModal highlightPlan="pro_autopilot" onClose={()=>setShowPlans(false)} />}
     </div>
   );
 }
