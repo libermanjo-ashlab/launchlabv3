@@ -1038,13 +1038,13 @@ function ContentLab({ businessId, businessName }) {
           {/* Controls row */}
           <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:8, marginBottom:8 }}>
             <div>
-              <div style={{ ...lbl(10), marginBottom:3 }}>Channel</div>
+              <div style={{ ...{ ...lbl, fontSize:10 }, marginBottom:3 }}>Channel</div>
               <select value={channel} onChange={e=>setChannel(e.target.value)} style={{ ...inp({ fontSize:12 }), width:"100%" }}>
                 {CHANNEL_OPTS.map(o=><option key={o.value} value={o.value}>{o.label}</option>)}
               </select>
             </div>
             <div>
-              <div style={{ ...lbl(10), marginBottom:3 }}>Tone</div>
+              <div style={{ ...{ ...lbl, fontSize:10 }, marginBottom:3 }}>Tone</div>
               <select value={tone} onChange={e=>setTone(e.target.value)} style={{ ...inp({ fontSize:12 }), width:"100%" }}>
                 {TONE_OPTS.map(t=><option key={t} value={t}>{t.charAt(0).toUpperCase()+t.slice(1)}</option>)}
               </select>
@@ -1052,7 +1052,7 @@ function ContentLab({ businessId, businessName }) {
           </div>
 
           <div style={{ marginBottom:8 }}>
-            <div style={{ ...lbl(10), marginBottom:3 }}>Post topic / context</div>
+            <div style={{ ...{ ...lbl, fontSize:10 }, marginBottom:3 }}>Post topic / context</div>
             <textarea
               value={context}
               onChange={e=>setContext(e.target.value)}
