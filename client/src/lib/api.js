@@ -39,7 +39,8 @@ export const api = {
     update: (id,b)        => req("PUT",    `/tasks/${id}`, b),
     delete: id            => req("DELETE", `/tasks/${id}`),
     run:    (id, body={}) => req("POST",   `/tasks/${id}/run`, body),
-    bulk:   (bizId,tasks) => req("POST",   `/tasks/business/${bizId}/bulk`, { tasks }),
+    bulk:       (bizId,tasks) => req("POST",   `/tasks/business/${bizId}/bulk`, { tasks }),
+    bulkAction: (bizId,action,ids) => req("POST", `/tasks/business/${bizId}/bulk-action`, { action, ids }),
   },
   generate: {
     ideas:          intake => req("POST", "/generate/ideas",           { intake }),
@@ -109,7 +110,7 @@ export const api = {
     runMarketing:      (bizId,mode)     => req("POST", `/agents/${bizId}/marketing/run`, { mode }),
     savedInsights:     bizId           => req("GET",  `/agents/${bizId}/marketing/insights`),
     implement:         (bizId,insight,mode)  => req("POST", `/agents/${bizId}/management/implement`, { insight, mode }),
-    campaignBreakdown: (bizId,campaign)      => req("POST", `/agents/${bizId}/campaigns/breakdown`, { campaign }),
+    campaignBreakdown: (bizId,body)          => req("POST", `/agents/${bizId}/campaigns/breakdown`, body),
     taskContent:       (bizId,task,channel,mode) => req("POST", `/agents/${bizId}/campaigns/task-content`, { task, channel, mode }),
     notes:             bizId                 => req("GET",  `/agents/${bizId}/marketing/notes`),
     addNote:           (bizId,text,color)    => req("POST", `/agents/${bizId}/marketing/notes`, { text, color }),

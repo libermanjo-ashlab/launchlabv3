@@ -711,7 +711,7 @@ function CampaignTaskRow({ task:t, mode, channel, businessId, businessName, onCo
 
 // ── Campaign Card ─────────────────────────────────────────────────────────────
 
-function CampaignCard({ campaign:c, onUpdate, onDelete, businessId, businessName, setTab }) {
+function CampaignCard({ campaign:c, onUpdate, onDelete, businessId, businessName, setTab, activeCampaignCount=0 }) {
   const [expanded,    setExpanded]    = useState(c.status==="active");
   const [starting,    setStarting]    = useState(false);
   const [autoRunning, setAutoRunning] = useState(false);
@@ -725,33 +725,29 @@ function CampaignCard({ campaign:c, onUpdate, onDelete, businessId, businessName
   const mode      = c.mode || "guided";
   const statusColor = STAT_CLR[c.status] || C.muted;
 
-  // Auto mode: auto-start planned campaigns without any user input
-  useEffect(() => {
-    if (mode === "auto" && c.status === "planned" && !hasAutoStartedRef.current) {
-      hasAutoStartedRef.current = true;
-      const delay = 800 + Math.random() * 1200; // stagger multiple campaigns
-      setTimeout(() => startCampaign(), delay);
+  const startCampaign = async (activeCampaignCount = 0) => {
+    if (activeCampaignCount >= 3) {
+      alert("You can only run 3 campaigns at once. Complete or archive an active campaign before starting another.");
+      return;
     }
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
-
-  const startCampaign = async () => {
     console.log(`[CAMPAIGN:startCampaign] Starting — campaignId=${c.id} title="${c.title}" channel=${c.channel} mode=${mode}`);
     setStarting(true);
     try {
-      const res = await api.agents.campaignBreakdown(businessId, {...c, mode, status:"active"});
-      console.log(`[CAMPAIGN:startCampaign] Breakdown complete — taskCount=${res.tasks?.length} taskIds=${JSON.stringify(res.taskIds?.slice(0,3))} progressTarget=${res.progressTarget} progressUnit=${res.progressUnit}`);
+      const res = await api.agents.campaignBreakdown(businessId, { campaign:{...c, mode, status:"active"}, activeCampaignCount });
+      if (res.campaignLimitReached) {
+        alert("You can only run 3 campaigns at once. Complete or archive an active campaign first.");
+        setStarting(false);
+        return;
+      }
+      console.log(`[CAMPAIGN:startCampaign] Breakdown complete — taskCount=${res.tasks?.length} taskIds=${JSON.stringify(res.taskIds?.slice(0,3))}`);
       if (!res.tasks?.length) {
         console.warn(`[CAMPAIGN:startCampaign] WARNING — breakdown returned 0 tasks! campaign="${c.title}"`);
       }
       const updated = { ...c, status:"active", tasks:res.tasks, taskIds:res.taskIds, progressTarget:res.progressTarget, progressUnit:res.progressUnit, startedAt:new Date().toISOString() };
       onUpdate(updated);
-      if (mode==="auto") {
-        console.log(`[CAMPAIGN:startCampaign] Auto mode — scheduling runTasksAuto in 300ms`);
-        setTimeout(()=>runTasksAuto(updated), 300);
-      }
     } catch(e) {
       console.error(`[CAMPAIGN:startCampaign] FAILED — campaignId=${c.id} error="${e.message}"`);
-      alert("Could not start campaign: "+e.message);
+      alert(e.message.includes("token") ? e.message : "Could not start campaign: "+e.message);
     }
     setStarting(false);
   };
@@ -920,11 +916,11 @@ function CampaignCard({ campaign:c, onUpdate, onDelete, businessId, businessName
         </div>
       )}
 
-      {/* Auto mode: starting indicator */}
-      {mode==="auto" && c.status==="planned" && (
-        <div style={{ display:"flex", alignItems:"center", gap:6, fontSize:11, color:C.primary, fontFamily:FB, marginBottom:8 }}>
-          <span style={spin()} />
-          Setting up campaign automatically…
+      {/* Queued — shows in both guided and auto */}
+      {c.status==="planned" && (
+        <div style={{ fontSize:11, color:C.muted, fontFamily:FB, marginBottom:8 }}>
+          Click <strong>Start campaign</strong> to break this into tasks and begin execution.
+          {mode==="auto" && " (Max 3 campaigns can run at once.)"}
         </div>
       )}
 
@@ -949,9 +945,9 @@ function CampaignCard({ campaign:c, onUpdate, onDelete, businessId, businessName
 
       {/* Actions */}
       <div style={{ display:"flex", gap:6, flexWrap:"wrap" }}>
-        {c.status==="planned" && mode!=="auto" && (
-          <button onClick={startCampaign} disabled={starting}
-            style={{ ...btn(C.warn,"#fff",11), padding:"5px 12px", display:"flex", gap:4, alignItems:"center" }}>
+        {c.status==="planned" && (
+          <button onClick={()=>startCampaign(activeCampaignCount)} disabled={starting}
+            style={{ ...btn(starting?"#9CA3AF":C.warn,"#fff",11), padding:"5px 12px", display:"flex", gap:4, alignItems:"center" }}>
             {starting&&<span style={spin()}/>}
             {starting?"Setting up…":"Start campaign"}
           </button>
@@ -1624,16 +1620,20 @@ export default function AgentPanel({ businessId, businessName, metrics, planInfo
     api.agents.getAutopilot(businessId).then(d=>{ if(d.autopilotEnabled) saveAgentMode("auto"); }).catch(()=>{});
   },[businessId]);
 
-  // Auto-run analysis every 12h in auto mode
+  // Auto-run analysis every 12h in auto mode — never fires immediately on mount/tab-switch
   useEffect(()=>{
-    if (agentMode!=="auto") { clearInterval(autoTimerRef.current); return; }
-    const shouldRun = !ranAt || (Date.now()-new Date(ranAt).getTime())>12*3600*1000;
-    if (shouldRun && !running) runAnalysis();
-    autoTimerRef.current = setInterval(()=>{
+    clearTimeout(autoTimerRef.current);
+    if (agentMode!=="auto") return;
+    // Schedule next run for the remaining time from the last run (or 12h from now if never run)
+    const elapsed   = ranAt ? (Date.now() - new Date(ranAt).getTime()) : 0;
+    const remaining = Math.max(60_000, 12*3600*1000 - elapsed); // at least 60s
+    autoTimerRef.current = setTimeout(()=>{
       if (!running) runAnalysis();
-    }, 12*3600*1000);
-    return ()=>clearInterval(autoTimerRef.current);
-  },[agentMode]);
+    }, remaining);
+    return ()=>clearTimeout(autoTimerRef.current);
+  },[agentMode]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const autoQueueRef = useRef(null); // holds setTimeout for staged auto-queuing
 
   const runAnalysis = async () => {
     console.log(`[AGENT:runAnalysis] Starting — businessId=${businessId} agentMode=${agentMode}`);
@@ -1651,30 +1651,46 @@ export default function AgentPanel({ businessId, businessName, metrics, planInfo
       // Update monitoring campaign progress based on new analysis
       if (data.insights?.length) updateMonitoringProgress(data.insights);
 
-      // In auto mode: auto-add high-priority suggestions as campaigns (dedup by title)
+      // Auto mode: slowly queue high-priority suggestions as campaigns, one at a time,
+      // with a 45-second delay between each. User has time to delete before it becomes "planned".
       if (agentMode==="auto" && data.insights?.length) {
         const highPri = data.insights.filter(i=>i.priority==="high");
         if (highPri.length) {
           const existingTitles = new Set(campaigns.map(c=>c.title));
-          const newCampaigns = highPri
-            .filter(i=>!existingTitles.has(i.title||i.recommendation))
-            .map((i,idx)=>({
-              id: `${Date.now()}${idx}${Math.random().toString(36).slice(2,6)}`,
-              title: i.title||i.recommendation,
-              rationale: i.rationale||i.agentObservation,
-              channel: i.channel||i.implementationChannel,
-              expectedImpact: i.expectedImpact,
-              contentPreview: i.contentPreview,
-              estimatedMinutes: i.estimatedMinutes,
-              status:"planned", mode:"auto",
-              createdAt:new Date().toISOString(),
-            }));
-          if (newCampaigns.length) saveCampaigns(p=>[...newCampaigns,...p]);
+          const toQueue = highPri.filter(i=>!existingTitles.has(i.title||i.recommendation));
+          toQueue.forEach((ins, idx) => {
+            autoQueueRef.current = setTimeout(()=>{
+              saveCampaigns(prev => {
+                // Re-check dedup inside the timeout (user may have added one manually)
+                const titles = new Set(prev.map(c=>c.title));
+                const t = ins.title||ins.recommendation;
+                if (titles.has(t)) return prev;
+                const newC = {
+                  id: `${Date.now()}${idx}${Math.random().toString(36).slice(2,6)}`,
+                  title: t,
+                  rationale: ins.rationale||ins.agentObservation,
+                  channel: ins.channel||ins.implementationChannel,
+                  expectedImpact: ins.expectedImpact,
+                  contentPreview: ins.contentPreview,
+                  estimatedMinutes: ins.estimatedMinutes,
+                  status:"planned", mode:"auto",
+                  createdAt: new Date().toISOString(),
+                };
+                return [newC, ...prev];
+              });
+            }, (idx + 1) * 45_000); // 45s between each campaign suggestion
+          });
         }
+      }
+
+      // Re-schedule next auto-run timer from the fresh ranAt
+      if (agentMode === "auto") {
+        clearTimeout(autoTimerRef.current);
+        autoTimerRef.current = setTimeout(()=>{ runAnalysis(); }, 12*3600*1000);
       }
     } catch(e) {
       console.error(`[AGENT:runAnalysis] FAILED — error="${e.message}"`);
-      setError(e.message);
+      setError(e.message||"Analysis failed. Check your daily token limit in the budget bar.");
     }
     setRunning(false);
   };
@@ -1794,6 +1810,28 @@ export default function AgentPanel({ businessId, businessName, metrics, planInfo
             </span>
             <StickyNotesPanel businessId={businessId} />
           </div>
+
+          {/* Daily token budget bar */}
+          {access?.tokenBudget && (
+            <div style={{ marginBottom:12 }}>
+              <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:4 }}>
+                <span style={{ fontSize:10, fontWeight:600, color:C.muted, fontFamily:FB, textTransform:"uppercase", letterSpacing:"0.06em" }}>
+                  Daily AI budget ({access.effective?.plan||"starter"})
+                </span>
+                <span style={{ fontSize:10, color: access.tokenBudget.pct>=90?C.err:access.tokenBudget.pct>=70?C.warn:C.muted, fontFamily:FB, fontWeight:600 }}>
+                  {(access.tokenBudget.used/1000).toFixed(1)}K / {(access.tokenBudget.limit/1000).toFixed(0)}K tokens
+                </span>
+              </div>
+              <div style={{ height:5, borderRadius:3, background:C.border }}>
+                <div style={{ height:"100%", width:`${access.tokenBudget.pct}%`, borderRadius:3, background:access.tokenBudget.pct>=90?C.err:access.tokenBudget.pct>=70?C.warn:C.ok, transition:"width 0.5s" }} />
+              </div>
+              {access.tokenBudget.pct>=90 && (
+                <div style={{ fontSize:10, color:C.err, fontFamily:FB, marginTop:3 }}>
+                  Near limit — resets at midnight UTC. Agent will switch to guided mode if auto tasks would exceed the cap.
+                </div>
+              )}
+            </div>
+          )}
 
           {/* Trial/access */}
           {access?.effective?.isTrial && !access.effective.locked && (
@@ -1933,7 +1971,7 @@ export default function AgentPanel({ businessId, businessName, metrics, planInfo
                 <div>
                   <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:8 }}>
                     <p style={{ fontSize:11, fontWeight:700, color:C.muted, textTransform:"uppercase", letterSpacing:"0.07em", fontFamily:FB }}>
-                      {agentMode==="auto" ? "Analysis — campaigns auto-queued →" : "Suggested campaigns"}
+                      {agentMode==="auto" ? "Analysis — suggestions being queued →" : "Suggested campaigns"}
                     </p>
                     {agentMode==="guided" && (
                       <span style={{ fontSize:10, color:C.muted, fontFamily:FB }}>Click "Add to campaigns" to move →</span>
@@ -1969,10 +2007,10 @@ export default function AgentPanel({ businessId, businessName, metrics, planInfo
           {plannedCampaigns.length>0 && (
             <div style={{ marginBottom:14 }}>
               <p style={{ fontSize:11, fontWeight:700, color:C.muted, textTransform:"uppercase", letterSpacing:"0.07em", marginBottom:6, fontFamily:FB }}>
-                {agentMode==="auto"?"Auto-queued":"Planned"} ({plannedCampaigns.length})
+                Queued — ready to start ({plannedCampaigns.length})
               </p>
               {plannedCampaigns.map(c=>(
-                <CampaignCard key={c.id} campaign={c} onUpdate={updateCampaign} onDelete={deleteCampaign} businessId={businessId} businessName={businessName} setTab={setTab} />
+                <CampaignCard key={c.id} campaign={c} onUpdate={updateCampaign} onDelete={deleteCampaign} businessId={businessId} businessName={businessName} setTab={setTab} activeCampaignCount={activeCampaigns.length} />
               ))}
             </div>
           )}
@@ -1984,7 +2022,7 @@ export default function AgentPanel({ businessId, businessName, metrics, planInfo
                 Active ({activeCampaigns.length})
               </p>
               {activeCampaigns.map(c=>(
-                <CampaignCard key={c.id} campaign={c} onUpdate={updateCampaign} onDelete={deleteCampaign} businessId={businessId} businessName={businessName} setTab={setTab} />
+                <CampaignCard key={c.id} campaign={c} onUpdate={updateCampaign} onDelete={deleteCampaign} businessId={businessId} businessName={businessName} setTab={setTab} activeCampaignCount={activeCampaigns.length} />
               ))}
             </div>
           )}
@@ -2004,7 +2042,7 @@ export default function AgentPanel({ businessId, businessName, metrics, planInfo
                 )}
               </div>
               {monitoringCampaigns.map(c=>(
-                <CampaignCard key={c.id} campaign={c} onUpdate={updateCampaign} onDelete={deleteCampaign} businessId={businessId} businessName={businessName} setTab={setTab} />
+                <CampaignCard key={c.id} campaign={c} onUpdate={updateCampaign} onDelete={deleteCampaign} businessId={businessId} businessName={businessName} setTab={setTab} activeCampaignCount={activeCampaigns.length} />
               ))}
             </div>
           )}
@@ -2014,7 +2052,7 @@ export default function AgentPanel({ businessId, businessName, metrics, planInfo
             <div style={{ ...card("16px"), textAlign:"center", border:"1px dashed "+C.border, marginBottom:14 }}>
               <div style={{ fontSize:12, color:C.muted, fontFamily:FB, lineHeight:1.6 }}>
                 {agentMode==="auto"
-                  ? "When analysis runs, high-priority campaigns will appear here automatically."
+                  ? "Run an analysis to get suggestions. High-priority ones will be queued here automatically (45s apart) — you can delete any before it starts."
                   : agentMode==="guided"
                   ? "Run an analysis, then hit \"Add to campaigns\" on any suggestion. Or add a campaign manually below."
                   : "Create a campaign manually below to start tracking your marketing work."}
@@ -2032,7 +2070,7 @@ export default function AgentPanel({ businessId, businessName, metrics, planInfo
                 {showArchived?"▲":"▼"} Archived Campaigns ({archivedCampaigns.length})
               </button>
               {showArchived && archivedCampaigns.map(c=>(
-                <CampaignCard key={c.id} campaign={c} onUpdate={updateCampaign} onDelete={deleteCampaign} businessId={businessId} businessName={businessName} setTab={setTab} />
+                <CampaignCard key={c.id} campaign={c} onUpdate={updateCampaign} onDelete={deleteCampaign} businessId={businessId} businessName={businessName} setTab={setTab} activeCampaignCount={activeCampaigns.length} />
               ))}
             </div>
           )}

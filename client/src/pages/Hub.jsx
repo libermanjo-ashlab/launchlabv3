@@ -547,11 +547,99 @@ function NotesGrid({ notes, onDelete }) {
   );
 }
 
+// ── Inline-editable task row wrapper ─────────────────────────────────────────
+function TaskRowWrapper({ task, businessId, outputs, onUpdate, onDelete, selectable, selected, onToggleSelect }) {
+  const [editing,  setEditing]  = useState(false);
+  const [eName,    setEName]    = useState(task.name);
+  const [eDesc,    setEDesc]    = useState(task.description || "");
+  const [saving,   setSaving]   = useState(false);
+
+  const saveEdit = async () => {
+    if (!eName.trim()) return;
+    setSaving(true);
+    try {
+      const updated = await api.tasks.update(task.id, { name: eName.trim(), description: eDesc.trim() });
+      onUpdate({ ...task, name: eName.trim(), description: eDesc.trim() });
+    } catch {}
+    setSaving(false);
+    setEditing(false);
+  };
+
+  return (
+    <div style={{ display:"flex", gap:8, alignItems:"flex-start", marginBottom:8 }}>
+      {/* Checkbox for bulk select */}
+      {selectable && (
+        <div style={{ paddingTop:16, flexShrink:0 }}>
+          <input type="checkbox" checked={selected} onChange={()=>onToggleSelect(task.id)}
+            style={{ width:16, height:16, cursor:"pointer", accentColor:C.primary }} />
+        </div>
+      )}
+
+      <div style={{ flex:1, minWidth:0 }}>
+        {editing ? (
+          <div style={{ ...card("12px 14px"), marginBottom:0 }}>
+            <div style={{ fontFamily:FB, fontWeight:600, fontSize:12, color:C.muted, marginBottom:6 }}>Edit task</div>
+            <input value={eName} onChange={e=>setEName(e.target.value)}
+              style={{ ...inp({ marginBottom:8 }), fontWeight:600 }} placeholder="Task name" />
+            <textarea value={eDesc} onChange={e=>setEDesc(e.target.value)}
+              style={{ ...inp({ height:60, resize:"vertical", marginBottom:8 }) }} placeholder="Description (optional)" />
+            <div style={{ display:"flex", gap:8 }}>
+              <button onClick={saveEdit} disabled={saving||!eName.trim()} style={{ ...btn(C.primary,"#fff",12), padding:"6px 14px" }}>
+                {saving ? "Saving…" : "Save"}
+              </button>
+              <button onClick={()=>{ setEditing(false); setEName(task.name); setEDesc(task.description||""); }}
+                style={{ ...btnO(C.muted,12), padding:"6px 12px" }}>Cancel</button>
+            </div>
+          </div>
+        ) : (
+          <div style={{ position:"relative" }}>
+            <TaskCard task={task} businessId={businessId} outputs={outputs} onUpdate={onUpdate} onDelete={onDelete} />
+            {/* Edit pencil — top-right of card header */}
+            <button onClick={e=>{e.stopPropagation();setEditing(true);}}
+              title="Edit task"
+              style={{ position:"absolute", top:10, right:36, background:"none", border:"none", cursor:"pointer", color:C.muted, fontSize:13, padding:"3px 5px", lineHeight:1, zIndex:2 }}>
+              ✏️
+            </button>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ── Campaign group accordion ──────────────────────────────────────────────────
+function CampaignGroup({ title, tasks, businessId, outputs, onUpdate, onDelete, selectable, selected, onToggleSelect }) {
+  const [open, setOpen] = useState(true);
+  const done  = tasks.filter(t=>t.status==="done").length;
+  return (
+    <div style={{ marginBottom:12 }}>
+      <div onClick={()=>setOpen(p=>!p)}
+        style={{ display:"flex", alignItems:"center", gap:8, padding:"8px 12px", background:C.primaryBg, borderRadius:8, cursor:"pointer", marginBottom:open?6:0, border:`1px solid ${C.primary}22` }}>
+        <span style={{ fontSize:11 }}>{open?"▼":"▶"}</span>
+        <span style={{ fontFamily:FH, fontWeight:600, fontSize:13, color:C.primary, flex:1 }}>{title}</span>
+        <span style={{ fontSize:11, color:C.muted, fontFamily:FB }}>{done}/{tasks.length} done</span>
+      </div>
+      {open && (
+        <div style={{ paddingLeft:16, borderLeft:`2px solid ${C.primary}22` }}>
+          {tasks.map(t=>(
+            <TaskRowWrapper key={t.id} task={t} businessId={businessId} outputs={outputs}
+              onUpdate={onUpdate} onDelete={onDelete}
+              selectable={selectable} selected={selected.has(t.id)} onToggleSelect={onToggleSelect} />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function TasksPanel({ businessId, businessOutputs }) {
-  const [tasks,    setTasks]    = useState([]);
-  const [loading,  setLoading]  = useState(true);
-  const [showAdd,  setShowAdd]  = useState(false);
-  const [filter,   setFilter]   = useState("all");
+  const [tasks,      setTasks]      = useState([]);
+  const [loading,    setLoading]    = useState(true);
+  const [showAdd,    setShowAdd]    = useState(false);
+  const [filter,     setFilter]     = useState("all");
+  const [selectMode, setSelectMode] = useState(false);
+  const [selected,   setSelected]   = useState(new Set());
+  const [bulkBusy,   setBulkBusy]   = useState(false);
 
   useEffect(() => {
     api.tasks.list(businessId).then(d => setTasks(d.tasks||[])).catch(()=>{}).finally(()=>setLoading(false));
@@ -562,22 +650,76 @@ function TasksPanel({ businessId, businessOutputs }) {
   const onDelete = async id => {
     await api.tasks.delete(id).catch(()=>{});
     setTasks(p => p.filter(t => t.id !== id));
+    setSelected(p => { const n=new Set(p); n.delete(id); return n; });
+  };
+
+  const toggleSelect = id => setSelected(p => {
+    const n = new Set(p);
+    n.has(id) ? n.delete(id) : n.add(id);
+    return n;
+  });
+
+  const toggleSelectAll = (ids) => {
+    if (ids.every(id=>selected.has(id))) {
+      setSelected(p => { const n=new Set(p); ids.forEach(id=>n.delete(id)); return n; });
+    } else {
+      setSelected(p => { const n=new Set(p); ids.forEach(id=>n.add(id)); return n; });
+    }
+  };
+
+  const bulkAction = async (action) => {
+    const ids = [...selected];
+    if (!ids.length) return;
+    setBulkBusy(true);
+    try {
+      await api.tasks.bulkAction(businessId, action, ids);
+      if (action === "delete") {
+        setTasks(p => p.filter(t => !ids.includes(t.id)));
+      } else if (action === "complete") {
+        setTasks(p => p.map(t => ids.includes(t.id) ? { ...t, status:"done" } : t));
+      } else if (action === "pending") {
+        setTasks(p => p.map(t => ids.includes(t.id) ? { ...t, status:"pending" } : t));
+      }
+      setSelected(new Set());
+    } catch (e) { alert(e.message); }
+    setBulkBusy(false);
   };
 
   const regularTasks = tasks.filter(t => t.category !== "notes");
   const noteTasks    = tasks.filter(t => t.category === "notes");
 
-  // Build category list from regular tasks only
-  const rawCategories = ["all", ...new Set(regularTasks.map(t => t.category).filter(Boolean))];
-  // Add "notes" as a special tab if there are notes
-  const categories = noteTasks.length > 0 ? [...rawCategories, "notes"] : rawCategories;
+  // Campaign tasks: group by campaign title (steps[0].label)
+  const campaignTasks = regularTasks.filter(t => t.category === "campaign");
+  const nonCampaignTasks = regularTasks.filter(t => t.category !== "campaign");
 
-  const isNoteTab = filter === "notes";
-  const visible = isNoteTab ? [] : (filter==="all" ? regularTasks : regularTasks.filter(t=>t.category===filter));
+  // Build category list (excluding "campaign" — those are grouped separately)
+  const nonCampaignCats = ["all", ...new Set(nonCampaignTasks.map(t => t.category).filter(Boolean))];
+  const categories = noteTasks.length > 0 ? [...nonCampaignCats, "notes"] : nonCampaignCats;
+
+  const isNoteTab     = filter === "notes";
+  const isCampaignTab = filter === "campaign";
+  const visibleNonCampaign = filter==="all" ? nonCampaignTasks
+    : nonCampaignTasks.filter(t=>t.category===filter);
+
+  // Group campaign tasks by campaign title
+  const campaignGroups = campaignTasks.reduce((acc, t) => {
+    const title = (t.steps||[])[0]?.label || "Campaign";
+    if (!acc[title]) acc[title] = [];
+    acc[title].push(t);
+    return acc;
+  }, {});
+
   const done  = regularTasks.filter(t => t.status === "done").length;
   const total = regularTasks.length;
 
   if (loading) return <div style={{ padding:"40px 0", textAlign:"center", color:C.muted }}>Loading tasks…</div>;
+
+  // All visible task IDs for select-all
+  const visibleIds = isCampaignTab
+    ? campaignTasks.map(t=>t.id)
+    : filter==="all"
+      ? [...nonCampaignTasks.map(t=>t.id), ...campaignTasks.map(t=>t.id)]
+      : visibleNonCampaign.map(t=>t.id);
 
   return (
     <div>
@@ -586,7 +728,15 @@ function TasksPanel({ businessId, businessOutputs }) {
           <div style={{ fontFamily:FH, fontWeight:700, fontSize:24, letterSpacing:"-0.04em" }}>Tasks</div>
           <p style={{ color:C.muted, fontSize:13, marginTop:4, fontFamily:FB }}>{done} of {total} complete</p>
         </div>
-        {!isNoteTab && <button onClick={()=>setShowAdd(true)} style={{ ...btn(C.primary,"#fff",13) }}>+ Add task</button>}
+        <div style={{ display:"flex", gap:8 }}>
+          {!isNoteTab && (
+            <button onClick={()=>{ setSelectMode(p=>!p); setSelected(new Set()); }}
+              style={{ ...btnO(selectMode?C.primary:C.muted,12), padding:"6px 12px" }}>
+              {selectMode ? "Done selecting" : "Select"}
+            </button>
+          )}
+          {!isNoteTab && <button onClick={()=>setShowAdd(true)} style={{ ...btn(C.primary,"#fff",13) }}>+ Add task</button>}
+        </div>
       </div>
 
       {total > 0 && !isNoteTab && (
@@ -595,7 +745,38 @@ function TasksPanel({ businessId, businessOutputs }) {
         </div>
       )}
 
-      {categories.length > 2 && (
+      {/* Bulk action bar */}
+      {selectMode && (
+        <div style={{ display:"flex", alignItems:"center", gap:8, padding:"10px 14px", background:C.primaryBg, borderRadius:8, marginBottom:12, flexWrap:"wrap" }}>
+          <input type="checkbox"
+            checked={visibleIds.length>0 && visibleIds.every(id=>selected.has(id))}
+            onChange={()=>toggleSelectAll(visibleIds)}
+            style={{ width:16, height:16, cursor:"pointer", accentColor:C.primary }} />
+          <span style={{ fontSize:12, color:C.muted, fontFamily:FB }}>
+            {selected.size > 0 ? `${selected.size} selected` : "Select all"}
+          </span>
+          {selected.size > 0 && (
+            <>
+              <button onClick={()=>bulkAction("complete")} disabled={bulkBusy}
+                style={{ ...btn(C.ok,"#fff",12), padding:"6px 14px" }}>
+                Mark complete ({selected.size})
+              </button>
+              <button onClick={()=>bulkAction("pending")} disabled={bulkBusy}
+                style={{ ...btnO(C.muted,12), padding:"6px 12px" }}>
+                Reopen ({selected.size})
+              </button>
+              <button onClick={()=>{ if(window.confirm(`Delete ${selected.size} task${selected.size>1?"s":""}?`)) bulkAction("delete"); }}
+                disabled={bulkBusy}
+                style={{ ...btn(C.err,"#fff",12), padding:"6px 14px" }}>
+                Delete ({selected.size})
+              </button>
+            </>
+          )}
+        </div>
+      )}
+
+      {/* Category filter tabs */}
+      {(categories.length > 2 || campaignTasks.length > 0) && (
         <div style={{ display:"flex", gap:6, flexWrap:"wrap", marginBottom:16 }}>
           {categories.map(c => (
             <button key={c} onClick={()=>setFilter(c)}
@@ -604,14 +785,53 @@ function TasksPanel({ businessId, businessOutputs }) {
               {c==="notes"&&noteTasks.length>0&&<span style={{ marginLeft:4, background:"rgba(255,255,255,0.3)", borderRadius:10, padding:"0 5px", fontSize:9 }}>{noteTasks.length}</span>}
             </button>
           ))}
+          {campaignTasks.length > 0 && (
+            <button onClick={()=>setFilter("campaign")}
+              style={{ ...btn(filter==="campaign"?C.primary:"#F4F4F5", filter==="campaign"?"#fff":C.muted, 11), padding:"5px 12px" }}>
+              Campaigns
+              <span style={{ marginLeft:4, background:"rgba(255,255,255,0.3)", borderRadius:10, padding:"0 5px", fontSize:9 }}>{campaignTasks.length}</span>
+            </button>
+          )}
         </div>
       )}
 
       {isNoteTab ? (
         <NotesGrid notes={noteTasks} onDelete={onDelete} />
+      ) : isCampaignTab ? (
+        // Campaign tab: show grouped campaign tasks
+        campaignTasks.length === 0 ? (
+          <div style={{ ...card("28px"), textAlign:"center", color:C.muted }}>
+            <div style={{ fontSize:28, marginBottom:10 }}>📋</div>
+            <div style={{ fontFamily:FH, fontWeight:600, fontSize:15, marginBottom:6 }}>No campaign tasks yet</div>
+            <p style={{ fontSize:13, lineHeight:1.65 }}>Campaign tasks are created when you start a campaign in the Marketing Agent.</p>
+          </div>
+        ) : (
+          Object.entries(campaignGroups).map(([title, groupTasks]) => (
+            <CampaignGroup key={title} title={title} tasks={groupTasks}
+              businessId={businessId} outputs={businessOutputs}
+              onUpdate={onUpdate} onDelete={onDelete}
+              selectable={selectMode} selected={selected} onToggleSelect={toggleSelect} />
+          ))
+        )
       ) : (
         <>
-          {visible.length === 0 && (
+          {/* Campaign groups shown inline in "all" view */}
+          {filter === "all" && campaignTasks.length > 0 && (
+            <div style={{ marginBottom:16 }}>
+              <div style={{ fontSize:11, fontWeight:700, color:C.muted, textTransform:"uppercase", letterSpacing:"0.08em", padding:"4px 0 8px", fontFamily:FB }}>
+                Campaigns ({campaignTasks.length} tasks)
+              </div>
+              {Object.entries(campaignGroups).map(([title, groupTasks]) => (
+                <CampaignGroup key={title} title={title} tasks={groupTasks}
+                  businessId={businessId} outputs={businessOutputs}
+                  onUpdate={onUpdate} onDelete={onDelete}
+                  selectable={selectMode} selected={selected} onToggleSelect={toggleSelect} />
+              ))}
+            </div>
+          )}
+
+          {/* Regular (non-campaign) tasks */}
+          {visibleNonCampaign.length === 0 && campaignTasks.length === 0 && (
             <div style={{ ...card("28px"), textAlign:"center", color:C.muted }}>
               <div style={{ fontSize:28, marginBottom:10 }}>📋</div>
               <div style={{ fontFamily:FH, fontWeight:600, fontSize:15, marginBottom:6 }}>No tasks yet</div>
@@ -619,19 +839,23 @@ function TasksPanel({ businessId, businessOutputs }) {
               <button onClick={()=>setShowAdd(true)} style={{ ...btn(C.primary,"#fff",13) }}>Add your first task</button>
             </div>
           )}
-          <div>
-            {visible.filter(t=>t.status!=="done").map(t => (
-              <TaskCard key={t.id} task={t} businessId={businessId} outputs={businessOutputs} onUpdate={onUpdate} onDelete={onDelete} />
-            ))}
-            {visible.some(t=>t.status==="done") && (
-              <>
-                <div style={{ fontSize:11, fontWeight:700, color:C.muted, textTransform:"uppercase", letterSpacing:"0.08em", padding:"12px 0 8px", fontFamily:FB }}>Completed</div>
-                {visible.filter(t=>t.status==="done").map(t => (
-                  <TaskCard key={t.id} task={t} businessId={businessId} outputs={businessOutputs} onUpdate={onUpdate} onDelete={onDelete} />
-                ))}
-              </>
-            )}
-          </div>
+
+          {visibleNonCampaign.filter(t=>t.status!=="done").map(t=>(
+            <TaskRowWrapper key={t.id} task={t} businessId={businessId} outputs={businessOutputs}
+              onUpdate={onUpdate} onDelete={onDelete}
+              selectable={selectMode} selected={selected.has(t.id)} onToggleSelect={toggleSelect} />
+          ))}
+
+          {visibleNonCampaign.some(t=>t.status==="done") && (
+            <>
+              <div style={{ fontSize:11, fontWeight:700, color:C.muted, textTransform:"uppercase", letterSpacing:"0.08em", padding:"12px 0 8px", fontFamily:FB }}>Completed</div>
+              {visibleNonCampaign.filter(t=>t.status==="done").map(t=>(
+                <TaskRowWrapper key={t.id} task={t} businessId={businessId} outputs={businessOutputs}
+                  onUpdate={onUpdate} onDelete={onDelete}
+                  selectable={selectMode} selected={selected.has(t.id)} onToggleSelect={toggleSelect} />
+              ))}
+            </>
+          )}
         </>
       )}
 

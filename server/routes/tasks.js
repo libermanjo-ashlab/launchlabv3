@@ -390,6 +390,26 @@ router.post("/:id/run", requireAuth, async (req, res, next) => {
       imageSource: outputData.imageSource || "none",
     });
 
+    // Track token usage for campaign/auto tasks (best-effort — don't fail the task run)
+    try {
+      const { getEffectivePlan } = require("../services/plans");
+      const { PrismaClient: P2 } = require("@prisma/client");
+      const p2 = new P2();
+      const userRow = await p2.user.findFirst({ include: { businesses: { where: { id: task.businessId } } } });
+      if (userRow) {
+        const plan = getEffectivePlan(userRow).plan;
+        const limit = { trial:20000, starter:20000, active:50000, autopilot:110000, pro:110000 }[plan] || 20000;
+        const today = `tok_${new Date().toISOString().slice(0,10)}`;
+        const out = await p2.businessOutput.findFirst({ where:{ businessId:task.businessId, type:"usage" } });
+        const usage = out ? (JSON.parse(out.content||"{}")) : {};
+        usage[today] = (usage[today]||0) + 1500; // 1500-token estimate per task run
+        Object.keys(usage).filter(k=>k.startsWith("tok_")&&k!==today).forEach(k=>delete usage[k]);
+        if (out) await p2.businessOutput.update({ where:{ id:out.id }, data:{ content:JSON.stringify(usage) } });
+        else await p2.businessOutput.create({ data:{ businessId:task.businessId, type:"usage", title:"Usage tracking", content:JSON.stringify(usage) } });
+        await p2.$disconnect();
+      }
+    } catch {}
+
     res.json({ task: { ...updated, steps: JSON.parse(updated.steps || "[]"), outputData } });
   } catch (e) {
     log.error("TASK", "Task run threw unhandled error", {
@@ -411,6 +431,27 @@ router.delete("/:id", requireAuth, async (req, res, next) => {
     if (!task) return res.status(404).json({ error: "Task not found" });
     await prisma.task.delete({ where: { id: req.params.id } });
     res.json({ ok: true });
+  } catch (e) { next(e); }
+});
+
+// POST /api/tasks/business/:businessId/bulk-action — bulk delete or status update
+router.post("/business/:businessId/bulk-action", requireAuth, async (req, res, next) => {
+  try {
+    const business = await prisma.business.findFirst({ where: { id: req.params.businessId, userId: req.userId } });
+    if (!business) return res.status(404).json({ error: "Business not found" });
+    const { action, ids } = req.body;
+    if (!Array.isArray(ids) || !ids.length) return res.status(400).json({ error: "ids required" });
+    const where = { id: { in: ids }, businessId: req.params.businessId };
+    if (action === "delete") {
+      await prisma.task.deleteMany({ where });
+    } else if (action === "complete") {
+      await prisma.task.updateMany({ where, data: { status: "done" } });
+    } else if (action === "pending") {
+      await prisma.task.updateMany({ where, data: { status: "pending" } });
+    } else {
+      return res.status(400).json({ error: "action must be delete, complete, or pending" });
+    }
+    res.json({ ok: true, count: ids.length });
   } catch (e) { next(e); }
 });
 

@@ -23,6 +23,13 @@ function logActivity(bizId, entry) {
   activityLog[bizId] = activityLog[bizId].slice(0, 30);
 }
 
+// ── Daily token budget ────────────────────────────────────────────────────────
+const DAILY_TOKEN_LIMITS = { trial:20000, starter:20000, active:50000, autopilot:110000, pro:110000 };
+// Conservative per-operation estimates (actual usage varies; estimates err high for safety)
+const TOKEN_EST = { marketing_full:12000, marketing_basic:800, campaign_breakdown:2500, task_run:1500, implement:1800 };
+
+function todayKey() { return `tok_${new Date().toISOString().slice(0,10)}`; }
+
 async function getUsage(bizId) {
   const out = await prisma.businessOutput.findFirst({ where:{ businessId:bizId, type:"usage" } });
   if (!out) return { marketingRuns:0, managementImplements:0 };
@@ -36,6 +43,25 @@ async function bumpUsage(bizId, key) {
   if (existing) await prisma.businessOutput.update({ where:{ id:existing.id }, data:{ content } });
   else await prisma.businessOutput.create({ data:{ businessId:bizId, type:"usage", title:"Usage tracking", content } });
   return usage;
+}
+async function getDailyTokens(bizId) {
+  const usage = await getUsage(bizId);
+  return usage[todayKey()] || 0;
+}
+async function addDailyTokens(bizId, estimate) {
+  const key = todayKey();
+  const usage = await getUsage(bizId);
+  usage[key] = (usage[key] || 0) + estimate;
+  // Purge stale daily keys (anything not today)
+  Object.keys(usage).filter(k => k.startsWith("tok_") && k !== key).forEach(k => delete usage[k]);
+  const existing = await prisma.businessOutput.findFirst({ where:{ businessId:bizId, type:"usage" } });
+  const content = JSON.stringify(usage);
+  if (existing) await prisma.businessOutput.update({ where:{ id:existing.id }, data:{ content } });
+  else await prisma.businessOutput.create({ data:{ businessId:bizId, type:"usage", title:"Usage tracking", content } });
+}
+function tokenBudget(plan, used) {
+  const limit = DAILY_TOKEN_LIMITS[plan] || DAILY_TOKEN_LIMITS.starter;
+  return { used, limit, remaining: Math.max(0, limit - used), pct: Math.min(100, Math.round(used / limit * 100)) };
 }
 
 async function getUserMetrics(bizId) {
@@ -67,7 +93,8 @@ router.get("/:businessId/access", requireAuth, async (req, res, next) => {
     const marketing  = canRunMarketing(effective, usage);
     const management = canImplement(effective, usage);
     const autopilot   = canUseAutopilot(effective);
-    res.json({ effective, usage, marketing, management, autopilot });
+    const dailyUsed   = await getDailyTokens(req.params.businessId);
+    res.json({ effective, usage, marketing, management, autopilot, tokenBudget: tokenBudget(effective.plan, dailyUsed) });
   } catch(e) { next(e); }
 });
 
@@ -95,6 +122,21 @@ router.post("/:businessId/marketing/run", requireAuth, async (req, res, next) =>
 
     const biz = await prisma.business.findFirst({ where:{ id:req.params.businessId, userId:req.userId } });
     if (!biz) return res.status(404).json({ error:"Business not found" });
+
+    const { mode } = req.body;
+
+    // Token budget check
+    const dailyUsed  = await getDailyTokens(req.params.businessId);
+    const tokenLimit = DAILY_TOKEN_LIMITS[effective.plan] || DAILY_TOKEN_LIMITS.starter;
+    const estimate   = mode === "manual" ? TOKEN_EST.marketing_basic : TOKEN_EST.marketing_full;
+    if (dailyUsed + estimate > tokenLimit) {
+      return res.status(429).json({
+        error: `Daily AI limit reached (${tokenLimit.toLocaleString()} tokens/day on ${effective.plan} plan). Resets at midnight UTC.`,
+        tokenLimitReached: true,
+        tokenBudget: tokenBudget(effective.plan, dailyUsed),
+      });
+    }
+
     let intake = {};
     try { intake = JSON.parse(biz.intakeData||"{}"); } catch {}
     const metrics = await getUserMetrics(req.params.businessId);
@@ -102,18 +144,17 @@ router.post("/:businessId/marketing/run", requireAuth, async (req, res, next) =>
 
     logActivity(req.params.businessId,{ agent:"marketing", action:"Analysis started", detail:"Scanning your business metrics and channels for growth opportunities" });
 
-    const { mode } = req.body;
     let reportData;
 
     if (mode === "manual") {
       // Manual mode: basic overview only, no deep AI analysis
       const overview = await runBasicOverview(biz, metrics, integrations);
       reportData = { insights:[], overview, ranAt:new Date().toISOString(), mode:"manual" };
+      await addDailyTokens(req.params.businessId, TOKEN_EST.marketing_basic);
       logActivity(req.params.businessId,{ agent:"marketing", action:"Basic overview generated", detail:"Channel stats and general tips ready" });
     } else {
-      // Guided/Autopilot: full enhanced report
+      // Guided/Auto: full enhanced report
       const report = await runEnhancedMarketingAgent(biz, metrics, intake, integrations);
-      // Map suggestions → insights for backward compat + keep full report
       const insights = (report.suggestions || []).map(s => ({
         id: s.id,
         type: s.channel,
@@ -128,6 +169,7 @@ router.post("/:businessId/marketing/run", requireAuth, async (req, res, next) =>
         contentPreview: s.contentPreview,
       }));
       reportData = { insights, report, ranAt:new Date().toISOString(), mode: mode || "guided" };
+      await addDailyTokens(req.params.businessId, TOKEN_EST.marketing_full);
       if (effective.plan === "trial") await bumpUsage(req.params.businessId, "marketingRuns");
       logActivity(req.params.businessId,{ agent:"marketing", action:`Found ${insights.length} insights`, detail:`${insights.filter(i=>i.priority==="high").length} high priority, market analysis ready` });
     }
@@ -440,11 +482,28 @@ router.post("/:businessId/management/implement", requireAuth, async (req, res, n
  */
 router.post("/:businessId/campaigns/breakdown", requireAuth, async (req, res, next) => {
   try {
-    const { campaign } = req.body;
+    const { campaign, activeCampaignCount = 0 } = req.body;
     if (!campaign?.title) return res.status(400).json({ error: "campaign.title is required" });
+
+    // Enforce max-3-active-campaigns at the API level
+    if (activeCampaignCount >= 3) {
+      return res.status(429).json({ error: "You can only run 3 campaigns at once. Complete or archive one before starting another.", campaignLimitReached: true });
+    }
 
     const biz = await prisma.business.findFirst({ where:{ id:req.params.businessId, userId:req.userId } });
     if (!biz) return res.status(404).json({ error:"Business not found" });
+
+    // Token budget check
+    const { effective } = await loadUserAndPlan(req.userId);
+    const dailyUsed  = await getDailyTokens(req.params.businessId);
+    const tokenLimit = DAILY_TOKEN_LIMITS[effective.plan] || DAILY_TOKEN_LIMITS.starter;
+    if (dailyUsed + TOKEN_EST.campaign_breakdown > tokenLimit) {
+      return res.status(429).json({
+        error: `Daily AI token limit reached (${tokenLimit.toLocaleString()} tokens/day). Upgrade your plan or wait until midnight UTC.`,
+        tokenLimitReached: true,
+        tokenBudget: tokenBudget(effective.plan, dailyUsed),
+      });
+    }
 
     let idea = {}; try { idea = JSON.parse(biz.ideaData||"{}"); } catch {}
 
@@ -526,6 +585,7 @@ Return a JSON object:
       savedTasks.push({ ...task, progressUnit: t.progressUnit });
     }
 
+    await addDailyTokens(req.params.businessId, TOKEN_EST.campaign_breakdown);
     logActivity(req.params.businessId, {
       agent: "marketing",
       action: "Campaign broken into tasks",
