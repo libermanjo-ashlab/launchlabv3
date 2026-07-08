@@ -657,9 +657,9 @@ function CampaignGroup({ title, tasks, businessId, outputs, onUpdate, onDelete, 
   );
 }
 
-function TasksPanel({ businessId, businessOutputs, hubNotes, stickyAssignments, onAssignSticky, onUnstickNote, onTasksChanged, initialTasks }) {
-  const [tasks,      setTasks]      = useState(initialTasks || []);
-  const [loading,    setLoading]    = useState(!initialTasks?.length);
+function TasksPanel({ businessId, businessOutputs, hubNotes, stickyAssignments, onAssignSticky, onUnstickNote, onTasksChanged }) {
+  const [tasks,      setTasks]      = useState([]);
+  const [loading,    setLoading]    = useState(true);
   const [showAdd,    setShowAdd]    = useState(false);
   const [filter,     setFilter]     = useState("all");
   const [selectMode, setSelectMode] = useState(false);
@@ -667,16 +667,19 @@ function TasksPanel({ businessId, businessOutputs, hubNotes, stickyAssignments, 
   const [bulkBusy,   setBulkBusy]   = useState(false);
 
   useEffect(() => {
-    api.tasks.list(businessId).then(d => setTasks(d.tasks||[])).catch(()=>{}).finally(()=>setLoading(false));
-  }, [businessId]);
+    api.tasks.list(businessId).then(d => { const t = d.tasks||[]; setTasks(t); onTasksChanged?.(t); }).catch(()=>{}).finally(()=>setLoading(false));
+  }, [businessId]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const onAdd    = task  => { setTasks(p => [...p, task]); onTasksChanged?.(); };
-  const onUpdate = task  => { setTasks(p => p.map(t => t.id===task.id ? task : t)); onTasksChanged?.(); };
+  const onAdd = task => {
+    setTasks(p => { const n = [...p, task]; onTasksChanged?.(n); return n; });
+  };
+  const onUpdate = task => {
+    setTasks(p => { const n = p.map(t => t.id===task.id ? task : t); onTasksChanged?.(n); return n; });
+  };
   const onDelete = async id => {
     await api.tasks.delete(id).catch(()=>{});
-    setTasks(p => p.filter(t => t.id !== id));
+    setTasks(p => { const n = p.filter(t => t.id !== id); onTasksChanged?.(n); return n; });
     setSelected(p => { const n=new Set(p); n.delete(id); return n; });
-    onTasksChanged?.();
   };
 
   const toggleSelect = id => setSelected(p => {
@@ -699,15 +702,16 @@ function TasksPanel({ businessId, businessOutputs, hubNotes, stickyAssignments, 
     setBulkBusy(true);
     try {
       await api.tasks.bulkAction(businessId, action, ids);
-      if (action === "delete") {
-        setTasks(p => p.filter(t => !ids.includes(t.id)));
-      } else if (action === "complete") {
-        setTasks(p => p.map(t => ids.includes(t.id) ? { ...t, status:"done" } : t));
-      } else if (action === "pending") {
-        setTasks(p => p.map(t => ids.includes(t.id) ? { ...t, status:"pending" } : t));
-      }
+      setTasks(p => {
+        let n;
+        if (action === "delete") n = p.filter(t => !ids.includes(t.id));
+        else if (action === "complete") n = p.map(t => ids.includes(t.id) ? { ...t, status:"done" } : t);
+        else if (action === "pending") n = p.map(t => ids.includes(t.id) ? { ...t, status:"pending" } : t);
+        else n = p;
+        onTasksChanged?.(n);
+        return n;
+      });
       setSelected(new Set());
-      onTasksChanged?.();
     } catch (e) { alert(e.message); }
     setBulkBusy(false);
   };
@@ -2095,7 +2099,10 @@ export default function Hub() {
     }).catch(console.error).finally(()=>setLoading(false));
   },[businessId]);
 
-  const refreshTasks = () => api.tasks.list(businessId).then(d => setTasks(d.tasks||[])).catch(()=>{});
+  const refreshTasks = (updatedTasks) => {
+    if (updatedTasks) { setTasks(updatedTasks); return; }
+    api.tasks.list(businessId).then(d => setTasks(d.tasks||[])).catch(()=>{});
+  };
 
   // Re-fetch tasks when switching to tasks tab to keep count current
   useEffect(()=>{ if (tab==="tasks") refreshTasks(); },[tab]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -2335,7 +2342,7 @@ export default function Hub() {
           )}
 
           {/* TASKS */}
-          {tab==="tasks" && <TasksPanel businessId={businessId} businessOutputs={outputs} hubNotes={hubNotes} stickyAssignments={stickyAssignments} onAssignSticky={assignSticky} onUnstickNote={unstickNote} onTasksChanged={refreshTasks} initialTasks={tasks}/>}
+          {tab==="tasks" && <TasksPanel businessId={businessId} businessOutputs={outputs} hubNotes={hubNotes} stickyAssignments={stickyAssignments} onAssignSticky={assignSticky} onUnstickNote={unstickNote} onTasksChanged={refreshTasks}/>}
 
           {/* HUB */}
           {tab==="hub" && (
