@@ -230,32 +230,38 @@ function ChannelStatCard({ stat }) {
 
 // ── Market analysis section ───────────────────────────────────────────────────
 
-function MarketAnalysisSection({ analysis }) {
+function MarketSubSection({ title, children }) {
   const [open, setOpen] = useState(false);
+  return (
+    <div style={{ border:`1px solid ${C.border}`, borderRadius:8, marginBottom:6, overflow:"hidden" }}>
+      <div onClick={()=>setOpen(o=>!o)} style={{ display:"flex", justifyContent:"space-between", alignItems:"center", padding:"8px 12px", cursor:"pointer", background:"#FAFAFA" }}>
+        <span style={{ fontFamily:FB, fontWeight:600, fontSize:12 }}>{title}</span>
+        <span style={{ fontSize:10, color:C.muted }}>{open?"▲":"▼"}</span>
+      </div>
+      {open && <div style={{ padding:"10px 12px", borderTop:`1px solid ${C.border}` }}>{children}</div>}
+    </div>
+  );
+}
+
+function MarketAnalysisSection({ analysis }) {
   if (!analysis) return null;
   return (
     <div style={{ ...card("12px 14px"), border:`1px solid ${C.border}`, marginBottom:10 }}>
-      <div onClick={()=>setOpen(o=>!o)} style={{ display:"flex", justifyContent:"space-between", cursor:"pointer", alignItems:"center" }}>
-        <span style={{ fontFamily:FB, fontWeight:600, fontSize:13 }}>Market Analysis</span>
-        <span style={{ fontSize:11, color:C.muted }}>{open?"▲":"▼"}</span>
-      </div>
-      {!open && <p style={{ fontSize:12, color:C.muted, fontFamily:FB, marginTop:6, lineHeight:1.5 }}>{analysis.summary}</p>}
-      {open && (
-        <div style={{ marginTop:10 }}>
-          <p style={{ fontSize:12, color:C.text, fontFamily:FB, lineHeight:1.6, marginBottom:8 }}>{analysis.summary}</p>
-          <p style={{ fontSize:11, fontWeight:700, color:C.muted, textTransform:"uppercase", letterSpacing:"0.06em", marginBottom:4, fontFamily:FB }}>Competitor activity</p>
-          <p style={{ fontSize:12, color:C.text, fontFamily:FB, lineHeight:1.5, marginBottom:8 }}>{analysis.competitorBehavior}</p>
-          {analysis.opportunities?.length > 0 && (
-            <>
-              <p style={{ fontSize:11, fontWeight:700, color:C.muted, textTransform:"uppercase", letterSpacing:"0.06em", marginBottom:4, fontFamily:FB }}>Opportunities</p>
-              {analysis.opportunities.map((o,i)=>(
-                <div key={i} style={{ fontSize:12, color:C.text, fontFamily:FB, marginBottom:4, display:"flex", gap:6 }}>
-                  <span style={{ color:C.primary, flexShrink:0 }}>→</span>{o}
-                </div>
-              ))}
-            </>
-          )}
-        </div>
+      <div style={{ fontFamily:FB, fontWeight:600, fontSize:13, marginBottom:10 }}>Market Analysis</div>
+      <MarketSubSection title="Overview">
+        <p style={{ fontSize:12, color:C.text, fontFamily:FB, lineHeight:1.6, margin:0 }}>{analysis.summary}</p>
+      </MarketSubSection>
+      <MarketSubSection title="Competitor Activity">
+        <p style={{ fontSize:12, color:C.text, fontFamily:FB, lineHeight:1.5, margin:0 }}>{analysis.competitorBehavior}</p>
+      </MarketSubSection>
+      {analysis.opportunities?.length > 0 && (
+        <MarketSubSection title="Opportunities">
+          {analysis.opportunities.map((o,i)=>(
+            <div key={i} style={{ fontSize:12, color:C.text, fontFamily:FB, marginBottom:4, display:"flex", gap:6 }}>
+              <span style={{ color:C.primary, flexShrink:0 }}>→</span>{o}
+            </div>
+          ))}
+        </MarketSubSection>
       )}
     </div>
   );
@@ -444,20 +450,7 @@ function VideoSlideTaskBlock({ content, businessName, backgroundUrl }) {
 
 // ── Suggestion Card (analysis insights) ──────────────────────────────────────
 
-function SuggestionCard({ suggestion:s, mode, onAddToCampaign, onImplement, implementing, implemented, access, navigate }) {
-  const [previewOpen, setPreviewOpen] = useState(false);
-  const isImplemented = implemented?.[s.id];
-  const isImplementing = implementing === s.id;
-
-  const getPreview = () => {
-    if (!s.contentPreview) return null;
-    if (mode==="manual") return s.contentPreview.manual || null;
-    const ch = s.channel;
-    return s.contentPreview?.[ch] || s.contentPreview?.manual || null;
-  };
-
-  const preview = getPreview();
-
+function SuggestionCard({ suggestion:s, mode, onAddToCampaign }) {
   return (
     <div style={{ ...card("12px 14px"), marginBottom:10, border:`1px solid ${s.priority==="high"?"#EF444422":C.border}`, background: s.priority==="high" ? "#FFF5F5" : "#FFFFFF" }}>
       <div style={{ display:"flex", gap:6, marginBottom:8, flexWrap:"wrap", alignItems:"center" }}>
@@ -470,40 +463,12 @@ function SuggestionCard({ suggestion:s, mode, onAddToCampaign, onImplement, impl
       <p style={{ fontSize:14, fontWeight:600, color:C.text, lineHeight:1.4, marginBottom:6, fontFamily:FH }}>{s.title || s.recommendation}</p>
       <p style={{ fontSize:13, color:C.muted, lineHeight:1.55, marginBottom:10, fontFamily:FB }}>{s.rationale || s.agentObservation}</p>
 
-      {preview && mode !== "auto" && (
-        <div style={{ marginBottom:10 }}>
-          <button onClick={()=>setPreviewOpen(o=>!o)} style={{ ...btnO("#9CA3AF",10), padding:"3px 8px" }}>
-            {previewOpen?"Hide content preview":"Preview content"}
-          </button>
-          {previewOpen && <ContentPreviewBlock content={
-            typeof preview === "object" && preview.caption
-              ? { type:"instagram_content", content: `CAPTION:\n${preview.caption}\n\nHASHTAGS:\n${preview.hashtags||""}` }
-              : preview
-          } channel={s.channel} mode={mode} />}
-        </div>
-      )}
-
-      {mode === "auto" && s.contentPreview?.[s.channel] && (
-        <div style={{ background:"#F0FDF4", borderRadius:7, padding:"7px 10px", marginBottom:10, fontSize:11, color:C.ok, fontFamily:FB }}>
-          Content will be auto-generated and published when this runs
-        </div>
-      )}
-
       <div style={{ display:"flex", gap:6, flexWrap:"wrap", alignItems:"center" }}>
-        {/* Guided: move suggestion to campaign manager */}
         {mode === "guided" && (
           <button onClick={()=>onAddToCampaign(s)} style={{ ...btnO(C.primary,11), flex:1, textAlign:"center", padding:"5px 10px" }}>
             + Add to campaigns
           </button>
         )}
-        {mode === "guided" && access?.management?.allowed && !isImplemented && (
-          <button onClick={()=>onImplement(s)} disabled={!!implementing}
-            style={{ ...btn(isImplementing?"#9CA3AF":C.dark,"#fff",11), flex:1, padding:"5px 10px", display:"flex", alignItems:"center", justifyContent:"center", gap:6, opacity:implementing&&!isImplementing?0.5:1 }}>
-            {isImplementing&&<span style={spin()}/>}
-            {isImplementing?"Running…":"Implement now"}
-          </button>
-        )}
-        {/* Auto: already queued automatically — show indicator + manual override */}
         {mode === "auto" && (
           <>
             <span style={{ fontSize:10, color:C.ok, fontFamily:FB, background:C.okBg, padding:"3px 8px", borderRadius:20 }}>
@@ -515,7 +480,6 @@ function SuggestionCard({ suggestion:s, mode, onAddToCampaign, onImplement, impl
             </button>
           </>
         )}
-        {/* Manual: suggestions are read-only — prompt to use campaign form */}
         {mode === "manual" && (
           <span style={{ fontSize:11, color:C.muted, fontFamily:FB, fontStyle:"italic" }}>
             → Create a campaign below to act on this
@@ -577,14 +541,19 @@ function CampaignTaskRow({ task:t, mode, channel, businessId, businessName, onCo
       if (c?.dalleError) console.error(`[TASK:getContent] DALL-E error: ${c.dalleError}`);
 
       // For visual channel tasks with an image (but not video/slideshow), composite canvas text
-      // Skip canvas for gpt-image sources — display the AI image directly without re-rendering
       const taskChannel = channel || c?.channel || "general";
-      if (!c?.isGuided && !c?.isVideo && c?.imageUrl && VISUAL_CHANNEL_SET.has(taskChannel) && !c?.imageSource?.startsWith("gpt-image")) {
-        console.log(`[TASK:getContent] Canvas composite — channel=${taskChannel} bgSource=gradient`);
+      if (!c?.isGuided && !c?.isVideo && c?.imageUrl && VISUAL_CHANNEL_SET.has(taskChannel)) {
+        console.log(`[TASK:getContent] Canvas composite — channel=${taskChannel} imageSource=${c?.imageSource}`);
         try {
-          const blob = await generatePostImageBlob(businessName || "Business", c.body || c.caption, null);
-          const { imageUrl } = await api.instagram.uploadImage(blob);
-          c = { ...c, imageUrl, imageSource: "canvas" };
+          let bgUrl = null;
+          if (c?.imageSource?.startsWith("gpt-image")) {
+            const imgResp = await fetch(c.imageUrl);
+            const imgBlob = await imgResp.blob();
+            bgUrl = URL.createObjectURL(imgBlob);
+          }
+          const blob = await generatePostImageBlob(businessName || "Business", c.body || c.caption, bgUrl);
+          if (bgUrl) URL.revokeObjectURL(bgUrl);
+          c = { ...c, imageUrl: URL.createObjectURL(blob), imageSource: "canvas" };
         } catch(imgErr) {
           console.error(`[TASK:getContent] Canvas failed — ${imgErr.message}. Keeping server image.`);
         }
@@ -636,16 +605,10 @@ function CampaignTaskRow({ task:t, mode, channel, businessId, businessName, onCo
               </button>
             )}
             {mode==="guided" && t.id && (
-              <>
-                <button onClick={getContent} disabled={running}
-                  style={{ ...btnO(C.primary,10), padding:"3px 8px" }}>
-                  {running?"…":content?"Content":"Get content"}
-                </button>
-                <button onClick={runTask} disabled={running}
-                  style={{ ...btn(C.warn,"#fff",10), padding:"3px 8px" }}>
-                  {running?"Running…":"Run"}
-                </button>
-              </>
+              <button onClick={getContent} disabled={running}
+                style={{ ...btnO(C.primary,10), padding:"3px 8px" }}>
+                {running?"…":content?"Content":"Get content"}
+              </button>
             )}
             {mode==="manual" && (
               <>
@@ -967,15 +930,6 @@ function CampaignCard({ campaign:c, onUpdate, onDelete, businessId, businessName
       </div>
 
       {c.rationale && <p style={{ fontSize:12, color:C.muted, fontFamily:FB, lineHeight:1.5, marginBottom:8 }}>{c.rationale}</p>}
-      {c.contentPreview && (() => {
-        const prev = c.contentPreview;
-        const ch   = c.channel || "general";
-        const sub  = prev[ch] || prev.instagram || prev.tiktok || prev.twitter || prev.email || prev.website || prev.manual;
-        if (!sub) return null;
-        const snippet = sub.caption || sub.tweet || sub.bodyHook || sub.newContent || sub.concept || sub.tip || "";
-        if (!snippet) return null;
-        return <div style={{ background:"#F9FAFB", border:`1px solid ${C.border}`, borderRadius:6, padding:"6px 10px", fontSize:12, color:C.text, fontFamily:FB, lineHeight:1.5, marginBottom:8, fontStyle:"italic" }}>"{snippet.length > 140 ? snippet.slice(0, 137) + "…" : snippet}"</div>;
-      })()}
       {c.expectedImpact && <div style={{ background:C.okBg, borderRadius:6, padding:"4px 8px", fontSize:11, color:C.ok, fontFamily:FB, marginBottom:8 }}>Goal: {c.expectedImpact}</div>}
 
       {/* 15-min warning */}
@@ -1384,12 +1338,19 @@ function ContentLab({ businessId, businessName, plan }) {
     try {
       const data = await api.agents.contentLab(businessId, { channel, context: context.trim(), tone });
       setResult(data);
-      // For visual channels with non-AI images, composite canvas text overlay
-      // gpt-image sources are displayed directly — no canvas re-render needed
-      if (hasImage && data.imageUrl && !data.isVideo && !data.imageSource?.startsWith("gpt-image")) {
+      // For visual channels, composite canvas text overlay over image
+      // For gpt-image, fetch as blob first to avoid CORS when loading into canvas
+      if (hasImage && data.imageUrl && !data.isVideo) {
         try {
-          const blob = await generatePostImageBlob(businessName || "Business", data.body || data.caption, null);
+          let bgUrl = null;
+          if (data.imageSource?.startsWith("gpt-image")) {
+            const imgResp = await fetch(data.imageUrl);
+            const imgBlob = await imgResp.blob();
+            bgUrl = URL.createObjectURL(imgBlob);
+          }
+          const blob = await generatePostImageBlob(businessName || "Business", data.body || data.caption, bgUrl);
           setComposedBlob(blob);
+          if (bgUrl) URL.revokeObjectURL(bgUrl);
         } catch(canvasErr) {
           console.error("[ContentLab] Canvas composition failed:", canvasErr.message);
         }
@@ -1404,8 +1365,16 @@ function ContentLab({ businessId, businessName, plan }) {
     if (!result?.slides) return;
     setVideoLoading(true);
     try {
-      const bgUrl = result.imageSource?.startsWith("gpt-image") ? result.imageUrl : null;
+      let bgUrl = null;
+      if (result.imageSource?.startsWith("gpt-image") && result.imageUrl) {
+        try {
+          const imgResp = await fetch(result.imageUrl);
+          const imgBlob = await imgResp.blob();
+          bgUrl = URL.createObjectURL(imgBlob);
+        } catch { /* fall through — slideshow will use gradient */ }
+      }
       const blob  = await generateSlideshowBlob(result.slides, bgUrl, businessName || "Business");
+      if (bgUrl) URL.revokeObjectURL(bgUrl);
       setVideoBlob(blob);
     } catch(e) {
       console.error("[ContentLab] Slideshow generation failed:", e.message);
@@ -2115,10 +2084,7 @@ export default function AgentPanel({ businessId, businessName, metrics, planInfo
                   {insights.map((s,i)=>(
                     <div key={i}>
                       <SuggestionCard suggestion={s} mode={agentMode}
-                        onAddToCampaign={addToCampaigns} onImplement={implement}
-                        implementing={implementing} implemented={implemented}
-                        access={access} navigate={navigate} />
-                      <ImplementResult result={implemented[s.id]} businessId={businessId} businessName={businessName} />
+                        onAddToCampaign={addToCampaigns} />
                     </div>
                   ))}
                 </div>

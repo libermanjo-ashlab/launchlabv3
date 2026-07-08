@@ -558,99 +558,65 @@ router.post("/:businessId/campaigns/breakdown", requireAuth, async (req, res, ne
     const biz = await prisma.business.findFirst({ where:{ id:req.params.businessId, userId:req.userId } });
     if (!biz) return res.status(404).json({ error:"Business not found" });
 
-    // Token budget check
-    const { effective } = await loadUserAndPlan(req.userId);
-    const dailyUsed  = await getDailyTokens(req.params.businessId);
-    const tokenLimit = DAILY_TOKEN_LIMITS[effective.plan] || DAILY_TOKEN_LIMITS.starter;
-    if (dailyUsed + TOKEN_EST.campaign_breakdown > tokenLimit) {
-      return res.status(429).json({
-        error: `Daily insights limit reached. Upgrade your plan or wait until midnight UTC.`,
-        tokenLimitReached: true,
-        tokenBudget: tokenBudget(effective.plan, dailyUsed),
-      });
+    // Channel-specific task templates — no AI needed
+    const ch = (campaign.channel || "general").toLowerCase();
+    const isVisualSocial = ["instagram", "tiktok", "linkedin", "facebook", "twitter"].includes(ch);
+    const isContentChannel = ["blog", "email", "website", "newsletter"].includes(ch);
+    const campMode = campaign.mode || "guided";
+
+    let templateTasks;
+    if (isVisualSocial) {
+      templateTasks = [
+        { name: "Generate caption", description: `Write a compelling caption for this ${ch} campaign: "${campaign.title}"`, estimatedTime: "10 min", canAutomate: true, isVideoTask: false, isEngagementTask: false, shouldPublish: false },
+        { name: `Generate ${ch === "tiktok" ? "video" : "image"} content`, description: `Create the visual or video content for this campaign post.`, estimatedTime: "15 min", canAutomate: ch !== "tiktok", isVideoTask: ch === "tiktok", isEngagementTask: false, shouldPublish: false },
+        { name: "Preview and post", description: `Review the caption and image, then publish to ${ch}.`, estimatedTime: "5 min", canAutomate: true, isVideoTask: false, isEngagementTask: false, shouldPublish: ch === "instagram" },
+      ];
+    } else if (isContentChannel) {
+      templateTasks = [
+        { name: "Generate content", description: `Draft the ${ch} content for: "${campaign.title}"`, estimatedTime: "15 min", canAutomate: true, isVideoTask: false, isEngagementTask: false, shouldPublish: false },
+        { name: `Post / upload content`, description: `Publish the generated content to your ${ch}.`, estimatedTime: "10 min", canAutomate: false, isVideoTask: false, isEngagementTask: false, shouldPublish: false },
+      ];
+    } else {
+      templateTasks = [
+        { name: "Generate content", description: `Create the content for this campaign: "${campaign.title}"`, estimatedTime: "15 min", canAutomate: true, isVideoTask: false, isEngagementTask: false, shouldPublish: false },
+        { name: "Review and publish", description: "Review the generated content and publish or share it.", estimatedTime: "10 min", canAutomate: false, isVideoTask: false, isEngagementTask: false, shouldPublish: false },
+      ];
     }
-
-    let idea = {}; try { idea = JSON.parse(biz.ideaData||"{}"); } catch {}
-
-    const Anthropic = require("@anthropic-ai/sdk");
-    const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
-
-    const prompt = `You are a marketing strategist helping break down a marketing campaign into concrete, executable sub-tasks.
-
-Business: "${biz.name}" (${idea.name || "service business"})
-Campaign: "${campaign.title}"
-Channel: ${campaign.channel || "general"}
-Rationale: ${campaign.rationale || ""}
-Execution mode: ${campaign.mode || "manual"}
-
-Break this campaign into exactly 2–3 concrete, actionable tasks (never more than 3). If the campaign is repetitive (e.g. post 3 times, run for 5 days), each repetition is one task. Each task should be specific, completable in 1–3 days, and clearly linked to the campaign goal. Return the minimum number of tasks needed — prefer fewer tasks that cover more ground over many granular ones.
-
-Return a JSON object:
-{
-  "tasks": [
-    {
-      "name": "short task name",
-      "description": "specific action to take, 1–2 sentences",
-      "estimatedTime": "e.g. 30 min",
-      "canAutomate": true or false,
-      "progressUnit": "posts" | "emails" | "replies" | "sessions" | "actions" | null
-    }
-  ],
-  "progressTarget": <total number of measurable units, or null if not applicable>,
-  "progressUnit": "posts" | "emails" | "replies" | "sessions" | "actions" | null
-}`;
-
-    const msg = await client.messages.create({
-      model: "claude-sonnet-4-6", max_tokens: 800,
-      messages: [{ role:"user", content: prompt }],
-    });
-    let parsed = { tasks: [], progressTarget: null, progressUnit: null };
-    try {
-      const text = msg.content[0]?.text || "";
-      const match = text.match(/\{[\s\S]*\}/);
-      if (match) parsed = JSON.parse(match[0]);
-    } catch {}
 
     // Save tasks to the Tasks table
     const savedTasks = [];
-    for (let i = 0; i < (parsed.tasks || []).length; i++) {
-      const t = parsed.tasks[i];
-      // Tasks requiring human action — video production and social engagement
-      // (Instagram Graph API can't follow users, like others' posts, or send DMs)
-      const isVideoTask = /\bfilm\b|\brecord\b|\bshoot\b|\bedit\s+(and|the)\b|\bvoiceover\b|\bscreencast\b/i.test((t.name || "") + " " + (t.description || ""));
-      const isEngagementTask = /\bengage\s+with\b|\bfollow\s+(\d+|targeted|accounts)\b|\blike\s+\d+\b|\bcomment\s+on\b|\bdm\b|\bdirect\s+message\b|\bmanually\s+(engage|follow|like)\b/i.test((t.name || "") + " " + (t.description || ""));
-      const isManualTask = isVideoTask || isEngagementTask;
-      const taskMode = isManualTask
-        ? "manual"
-        : campaign.mode === "auto" ? "auto"
-        : campaign.mode === "guided" ? "guided"
+    for (let i = 0; i < templateTasks.length; i++) {
+      const t = templateTasks[i];
+      const isManualTask = t.isVideoTask || t.isEngagementTask;
+      const taskMode = isManualTask ? "manual"
+        : campMode === "auto" ? "auto"
+        : campMode === "guided" ? "guided"
         : "manual";
 
       const task = await prisma.task.create({
         data: {
           businessId: req.params.businessId,
-          name:          t.name || `Campaign task ${i+1}`,
+          name:          t.name,
           category:      "campaign",
-          description:   t.description || "",
+          description:   t.description,
           status:        "pending",
           mode:          taskMode,
-          estimatedTime: t.estimatedTime || null,
+          estimatedTime: t.estimatedTime,
           canAutomate:   !!t.canAutomate && !isManualTask,
           steps:         JSON.stringify([{
-            label:         campaign.title,
-            detail:        t.description,
-            channel:       campaign.channel || "general",
-            isVideoTask,
-            isEngagementTask,
-            shouldPublish: !isManualTask && campaign.channel === "instagram" && /\bpublish\b|\bpost\s+(to|on)\s+instagram\b|\bgo\s+live\b|\bpublish\s+the\s+post\b|\bpost\s+the\b/i.test((t.name || "") + " " + (t.description || "")),
+            label:            campaign.title,
+            detail:           t.description,
+            channel:          campaign.channel || "general",
+            isVideoTask:      t.isVideoTask,
+            isEngagementTask: t.isEngagementTask,
+            shouldPublish:    t.shouldPublish,
           }]),
-          sortOrder:     i,
+          sortOrder: i,
         },
       });
-      savedTasks.push({ ...task, progressUnit: t.progressUnit });
+      savedTasks.push(task);
     }
 
-    await addDailyTokens(req.params.businessId, TOKEN_EST.campaign_breakdown);
     logActivity(req.params.businessId, {
       agent: "marketing",
       action: "Campaign broken into tasks",
@@ -661,8 +627,8 @@ Return a JSON object:
       success: true,
       tasks: savedTasks,
       taskIds: savedTasks.map(t => t.id),
-      progressTarget: parsed.progressTarget || null,
-      progressUnit:   parsed.progressUnit   || null,
+      progressTarget: null,
+      progressUnit:   null,
     });
   } catch(e) { next(e); }
 });

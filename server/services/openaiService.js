@@ -465,8 +465,8 @@ async function generateSlideContent({ businessName, context, brandIdentity, chan
           content: `Create a ${channel || "TikTok"} slideshow for: "${context}"
 
 Return JSON with:
-- "slides": array of exactly 5 slides, each { "headline": "max 8 words, ALL CAPS ok", "subtext": "optional 1 sentence detail or empty string" }
-  Structure: [Hook, Problem/Insight, Solution, Social Proof/Example, CTA]
+- "slides": array of exactly 3 slides, each { "headline": "max 8 words, ALL CAPS ok", "subtext": "optional 1 sentence detail or empty string" }
+  Structure: [Hook, Value/Solution, CTA]
 - "captionBody": 1-2 sentence caption for the post description
 - "hashtags": 5-8 relevant hashtags as a single string
 
@@ -477,7 +477,7 @@ Keep headlines punchy — these are the words appearing on screen.`,
     const parsed = JSON.parse(msg.choices[0]?.message?.content || "{}");
     log.info("SLIDES", "Slide content generated", { context: context?.slice(0, 60), ms: Date.now() - t0, slideCount: parsed.slides?.length });
     return {
-      slides:      Array.isArray(parsed.slides) ? parsed.slides.slice(0, 5) : [],
+      slides:      Array.isArray(parsed.slides) ? parsed.slides.slice(0, 3) : [],
       captionBody: parsed.captionBody || "",
       hashtags:    parsed.hashtags    || "",
     };

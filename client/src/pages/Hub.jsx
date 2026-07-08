@@ -2221,33 +2221,33 @@ export default function Hub() {
           ))}
         </nav>
 
-        <div style={{ padding:"10px 8px", borderTop:"1px solid rgba(255,255,255,0.08)" }}>
+        {/* Daily Insights tracker — anchored just below Management Agent */}
+        {(()=>{
+          const plan = planInfo?.plan;
+          const rawLimit = insightsBudget?.limit || (plan==="pro_autopilot"?110000:plan==="pro"?50000:20000);
+          const rawUsed  = insightsBudget?.used  || 0;
+          const usedIns  = Math.round(rawUsed  / 1.5);
+          const limitIns = Math.round(rawLimit / 1.5);
+          const pct      = Math.min(100, rawLimit > 0 ? Math.round(rawUsed / rawLimit * 100) : 0);
+          const barColor = pct >= 90 ? "#EF4444" : pct >= 70 ? "#F59E0B" : "#4ADE80";
+          return (
+            <div style={{ padding:"8px 12px", margin:"4px 8px 0", borderTop:"1px solid rgba(255,255,255,0.08)" }}>
+              <div style={{ display:"flex", justifyContent:"space-between", marginBottom:4 }}>
+                <span style={{ fontSize:9, color:"rgba(255,255,255,0.6)", fontFamily:FB, textTransform:"uppercase", letterSpacing:"0.05em" }}>Daily Insights</span>
+                <span style={{ fontSize:9, color:pct>=90?"#EF4444":pct>=70?"#F59E0B":"rgba(255,255,255,0.6)", fontFamily:FB }}>
+                  {usedIns.toLocaleString()}/{limitIns.toLocaleString()}
+                </span>
+              </div>
+              <div style={{ height:3, borderRadius:2, background:"rgba(255,255,255,0.12)" }}>
+                <div style={{ height:"100%", width:`${pct}%`, borderRadius:2, background:barColor, transition:"width 0.5s" }} />
+              </div>
+            </div>
+          );
+        })()}
+
+        <div style={{ padding:"10px 8px", borderTop:"1px solid rgba(255,255,255,0.08)", marginTop:"auto" }}>
           <div onClick={()=>setShowTour(true)} style={{ padding:"8px 12px", borderRadius:8, color:"rgba(255,255,255,0.55)", cursor:"pointer", fontSize:12, fontFamily:FB }}>Replay tour</div>
           <div onClick={()=>navigate("/dashboard")} style={{ padding:"8px 12px", borderRadius:8, color:"rgba(255,255,255,0.45)", cursor:"pointer", fontSize:12, fontFamily:FB }}>All businesses</div>
-
-          {/* Daily Insights tracker — always visible */}
-          {(()=>{
-            const plan = planInfo?.plan;
-            const rawLimit = insightsBudget?.limit || (plan==="pro_autopilot"?110000:plan==="pro"?50000:20000);
-            const rawUsed  = insightsBudget?.used  || 0;
-            const usedIns  = Math.round(rawUsed  / 1.5);
-            const limitIns = Math.round(rawLimit / 1.5);
-            const pct      = Math.min(100, rawLimit > 0 ? Math.round(rawUsed / rawLimit * 100) : 0);
-            const barColor = pct >= 90 ? "#EF4444" : pct >= 70 ? "#F59E0B" : "#4ADE80";
-            return (
-              <div style={{ padding:"8px 12px", marginTop:4, borderTop:"1px solid rgba(255,255,255,0.08)" }}>
-                <div style={{ display:"flex", justifyContent:"space-between", marginBottom:4 }}>
-                  <span style={{ fontSize:9, color:"rgba(255,255,255,0.6)", fontFamily:FB, textTransform:"uppercase", letterSpacing:"0.05em" }}>Daily Insights</span>
-                  <span style={{ fontSize:9, color:pct>=90?"#EF4444":pct>=70?"#F59E0B":"rgba(255,255,255,0.6)", fontFamily:FB }}>
-                    {usedIns.toLocaleString()}/{limitIns.toLocaleString()}
-                  </span>
-                </div>
-                <div style={{ height:3, borderRadius:2, background:"rgba(255,255,255,0.12)" }}>
-                  <div style={{ height:"100%", width:`${pct}%`, borderRadius:2, background:barColor, transition:"width 0.5s" }} />
-                </div>
-              </div>
-            );
-          })()}
         </div>
       </div>
 
