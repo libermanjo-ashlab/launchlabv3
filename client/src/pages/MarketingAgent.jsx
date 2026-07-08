@@ -1085,7 +1085,9 @@ function ContentLab({ businessId, businessName }) {
                 <div style={{ ...card("8px 12px"), background:"#FEF2F2", border:"1px solid #FECACA", marginBottom:10, fontSize:12, color:C.err, fontFamily:FB }}>
                   <strong>DALL-E failed:</strong> {result.dalleError}
                   <div style={{ fontSize:10, color:"#9CA3AF", marginTop:4 }}>
-                    Common fixes: add billing at platform.openai.com · check OPENAI_API_KEY in Railway · ensure DALL-E 3 is enabled for this API key
+                    {result.dalleError?.includes("does not exist") && result.dalleError?.includes("DALL-E 2")
+                      ? "Both models blocked — your API key is likely in a restricted OpenAI Project. Fix: platform.openai.com → API Keys → your key → Project settings → enable Image generation. Or create a new key from the Default project."
+                      : "Common fixes: add billing at platform.openai.com · check OPENAI_API_KEY in Railway · ensure image generation is enabled for this API key"}
                   </div>
                 </div>
               )}
