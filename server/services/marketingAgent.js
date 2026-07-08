@@ -31,12 +31,12 @@ async function chatStructured(prompt, schema, toolName, max = 3000) {
 // ── Channel stat collection ───────────────────────────────────────────────────
 
 async function collectTwitterStats(meta) {
-  if (!meta.accessToken) return null;
+  if (!meta.accessToken || !meta.apiKey) return null;
   try {
     const tw = require("./twitter");
-    const profile = await tw.getProfile(meta.accessToken);
+    const profile = await tw.getProfile(meta);
     const pm = profile.public_metrics || {};
-    const tweets = await tw.getRecentTweets(meta.accessToken, profile.id, 10);
+    const tweets = await tw.getRecentTweets(meta, profile.id, 10);
     const now = Date.now();
     const lastTweet = tweets[0] ? Math.round((now - new Date(tweets[0].created_at).getTime()) / 86400000) : null;
     const avgLikes = tweets.length
@@ -59,8 +59,8 @@ async function collectTikTokStats(meta) {
   if (!meta.accessToken) return null;
   try {
     const tt = require("./tiktok");
-    const profile = await tt.getProfile(meta.accessToken);
-    const videos = await tt.getVideos(meta.accessToken, 10);
+    const profile = await tt.getProfile(meta);
+    const videos = await tt.getVideos(meta, 10);
     const avgViews = videos.length
       ? Math.round(videos.reduce((s, v) => s + (v.view_count || 0), 0) / videos.length)
       : 0;

@@ -1,114 +1,121 @@
 /**
- * Twitter/X API v2 service
- * Auth: OAuth 2.0 Authorization Code (server-side)
- * Credentials (Railway env): TWITTER_CLIENT_ID, TWITTER_CLIENT_SECRET, TWITTER_REDIRECT_URI
- * Per-user tokens stored in integration.metadata: { accessToken, refreshToken, userId, username }
+ * Twitter/X API v2 service — API key based (like Instagram)
+ *
+ * Credentials stored in integration.metadata by the user:
+ *   apiKey            — Twitter Developer Portal "API Key" (Consumer Key)
+ *   apiSecret         — Twitter Developer Portal "API Key Secret" (Consumer Secret)
+ *   accessToken       — Twitter Developer Portal "Access Token"
+ *   accessTokenSecret — Twitter Developer Portal "Access Token Secret"
+ *
+ * Posting uses OAuth 1.0a (required for user-context write operations).
+ * Reading public profile data uses Bearer Token derived from apiKey + apiSecret.
  */
+
+const crypto = require("crypto");
 
 const BASE = "https://api.twitter.com";
 
-async function apiFetch(path, method = "GET", body = null, accessToken) {
-  const res = await fetch(`${BASE}${path}`, {
-    method,
-    headers: {
-      Authorization: `Bearer ${accessToken}`,
-      "Content-Type": "application/json",
-    },
-    ...(body ? { body: JSON.stringify(body) } : {}),
-  });
-  const data = await res.json();
-  if (!res.ok) {
-    const msg = data.detail || (data.errors?.[0]?.message) || data.title || "Twitter API error";
-    throw new Error(msg);
-  }
-  return data;
+// ── OAuth 1.0a helpers ────────────────────────────────────────────────────────
+
+function percentEncode(s) {
+  return encodeURIComponent(String(s))
+    .replace(/!/g, "%21").replace(/'/g, "%27").replace(/\(/g, "%28")
+    .replace(/\)/g, "%29").replace(/\*/g, "%2A");
 }
 
-async function getProfile(accessToken) {
-  const data = await apiFetch(
-    "/2/users/me?user.fields=public_metrics,profile_image_url,description,url,created_at",
-    "GET", null, accessToken
+function buildOAuth1Header(method, url, bodyParams, { apiKey, apiSecret, accessToken, accessTokenSecret }) {
+  const timestamp = Math.floor(Date.now() / 1000).toString();
+  const nonce     = crypto.randomBytes(16).toString("hex");
+
+  const oauthParams = {
+    oauth_consumer_key:     apiKey,
+    oauth_nonce:            nonce,
+    oauth_signature_method: "HMAC-SHA1",
+    oauth_timestamp:        timestamp,
+    oauth_token:            accessToken,
+    oauth_version:          "1.0",
+  };
+
+  // Combine all parameters (oauth + body) for the base string
+  const allParams = { ...bodyParams, ...oauthParams };
+  const sortedParamStr = Object.keys(allParams)
+    .sort()
+    .map(k => `${percentEncode(k)}=${percentEncode(allParams[k])}`)
+    .join("&");
+
+  const baseString = [method.toUpperCase(), percentEncode(url), percentEncode(sortedParamStr)].join("&");
+  const signingKey = `${percentEncode(apiSecret)}&${percentEncode(accessTokenSecret)}`;
+  const signature  = crypto.createHmac("sha1", signingKey).update(baseString).digest("base64");
+
+  oauthParams.oauth_signature = signature;
+
+  return "OAuth " + Object.keys(oauthParams)
+    .map(k => `${percentEncode(k)}="${percentEncode(oauthParams[k])}"`)
+    .join(", ");
+}
+
+async function getBearerToken(apiKey, apiSecret) {
+  const creds = Buffer.from(`${percentEncode(apiKey)}:${percentEncode(apiSecret)}`).toString("base64");
+  const res = await fetch(`${BASE}/oauth2/token`, {
+    method: "POST",
+    headers: {
+      Authorization: `Basic ${creds}`,
+      "Content-Type": "application/x-www-form-urlencoded;charset=UTF-8",
+    },
+    body: "grant_type=client_credentials",
+  });
+  const data = await res.json();
+  if (data.errors || !data.access_token) throw new Error(data.errors?.[0]?.message || "Could not obtain bearer token");
+  return data.access_token;
+}
+
+// ── API calls ─────────────────────────────────────────────────────────────────
+
+async function getProfile(meta) {
+  // Read profile with bearer token (app-only, sufficient for public stats)
+  const bearer = await getBearerToken(meta.apiKey, meta.apiSecret);
+  const res = await fetch(
+    `${BASE}/2/users/me?user.fields=public_metrics,profile_image_url,description`,
+    { headers: { Authorization: `Bearer ${bearer}` } }
   );
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.detail || data.title || "Twitter profile fetch failed");
   return data.data || {};
 }
 
-async function getRecentTweets(accessToken, userId, maxResults = 10) {
+async function getRecentTweets(meta, userId, maxResults = 10) {
   try {
-    const data = await apiFetch(
-      `/2/users/${userId}/tweets?max_results=${maxResults}&tweet.fields=public_metrics,created_at&expansions=attachments.media_keys`,
-      "GET", null, accessToken
+    const bearer = await getBearerToken(meta.apiKey, meta.apiSecret);
+    const res = await fetch(
+      `${BASE}/2/users/${userId}/tweets?max_results=${maxResults}&tweet.fields=public_metrics,created_at`,
+      { headers: { Authorization: `Bearer ${bearer}` } }
     );
+    const data = await res.json();
     return data.data || [];
   } catch {
     return [];
   }
 }
 
-async function postTweet(accessToken, text) {
-  const data = await apiFetch("/2/tweets", "POST", { text }, accessToken);
+async function postTweet(meta, text) {
+  const url = `${BASE}/2/tweets`;
+  const body = { text };
+  const authHeader = buildOAuth1Header("POST", url, {}, meta);
+
+  const res = await fetch(url, {
+    method: "POST",
+    headers: {
+      Authorization: authHeader,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(body),
+  });
+  const data = await res.json();
+  if (!res.ok) {
+    const msg = data.detail || data.errors?.[0]?.message || data.title || "Tweet failed";
+    throw new Error(msg);
+  }
   return data.data || {};
 }
 
-async function refreshAccessToken(refreshToken) {
-  if (!process.env.TWITTER_CLIENT_ID || !process.env.TWITTER_CLIENT_SECRET) {
-    throw new Error("Twitter app credentials not configured — add TWITTER_CLIENT_ID and TWITTER_CLIENT_SECRET to environment variables");
-  }
-  const creds = Buffer.from(`${process.env.TWITTER_CLIENT_ID}:${process.env.TWITTER_CLIENT_SECRET}`).toString("base64");
-  const res = await fetch(`${BASE}/2/oauth2/token`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/x-www-form-urlencoded",
-      Authorization: `Basic ${creds}`,
-    },
-    body: new URLSearchParams({
-      grant_type: "refresh_token",
-      refresh_token: refreshToken,
-      client_id: process.env.TWITTER_CLIENT_ID,
-    }),
-  });
-  const data = await res.json();
-  if (data.error) throw new Error(data.error_description || "Twitter token refresh failed");
-  return data;
-}
-
-// Build the OAuth authorize URL
-function buildAuthUrl(state) {
-  if (!process.env.TWITTER_CLIENT_ID) throw new Error("TWITTER_CLIENT_ID not set");
-  const url = new URL("https://twitter.com/i/oauth2/authorize");
-  url.searchParams.set("response_type", "code");
-  url.searchParams.set("client_id", process.env.TWITTER_CLIENT_ID);
-  url.searchParams.set("redirect_uri", process.env.TWITTER_REDIRECT_URI || `${process.env.SERVER_URL || ""}/api/integrations/twitter/callback`);
-  url.searchParams.set("scope", "tweet.read tweet.write users.read offline.access");
-  url.searchParams.set("state", state);
-  url.searchParams.set("code_challenge", "challenge");
-  url.searchParams.set("code_challenge_method", "plain");
-  return url.toString();
-}
-
-// Exchange auth code for tokens
-async function exchangeCode(code) {
-  if (!process.env.TWITTER_CLIENT_ID || !process.env.TWITTER_CLIENT_SECRET) {
-    throw new Error("Twitter app credentials not configured");
-  }
-  const redirectUri = process.env.TWITTER_REDIRECT_URI || `${process.env.SERVER_URL || ""}/api/integrations/twitter/callback`;
-  const creds = Buffer.from(`${process.env.TWITTER_CLIENT_ID}:${process.env.TWITTER_CLIENT_SECRET}`).toString("base64");
-  const res = await fetch(`${BASE}/2/oauth2/token`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/x-www-form-urlencoded",
-      Authorization: `Basic ${creds}`,
-    },
-    body: new URLSearchParams({
-      grant_type: "authorization_code",
-      code,
-      redirect_uri: redirectUri,
-      client_id: process.env.TWITTER_CLIENT_ID,
-      code_verifier: "challenge",
-    }),
-  });
-  const data = await res.json();
-  if (data.error) throw new Error(data.error_description || "Twitter token exchange failed");
-  return data;
-}
-
-module.exports = { getProfile, getRecentTweets, postTweet, refreshAccessToken, buildAuthUrl, exchangeCode };
+module.exports = { getProfile, getRecentTweets, postTweet };

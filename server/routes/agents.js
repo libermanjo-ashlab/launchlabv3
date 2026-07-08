@@ -340,16 +340,16 @@ router.post("/:businessId/management/implement", requireAuth, async (req, res, n
     if (channelLabel === "twitter") {
       const twIntg = await prisma.integration.findFirst({ where:{ businessId:req.params.businessId, provider:"twitter" } });
       const twMeta = twIntg?.metadata ? JSON.parse(twIntg.metadata) : {};
-      if (!twMeta.accessToken) {
+      if (!twMeta.accessToken || !twMeta.apiKey) {
         return res.json({ success:true, channel:"twitter", actionPlan: insight.recommendation, needsSetup:true,
-          message:"X / Twitter not connected. Connect in Hub → X / Twitter to enable automatic posting." });
+          message:"X / Twitter not connected. Add your API Key, API Key Secret, Access Token, and Access Token Secret in Hub → X / Twitter." });
       }
       const brandId = await getBrandIdentity(req.params.businessId);
       const tweetText = await openaiSvc.generateChannelCaption({
         businessName: biz.name, channel: "twitter", context: insight.recommendation, brandIdentity: brandId,
       });
       const tw = require("../services/twitter");
-      const tweet = await tw.postTweet(twMeta.accessToken, tweetText.slice(0, 280));
+      const tweet = await tw.postTweet(twMeta, tweetText.slice(0, 280));
       logActivity(req.params.businessId,{ agent:"management", action:"Tweet posted", detail:`@${twMeta.username}: "${tweetText.slice(0,60)}…"` });
       return res.json({ success:true, channel:"twitter", caption:tweetText, body:tweetText, published:true,
         permalink:`https://x.com/i/web/status/${tweet.id}` });

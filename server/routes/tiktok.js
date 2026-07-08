@@ -14,33 +14,20 @@ async function getCredentials(businessId, userId) {
   if (!biz) throw Object.assign(new Error("Business not found"), { status: 404 });
   const intg = await prisma.integration.findFirst({ where: { businessId, provider: "tiktok" } });
   const meta = getMeta(intg);
-  if (!meta.accessToken) throw Object.assign(new Error("TikTok not connected — connect in Hub → TikTok"), { status: 400 });
-  return { biz, intg, meta };
-}
-
-async function withTokenRefresh(meta, intg, fn) {
-  try {
-    return await fn(meta.accessToken);
-  } catch (e) {
-    if (e.message?.includes("access_token_invalid") || e.message?.includes("10005")) {
-      if (!meta.refreshToken) throw e;
-      const tokens = await tt.refreshAccessToken(meta.refreshToken);
-      const newMeta = { ...meta, accessToken: tokens.access_token, refreshToken: tokens.refresh_token || meta.refreshToken };
-      await prisma.integration.update({
-        where: { id: intg.id },
-        data: { metadata: JSON.stringify(newMeta) },
-      });
-      return await fn(tokens.access_token);
-    }
-    throw e;
+  if (!meta.accessToken) {
+    throw Object.assign(
+      new Error("TikTok credentials incomplete — add Access Token and Open ID in Hub → TikTok"),
+      { status: 400 }
+    );
   }
+  return { biz, intg, meta };
 }
 
 // GET /:businessId/profile
 router.get("/:businessId/profile", requireAuth, async (req, res, next) => {
   try {
-    const { intg, meta } = await getCredentials(req.params.businessId, req.userId);
-    const profile = await withTokenRefresh(meta, intg, t => tt.getProfile(t));
+    const { meta } = await getCredentials(req.params.businessId, req.userId);
+    const profile = await tt.getProfile(meta);
     res.json({ profile });
   } catch (e) { next(e); }
 });
@@ -48,9 +35,9 @@ router.get("/:businessId/profile", requireAuth, async (req, res, next) => {
 // GET /:businessId/videos
 router.get("/:businessId/videos", requireAuth, async (req, res, next) => {
   try {
-    const { intg, meta } = await getCredentials(req.params.businessId, req.userId);
+    const { meta } = await getCredentials(req.params.businessId, req.userId);
     const limit = Math.min(Number(req.query.limit) || 10, 20);
-    const videos = await withTokenRefresh(meta, intg, t => tt.getVideos(t, limit));
+    const videos = await tt.getVideos(meta, limit);
     res.json({ videos });
   } catch (e) { next(e); }
 });
@@ -58,16 +45,11 @@ router.get("/:businessId/videos", requireAuth, async (req, res, next) => {
 // POST /:businessId/post — { imageUrls?, caption }
 router.post("/:businessId/post", requireAuth, async (req, res, next) => {
   try {
-    const { intg, meta } = await getCredentials(req.params.businessId, req.userId);
+    const { meta } = await getCredentials(req.params.businessId, req.userId);
     const { imageUrls, caption } = req.body;
     if (!caption?.trim()) return res.status(400).json({ error: "caption required" });
-
-    let result;
-    if (imageUrls?.length > 0) {
-      result = await withTokenRefresh(meta, intg, t => tt.postPhoto(t, imageUrls, caption));
-    } else {
-      result = await withTokenRefresh(meta, intg, t => tt.postCaption(t, caption));
-    }
+    if (!imageUrls?.length) return res.status(400).json({ error: "imageUrls required for TikTok photo post" });
+    const result = await tt.postPhoto(meta, imageUrls, caption);
     res.json({ success: true, ...result });
   } catch (e) { next(e); }
 });

@@ -54,8 +54,6 @@ export const api = {
     list:          bizId            => req("GET",  `/integrations/${bizId}`),
     stripe:        bizId            => req("POST", `/integrations/${bizId}/stripe`),
     googleAuth:    bizId            => req("GET",  `/integrations/google/auth?businessId=${bizId}`),
-    twitterAuth:   bizId            => req("GET",  `/integrations/twitter/auth?businessId=${bizId}`),
-    tiktokAuth:    bizId            => req("GET",  `/integrations/tiktok/auth?businessId=${bizId}`),
     testWordPress: (bizId, fields)  => req("POST", `/integrations/${bizId}/wordpress/test`, fields),
     disconnect:    (bizId,p)        => req("POST", `/integrations/${bizId}/${p}/disconnect`),
     saveFields:    (bizId,p,fields) => req("PUT",  `/integrations/${bizId}/${p}`, { fields }),

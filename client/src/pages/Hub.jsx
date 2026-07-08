@@ -682,12 +682,11 @@ function SetupGuide({ steps }) {
   );
 }
 
-function IntegrationCard({ provider, label, desc, fields, savedMeta, onSave, isConn, autopilotLabel, autopilotDisabled, setupGuide, onOAuth, oauthLabel, onTestConnection }) {
+function IntegrationCard({ provider, label, desc, fields, savedMeta, onSave, isConn, autopilotLabel, autopilotDisabled, setupGuide, onTestConnection }) {
   const [open,       setOpen]       = useState(false);
   const [vals,       setVals]       = useState(savedMeta||{});
   const [saving,     setSaving]     = useState(false);
   const [saved,      setSaved]      = useState(false);
-  const [oauthing,   setOAuthing]   = useState(false);
   const [testing,    setTesting]    = useState(false);
   const [testMsg,    setTestMsg]    = useState("");
   const fileRef = useRef();
@@ -742,30 +741,6 @@ function IntegrationCard({ provider, label, desc, fields, savedMeta, onSave, isC
         <div style={{ paddingBottom:18, display:"flex", flexDirection:"column", gap:12 }}>
           <AutopilotToggle on={autopilotOn} onToggle={toggleAutopilot} label={autopilotLabel} disabled={autopilotDisabled} />
 
-          {/* OAuth connect button */}
-          {onOAuth && (
-            <div style={{ marginBottom:4 }}>
-              {isConn ? (
-                <div style={{ display:"flex", alignItems:"center", gap:8 }}>
-                  <div style={{ fontSize:12, color:C.ok, fontFamily:FB }}>✓ Connected via OAuth</div>
-                  {savedMeta?.username && <span style={{ fontSize:11, color:C.muted, fontFamily:FB }}>@{savedMeta.username}</span>}
-                </div>
-              ) : (
-                <button onClick={async()=>{
-                  setOAuthing(true);
-                  try {
-                    const { url } = await onOAuth();
-                    window.location.href = url;
-                  } catch(e) {
-                    alert(e.message);
-                    setOAuthing(false);
-                  }
-                }} disabled={oauthing} style={{ ...btn(oauthing?"#9CA3AF":C.primary,"#fff",12), padding:"8px 18px" }}>
-                  {oauthing ? "Redirecting…" : oauthLabel || `Connect ${label}`}
-                </button>
-              )}
-            </div>
-          )}
 
           {setupGuide && <SetupGuide steps={setupGuide} />}
           {fields.map(f => (
@@ -906,11 +881,12 @@ function HubPanel({ businessId, integs, onSaveFields, tasks, outputs, isMinor })
     { text:'Optional: get your Google Analytics Measurement ID. Go to analytics.google.com → Admin → Data Streams → click your stream → copy the Measurement ID (starts with G-).', link:"https://analytics.google.com/" },
   ];
   const G_TIKTOK = [
-    { text:'Click "Connect TikTok" above to connect your TikTok Creator or Business account. You will be redirected to TikTok to authorize the connection.' },
-    { text:'If the Connect button shows an error, TikTok OAuth may not yet be configured on our end. In that case: enter your @handle below and the agent will generate TikTok content for you to post manually.' },
-    { text:'For TikTok posting via API: you need a TikTok Business Account or Creator Marketplace account. Personal accounts have limited API access.' },
-    { text:'The agent generates video slideshow content (slides + caption + hashtags) optimized for TikTok. Download the slideshow video from Content Lab and post it using the TikTok mobile app or Creator Studio.' },
-    { text:'To access TikTok Creator Studio for scheduling posts: go to studio.tiktok.com.', link:"https://studio.tiktok.com" },
+    { text:'Go to developers.tiktok.com and sign in. Click "Manage apps" → "Create app".', link:"https://developers.tiktok.com/apps/" },
+    { text:'In your app settings find "App details". Copy the Client Key and Client Secret and paste them above.' },
+    { text:'For a sandbox access token: in your app, go to "Sandbox" → "Generate token". Copy the Access Token and Open ID shown.' },
+    { text:'For production posting, your app must pass TikTok content API review. Sandbox lets you test with your own account immediately.' },
+    { text:'The agent generates slide content + captions. For best results, download the slideshow from Content Lab and post via TikTok app alongside any API post.' },
+    { text:'To access TikTok Creator Studio for scheduling: go to studio.tiktok.com.', link:"https://studio.tiktok.com" },
   ];
   const G_GOOGLE = [
     { text:'Go to business.google.com and sign in with your Google account.', link:"https://business.google.com/" },
@@ -944,10 +920,11 @@ function HubPanel({ businessId, integs, onSaveFields, tasks, outputs, isMinor })
     { text:'To receive payment, tell clients to search your @username in Venmo and send money. You can also share your Venmo QR code.' },
   ];
   const G_TWITTER = [
-    { text:'Click "Connect X / Twitter" above to connect your account via OAuth. You will be redirected to Twitter/X to authorize the connection.' },
-    { text:'Once connected, the agent can read your follower count, recent tweets, and post directly to your timeline.' },
-    { text:'If the Connect button shows an error, X OAuth may not yet be configured. In that case: enter your @handle below and the agent will generate tweet content for you to post manually.' },
-    { text:'To create a Twitter/X Developer App (if you want to self-host): go to developer.x.com, create a project, enable OAuth 2.0, and add the callback URL shown in your environment configuration.', link:"https://developer.x.com/en/portal/projects-and-apps" },
+    { text:'Go to developer.x.com and sign in with your X / Twitter account. Click "Projects & Apps" → "Overview" → "Create App".', link:"https://developer.x.com/en/portal/projects-and-apps" },
+    { text:'In your app, go to "Keys and tokens". Under "Consumer Keys" copy the API Key and API Key Secret.' },
+    { text:'Under "Authentication Tokens" click "Generate" to create an Access Token and Access Token Secret. Paste all four values above.' },
+    { text:'Make sure your app has "Read and Write" permissions (Edit → App permissions). Without Write permission, posting tweets will fail.' },
+    { text:'The agent reads your follower count and recent tweet performance, then drafts and posts tweets on your behalf.' },
   ];
 
   const integrationDefs = isMinor ? [
@@ -990,8 +967,12 @@ function HubPanel({ businessId, integs, onSaveFields, tasks, outputs, isMinor })
     ]},
     { provider:"tiktok",   label:"TikTok",                 desc:"Agent generates video content and analyzes performance",
       autopilotLabel:"Agent creates TikTok slide videos and posts automatically",
-      setupGuide:G_TIKTOK, oauth:"tiktok", oauthLabel:"Connect TikTok", fields:[
-      { key:"handle", label:"@TikTok handle (fallback if OAuth unavailable)", placeholder:"@yourbusiness" },
+      setupGuide:G_TIKTOK, fields:[
+      { key:"handle",       label:"@TikTok handle", placeholder:"@yourbusiness" },
+      { key:"clientKey",    label:"Client Key", placeholder:"From developers.tiktok.com", mono:true },
+      { key:"clientSecret", label:"Client Secret", placeholder:"From developers.tiktok.com", inputType:"password", mono:true },
+      { key:"accessToken",  label:"Access Token", placeholder:"Sandbox or production token", inputType:"password", mono:true },
+      { key:"openId",       label:"Open ID", placeholder:"Your TikTok Open ID", mono:true },
     ]},
     { provider:"email",    label:"Email / Newsletter",     desc:"Agent generates and sends email campaigns",
       autopilotLabel:"Agent sends follow-ups, newsletters, and re-engagement emails",
@@ -1004,8 +985,12 @@ function HubPanel({ businessId, integs, onSaveFields, tasks, outputs, isMinor })
     ]},
     { provider:"twitter",  label:"X / Twitter",            desc:"Agent posts tweets and analyzes your audience",
       autopilotLabel:"Agent posts daily updates and engages your audience",
-      setupGuide:G_TWITTER, oauth:"twitter", oauthLabel:"Connect X / Twitter", fields:[
-      { key:"handle", label:"@X handle (fallback if OAuth unavailable)", placeholder:"@yourbusiness" },
+      setupGuide:G_TWITTER, fields:[
+      { key:"handle",            label:"@X handle", placeholder:"@yourbusiness" },
+      { key:"apiKey",            label:"API Key (Consumer Key)", placeholder:"From developer.x.com", mono:true },
+      { key:"apiSecret",         label:"API Key Secret (Consumer Secret)", placeholder:"From developer.x.com", inputType:"password", mono:true },
+      { key:"accessToken",       label:"Access Token", placeholder:"From developer.x.com", inputType:"password", mono:true },
+      { key:"accessTokenSecret", label:"Access Token Secret", placeholder:"From developer.x.com", inputType:"password", mono:true },
     ]},
   ] : [
     { provider:"stripe",   label:"Stripe",                 desc:"Accept card payments",
@@ -1044,8 +1029,12 @@ function HubPanel({ businessId, integs, onSaveFields, tasks, outputs, isMinor })
     ]},
     { provider:"tiktok",   label:"TikTok",                 desc:"Agent generates video content and analyzes performance",
       autopilotLabel:"Agent creates TikTok slide videos and posts automatically",
-      setupGuide:G_TIKTOK, oauth:"tiktok", oauthLabel:"Connect TikTok", fields:[
-      { key:"handle", label:"@TikTok handle (fallback if OAuth unavailable)", placeholder:"@yourbusiness" },
+      setupGuide:G_TIKTOK, fields:[
+      { key:"handle",       label:"@TikTok handle", placeholder:"@yourbusiness" },
+      { key:"clientKey",    label:"Client Key", placeholder:"From developers.tiktok.com", mono:true },
+      { key:"clientSecret", label:"Client Secret", placeholder:"From developers.tiktok.com", inputType:"password", mono:true },
+      { key:"accessToken",  label:"Access Token", placeholder:"Sandbox or production token", inputType:"password", mono:true },
+      { key:"openId",       label:"Open ID", placeholder:"Your TikTok Open ID", mono:true },
     ]},
     { provider:"email",    label:"Email / Newsletter",     desc:"Agent generates and sends email campaigns",
       autopilotLabel:"Agent sends follow-ups, newsletters, and re-engagement emails",
@@ -1058,8 +1047,12 @@ function HubPanel({ businessId, integs, onSaveFields, tasks, outputs, isMinor })
     ]},
     { provider:"twitter",  label:"X / Twitter",            desc:"Agent posts tweets and analyzes your audience",
       autopilotLabel:"Agent posts daily updates and engages your audience",
-      setupGuide:G_TWITTER, oauth:"twitter", oauthLabel:"Connect X / Twitter", fields:[
-      { key:"handle", label:"@X handle (fallback if OAuth unavailable)", placeholder:"@yourbusiness" },
+      setupGuide:G_TWITTER, fields:[
+      { key:"handle",            label:"@X handle", placeholder:"@yourbusiness" },
+      { key:"apiKey",            label:"API Key (Consumer Key)", placeholder:"From developer.x.com", mono:true },
+      { key:"apiSecret",         label:"API Key Secret (Consumer Secret)", placeholder:"From developer.x.com", inputType:"password", mono:true },
+      { key:"accessToken",       label:"Access Token", placeholder:"From developer.x.com", inputType:"password", mono:true },
+      { key:"accessTokenSecret", label:"Access Token Secret", placeholder:"From developer.x.com", inputType:"password", mono:true },
     ]},
   ];
 
@@ -1084,8 +1077,6 @@ function HubPanel({ businessId, integs, onSaveFields, tasks, outputs, isMinor })
             autopilotLabel={def.autopilotLabel}
             autopilotDisabled={def.autopilotDisabled}
             setupGuide={def.setupGuide}
-            oauthLabel={def.oauthLabel}
-            onOAuth={def.oauth ? () => api.integrations[def.oauth + "Auth"](businessId) : undefined}
             onTestConnection={def.wpTest ? async (vals) => {
               if (!vals.siteUrl || !vals.wpUsername || !vals.wpAppPassword) throw new Error("Enter site URL, username, and app password first");
               const r = await api.integrations.testWordPress(businessId, vals);
