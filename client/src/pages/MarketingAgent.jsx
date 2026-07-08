@@ -11,7 +11,7 @@
  * Campaign lifecycle: planned → active → monitoring → archived
  */
 
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { api } from "../lib/api";
 import { C, FH, FB, btn, btnO, card, inp, lbl } from "../components";
@@ -189,6 +189,39 @@ function MarketAnalysisSection({ analysis }) {
               ))}
             </>
           )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── Guidance block (for non-automatable tasks: engagement, follow/DM, video) ──
+
+function GuidanceBlock({ content }) {
+  const isVideo = content.type === "video";
+  return (
+    <div style={{ background:"#FFFBEB", border:"1px solid #FDE68A", borderRadius:8, padding:"12px 14px", marginTop:8 }}>
+      <div style={{ fontSize:11, fontWeight:700, color:"#92400E", fontFamily:FB, textTransform:"uppercase", letterSpacing:"0.05em", marginBottom:8 }}>
+        {isVideo ? "📹 Video task — do manually" : "📋 Action guide — do manually"}
+      </div>
+      {content.guidanceWhy && (
+        <p style={{ fontSize:12, color:"#78350F", fontFamily:FB, marginBottom:8, fontStyle:"italic", lineHeight:1.5 }}>
+          {content.guidanceWhy}
+        </p>
+      )}
+      <ol style={{ margin:0, paddingLeft:18 }}>
+        {(content.guidanceSteps || []).map((step, i) => (
+          <li key={i} style={{ fontSize:12, color:"#374151", fontFamily:FB, marginBottom:5, lineHeight:1.55 }}>{step}</li>
+        ))}
+      </ol>
+      {content.guidanceTips?.length > 0 && (
+        <div style={{ marginTop:10, paddingTop:8, borderTop:"1px solid #FDE68A20" }}>
+          <div style={{ fontSize:10, fontWeight:700, color:"#92400E", fontFamily:FB, marginBottom:5 }}>Pro tips</div>
+          {content.guidanceTips.map((tip, i) => (
+            <div key={i} style={{ fontSize:11, color:"#78350F", fontFamily:FB, marginBottom:3, display:"flex", gap:6 }}>
+              <span>💡</span><span>{tip}</span>
+            </div>
+          ))}
         </div>
       )}
     </div>
@@ -375,18 +408,17 @@ function CampaignTaskRow({ task:t, mode, channel, businessId, businessName, onCo
       console.log(`[TASK:getContent] Server response — channel=${c?.channel} imageSource=${c?.imageSource} hasImageUrl=${!!c?.imageUrl} captionLen=${c?.caption?.length || 0}`);
       if (c?.dalleError) console.error(`[TASK:getContent] DALL-E error: ${c.dalleError}`);
 
-      // For Instagram tasks, composite canvas text over AI background (or gradient fallback)
-      if (c?.caption && (channel === "instagram" || /instagram/i.test(t.name))) {
-        const bgUrl = c?.imageUrl && c?.imageSource?.startsWith("gpt-image") ? c.imageUrl : null;
-        console.log(`[TASK:getContent] Generating Canvas image — businessName="${businessName || "Business"}" captionLen=${(c.body || c.caption)?.length} bgSource=${bgUrl ? c.imageSource : "gradient"}`);
+      // For visual channel tasks with an image, composite canvas text over the AI background
+      const taskChannel = channel || c?.channel || "general";
+      if (!c?.isGuided && c?.imageUrl && VISUAL_CHANNEL_SET.has(taskChannel)) {
+        const bgUrl = c?.imageSource?.startsWith("gpt-image") ? c.imageUrl : null;
+        console.log(`[TASK:getContent] Canvas composite — channel=${taskChannel} bgSource=${bgUrl ? c.imageSource : "gradient"}`);
         try {
           const blob = await generatePostImageBlob(businessName || "Business", c.body || c.caption, bgUrl);
-          console.log(`[TASK:getContent] Canvas blob generated — size=${blob.size} type=${blob.type}`);
           const { imageUrl } = await api.instagram.uploadImage(blob);
-          console.log(`[TASK:getContent] Canvas image uploaded — imageUrl=${imageUrl}`);
           c = { ...c, imageUrl, imageSource: "canvas" };
         } catch(imgErr) {
-          console.error(`[TASK:getContent] Canvas image FAILED — ${imgErr.message}. Keeping server image: ${c.imageUrl || "none"}`);
+          console.error(`[TASK:getContent] Canvas failed — ${imgErr.message}. Keeping server image.`);
         }
       }
       setContent(c);
@@ -482,10 +514,13 @@ function CampaignTaskRow({ task:t, mode, channel, businessId, businessName, onCo
               ))}
             </div>
           ) : (
-            <ContentPreviewBlock content={content} channel={channel} mode={mode} />
+            {content?.isGuided
+              ? <GuidanceBlock content={content} />
+              : <ContentPreviewBlock content={content} channel={channel} mode={mode} />
+            }
           )}
           {/* Guided mode: Post to Instagram button after content generated */}
-          {mode === "guided" && channel === "instagram" && (content?.caption || content?.body) && content?.imageUrl && !content?.published && (
+          {mode === "guided" && channel === "instagram" && !content?.isGuided && (content?.caption || content?.body) && content?.imageUrl && !content?.published && (
             <div style={{ marginTop:8 }}>
               <button onClick={async () => {
                 setPosting(true); setPostMsg("");
@@ -609,16 +644,16 @@ function CampaignCard({ campaign:c, onUpdate, onDelete, businessId, businessName
           lastCaption = output.body || output.caption;
         }
 
-        // For Instagram prep tasks with no canvas image yet: composite canvas text over AI background
-        if (campChannel === "instagram" && output?.caption && !runBody.imageUrl) {
+        // For visual channel prep tasks: composite canvas text over AI background for display
+        if (VISUAL_CHANNEL_SET.has(campChannel) && output?.caption && !output?.isGuided && !runBody.imageUrl) {
           try {
             const bgUrl = output?.imageUrl && output?.imageSource?.startsWith("gpt-image") ? output.imageUrl : null;
             const blob = await generatePostImageBlob(businessName || "Business", output.body || output.caption, bgUrl);
             const { imageUrl: canvasUrl } = await api.instagram.uploadImage(blob);
             output = { ...output, imageUrl: canvasUrl, imageSource: "canvas" };
-            console.log(`[AUTOPILOT:runTasksAuto] Canvas display image generated for prep task "${task.name}" — url=${canvasUrl} bgSource=${bgUrl ? output.imageSource : "gradient"}`);
+            console.log(`[AUTOPILOT:runTasksAuto] Canvas display image for "${task.name}" — bgSource=${bgUrl ? "gpt-image" : "gradient"}`);
           } catch(displayErr) {
-            console.warn(`[AUTOPILOT:runTasksAuto] Canvas display image failed for "${task.name}" — ${displayErr.message}`);
+            console.warn(`[AUTOPILOT:runTasksAuto] Canvas display failed for "${task.name}" — ${displayErr.message}`);
           }
         }
 
@@ -836,8 +871,9 @@ function ImplementResult({ result, businessId, businessName }) {
     if (!result?.caption) return;
     let cancelled = false;
     const effectiveName = businessName || "Business";
+    if (result.isGuided) return;
     const bgUrl = result?.imageUrl && result?.imageSource?.startsWith("gpt-image") ? result.imageUrl : null;
-    console.log(`[IMPLEMENT:canvas] Starting Canvas image generation — businessName="${effectiveName}" captionLen=${(result.body || result.caption)?.length} bgSource=${bgUrl ? result.imageSource : "gradient"}`);
+    console.log(`[IMPLEMENT:canvas] Canvas composite — businessName="${effectiveName}" bgSource=${bgUrl ? result.imageSource : "gradient"}`);
     (async () => {
       try {
         const blob = await generatePostImageBlob(effectiveName, result.body || result.caption, bgUrl);
@@ -987,14 +1023,18 @@ function UpgradeCard({ reason, navigate }) {
 // ── Content Lab (debug / test content generation) ────────────────────────────
 
 const CHANNEL_OPTS = [
-  { value:"instagram", label:"Instagram",   hasImage:true  },
-  { value:"twitter",   label:"X / Twitter", hasImage:true  },
-  { value:"linkedin",  label:"LinkedIn",    hasImage:true  },
-  { value:"tiktok",    label:"TikTok",      hasImage:true  },
-  { value:"email",     label:"Email",       hasImage:false },
-  { value:"general",   label:"General",     hasImage:true  },
+  { value:"instagram", label:"Instagram",        hasImage:true  },
+  { value:"twitter",   label:"X / Twitter",      hasImage:true  },
+  { value:"linkedin",  label:"LinkedIn",          hasImage:true  },
+  { value:"tiktok",    label:"TikTok",            hasImage:true  },
+  { value:"google",    label:"Google Business",   hasImage:true  },
+  { value:"facebook",  label:"Facebook",          hasImage:true  },
+  { value:"email",     label:"Email",             hasImage:false },
+  { value:"website",   label:"Website",           hasImage:false },
+  { value:"general",   label:"General",           hasImage:true  },
 ];
 const TONE_OPTS = ["professional","educational","bold","casual","inspirational","direct"];
+const VISUAL_CHANNEL_SET = new Set(["instagram","twitter","tiktok","linkedin","google","facebook","general"]);
 const SRC_BADGE = {
   "gpt-image-1":"GPT Image 1", "gpt-image-1.5":"GPT Image 1.5", "gpt-image-1-mini":"GPT Image 1 Mini",
   "gpt-image-2":"GPT Image 2", "chatgpt-image-latest":"GPT Image (latest)",
@@ -1010,144 +1050,191 @@ const SRC_CLR = {
 };
 
 function ContentLab({ businessId, businessName }) {
-  const [open,     setOpen]     = useState(true);
-  const [channel,  setChannel]  = useState("instagram");
-  const [context,  setContext]  = useState("");
-  const [tone,     setTone]     = useState("professional");
-  const [loading,  setLoading]  = useState(false);
-  const [result,   setResult]   = useState(null);
-  const [error,    setError]    = useState("");
+  const [open,         setOpen]         = useState(false);
+  const [channel,      setChannel]      = useState("instagram");
+  const [context,      setContext]      = useState("");
+  const [tone,         setTone]         = useState("professional");
+  const [loading,      setLoading]      = useState(false);
+  const [result,       setResult]       = useState(null);
+  const [composedBlob, setComposedBlob] = useState(null);
+  const [copied,       setCopied]       = useState(false);
+  const [error,        setError]        = useState("");
+
+  const channelOpt = CHANNEL_OPTS.find(o => o.value === channel);
+  const hasImage   = channelOpt?.hasImage;
+
+  // Stable object URL for the composed image — revoked when blob changes
+  const composedUrl = useMemo(() => composedBlob ? URL.createObjectURL(composedBlob) : null, [composedBlob]);
+  useEffect(() => () => { if (composedUrl) URL.revokeObjectURL(composedUrl); }, [composedUrl]);
 
   const generate = async () => {
     if (!context.trim()) return;
-    setLoading(true); setError(""); setResult(null);
+    setLoading(true); setError(""); setResult(null); setComposedBlob(null);
     try {
       const data = await api.agents.contentLab(businessId, { channel, context: context.trim(), tone });
       setResult(data);
+      // Composite canvas text over the AI background for visual channels
+      if (hasImage && data.imageUrl) {
+        try {
+          const bgUrl = data.imageSource?.startsWith("gpt-image") ? data.imageUrl : null;
+          const blob  = await generatePostImageBlob(businessName || "Business", data.body || data.caption, bgUrl);
+          setComposedBlob(blob);
+        } catch(canvasErr) {
+          console.error("[ContentLab] Canvas composition failed:", canvasErr.message);
+        }
+      }
     } catch(e) {
       setError(e.message);
     }
     setLoading(false);
   };
 
-  const hasImage = CHANNEL_OPTS.find(o=>o.value===channel)?.hasImage;
+  const downloadImage = () => {
+    if (!composedBlob) return;
+    const url = URL.createObjectURL(composedBlob);
+    const a   = document.createElement("a");
+    a.href    = url;
+    a.download = `${(businessName || "post").replace(/\s+/g, "-").toLowerCase()}-${channel}.png`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  };
+
+  const copyText = async () => {
+    if (!result) return;
+    const parts = [result.body || result.caption, result.hashtags].filter(Boolean);
+    try { await navigator.clipboard.writeText(parts.join("\n\n")); } catch {}
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
 
   return (
-    <div style={{ ...card("0"), marginBottom:14, overflow:"hidden" }}>
+    <div style={{ ...card("0"), marginBottom:20, overflow:"hidden", border:`1px solid ${C.primary}20`, borderRadius:12 }}>
       {/* Header */}
-      <button onClick={()=>setOpen(o=>!o)} style={{
-        width:"100%", background:"none", border:"none", cursor:"pointer",
+      <button onClick={() => setOpen(o => !o)} style={{
+        width:"100%", border:"none", cursor:"pointer",
+        background: open ? "#FAFAFA" : "linear-gradient(135deg,#F5F3FF 0%,#EFF6FF 100%)",
         display:"flex", alignItems:"center", justifyContent:"space-between",
-        padding:"10px 14px", borderBottom: open ? `1px solid ${C.border}` : "none",
+        padding:"14px 18px", borderBottom: open ? `1px solid ${C.border}` : "none",
       }}>
-        <span style={{ fontFamily:FH, fontWeight:700, fontSize:14 }}>
-          Content Lab
-          <span style={{ fontSize:10, color:C.muted, fontWeight:400, marginLeft:8, fontFamily:FB }}>test & debug content generation</span>
-        </span>
-        <span style={{ fontSize:10, color:C.muted, fontFamily:FB }}>{open?"▲":"▼"}</span>
+        <div style={{ display:"flex", alignItems:"center", gap:10 }}>
+          <span style={{ fontSize:20, lineHeight:1 }}>✨</span>
+          <div style={{ textAlign:"left" }}>
+            <div style={{ fontFamily:FH, fontWeight:700, fontSize:15, color:C.text }}>Content Lab</div>
+            <div style={{ fontSize:11, color:C.muted, fontFamily:FB, marginTop:1 }}>
+              Generate, preview & download branded content for any channel
+            </div>
+          </div>
+        </div>
+        <span style={{ fontSize:11, color:C.muted, fontFamily:FB }}>{open ? "▲" : "▼"}</span>
       </button>
 
       {open && (
-        <div style={{ padding:"12px 14px" }}>
-          {/* Controls row */}
-          <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:8, marginBottom:8 }}>
+        <div style={{ padding:"16px 18px" }}>
+          {/* Controls */}
+          <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 2fr auto", gap:10, marginBottom:14, alignItems:"end" }}>
             <div>
-              <div style={{ ...{ ...lbl, fontSize:10 }, marginBottom:3 }}>Channel</div>
-              <select value={channel} onChange={e=>setChannel(e.target.value)} style={{ ...inp({ fontSize:12 }), width:"100%" }}>
-                {CHANNEL_OPTS.map(o=><option key={o.value} value={o.value}>{o.label}</option>)}
+              <div style={{ ...lbl, fontSize:10, marginBottom:4 }}>Channel</div>
+              <select value={channel} onChange={e => { setChannel(e.target.value); setResult(null); setComposedBlob(null); }}
+                style={{ ...inp({ fontSize:12 }), width:"100%" }}>
+                {CHANNEL_OPTS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
               </select>
             </div>
             <div>
-              <div style={{ ...{ ...lbl, fontSize:10 }, marginBottom:3 }}>Tone</div>
-              <select value={tone} onChange={e=>setTone(e.target.value)} style={{ ...inp({ fontSize:12 }), width:"100%" }}>
-                {TONE_OPTS.map(t=><option key={t} value={t}>{t.charAt(0).toUpperCase()+t.slice(1)}</option>)}
+              <div style={{ ...lbl, fontSize:10, marginBottom:4 }}>Tone</div>
+              <select value={tone} onChange={e => setTone(e.target.value)} style={{ ...inp({ fontSize:12 }), width:"100%" }}>
+                {TONE_OPTS.map(t => <option key={t} value={t}>{t.charAt(0).toUpperCase() + t.slice(1)}</option>)}
               </select>
             </div>
+            <div>
+              <div style={{ ...lbl, fontSize:10, marginBottom:4 }}>Topic / context</div>
+              <input value={context} onChange={e => setContext(e.target.value)}
+                onKeyDown={e => e.key === "Enter" && !loading && context.trim() && generate()}
+                placeholder="e.g. 'How we helped a client save 10 hours a week with automation'"
+                style={{ ...inp({ fontSize:12 }), width:"100%" }} />
+            </div>
+            <button onClick={generate} disabled={loading || !context.trim()}
+              style={{ ...btn(loading ? "#9CA3AF" : C.primary, "#fff", 12), padding:"8px 18px",
+                display:"flex", alignItems:"center", gap:6, whiteSpace:"nowrap" }}>
+              {loading && <div style={spin()} />}
+              {loading ? "Generating…" : "Generate"}
+            </button>
           </div>
 
-          <div style={{ marginBottom:8 }}>
-            <div style={{ ...{ ...lbl, fontSize:10 }, marginBottom:3 }}>Post topic / context</div>
-            <textarea
-              value={context}
-              onChange={e=>setContext(e.target.value)}
-              placeholder="e.g. 'How to automate your email follow-ups using AI tools' — or paste a headline"
-              rows={2}
-              style={{ ...inp({ fontSize:12 }), width:"100%", resize:"vertical" }}
-            />
-          </div>
-
-          <button onClick={generate} disabled={loading || !context.trim()} style={{
-            ...btn(loading?"#9CA3AF":C.primary,"#fff",12), padding:"7px 16px",
-            display:"flex", alignItems:"center", gap:6, marginBottom:12,
-          }}>
-            {loading && <div style={spin()} />}
-            {loading ? "Generating…" : `Generate ${hasImage?"image + ":""}content`}
-          </button>
-
-          {/* Error */}
           {error && (
-            <div style={{ ...card("8px 12px"), background:C.errBg, border:`1px solid #DC262630`, marginBottom:10, fontSize:12, color:C.err, fontFamily:FB }}>
+            <div style={{ ...card("8px 12px"), background:C.errBg, border:`1px solid #DC262630`, marginBottom:12, fontSize:12, color:C.err, fontFamily:FB }}>
               {error}
             </div>
           )}
 
-          {/* Result */}
           {result && (
-            <div>
-              {/* DALL-E error banner */}
-              {result.dalleError && (
-                <div style={{ ...card("8px 12px"), background:"#FEF2F2", border:"1px solid #FECACA", marginBottom:10, fontSize:12, color:C.err, fontFamily:FB }}>
-                  <strong>Image generation failed:</strong> {result.dalleError}
-                  <div style={{ fontSize:10, color:"#9CA3AF", marginTop:4 }}>
-                    Check that your OpenAI API key has image generation enabled in its Project settings at platform.openai.com
+            <div style={{ display:"grid", gridTemplateColumns: (hasImage && (composedUrl || result.imageUrl)) ? "260px 1fr" : "1fr", gap:16, alignItems:"start" }}>
+
+              {/* ── Image column ── */}
+              {hasImage && (
+                <div>
+                  {composedUrl ? (
+                    <>
+                      <img src={composedUrl} alt="Generated post" style={{ width:"100%", borderRadius:8, display:"block", marginBottom:8 }} />
+                      <div style={{ display:"flex", gap:6, alignItems:"center" }}>
+                        <button onClick={downloadImage}
+                          style={{ ...btn(C.ok,"#fff",11), padding:"5px 0", flex:1, textAlign:"center" }}>
+                          ↓ Download PNG
+                        </button>
+                        <span style={{
+                          fontSize:9, fontWeight:700, fontFamily:FB, padding:"5px 8px", borderRadius:6,
+                          background: (SRC_CLR[result.imageSource] || C.muted) + "20",
+                          color: SRC_CLR[result.imageSource] || C.muted,
+                          textTransform:"uppercase", letterSpacing:"0.04em",
+                        }}>
+                          {SRC_BADGE[result.imageSource] || result.imageSource}
+                        </span>
+                      </div>
+                    </>
+                  ) : result.imageUrl ? (
+                    <div style={{ ...card("12px"), background:"#F3F4F6", textAlign:"center", color:C.muted, fontSize:12, fontFamily:FB, borderRadius:8 }}>
+                      Compositing…
+                    </div>
+                  ) : result.dalleError ? (
+                    <div style={{ ...card("10px 12px"), background:"#FEF2F2", border:"1px solid #FECACA", fontSize:11, color:C.err, fontFamily:FB, borderRadius:8 }}>
+                      <strong>Image failed:</strong> {result.dalleError}
+                      <div style={{ fontSize:10, color:"#9CA3AF", marginTop:4 }}>
+                        Check OpenAI Project settings → enable image generation
+                      </div>
+                    </div>
+                  ) : null}
+                </div>
+              )}
+
+              {/* ── Text column ── */}
+              <div>
+                {result.captionError && (
+                  <div style={{ fontSize:11, color:"#92400E", fontFamily:FB, marginBottom:8, background:"#FFFBEB", padding:"6px 10px", borderRadius:6 }}>
+                    OpenAI failed — Claude fallback used
                   </div>
-                </div>
-              )}
-
-              {/* Caption error */}
-              {result.captionError && (
-                <div style={{ ...card("8px 12px"), background:"#FFFBEB", border:"1px solid #FDE68A", marginBottom:10, fontSize:12, color:"#92400E", fontFamily:FB }}>
-                  <strong>OpenAI caption failed (Claude fallback used):</strong> {result.captionError}
-                </div>
-              )}
-
-              {/* Image */}
-              {hasImage && result.imageUrl && (
-                <div style={{ marginBottom:10 }}>
-                  <img src={result.imageUrl} alt="Generated" style={{ width:"100%", maxHeight:260, objectFit:"cover", borderRadius:6, display:"block" }} />
-                  <div style={{ display:"flex", alignItems:"center", gap:6, marginTop:5 }}>
-                    <span style={{
-                      fontSize:9, fontWeight:700, fontFamily:FB, padding:"2px 7px", borderRadius:20,
-                      background: SRC_CLR[result.imageSource] + "20",
-                      color: SRC_CLR[result.imageSource] || C.muted,
-                      textTransform:"uppercase", letterSpacing:"0.05em",
-                    }}>
-                      {SRC_BADGE[result.imageSource] || result.imageSource}
-                    </span>
-                    <span style={{ fontSize:10, color:C.muted, fontFamily:FB }}>
-                      OpenAI key: {result.hasOpenAIKey ? "✓ set" : "✗ missing"}
-                    </span>
-                  </div>
-                </div>
-              )}
-
-              {/* Caption / copy */}
-              {(result.body || result.caption) && (
-                <div style={{ ...card("10px 12px"), background:"#F0FDF4", border:`1px solid ${C.ok}25`, marginBottom:8 }}>
-                  <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:6 }}>
+                )}
+                <div style={{ ...card("12px 14px"), background:"#F0FDF4", border:`1px solid ${C.ok}25` }}>
+                  <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:8 }}>
                     <span style={{ fontSize:10, fontWeight:700, color:C.ok, fontFamily:FB, textTransform:"uppercase", letterSpacing:"0.05em" }}>
-                      {CH_LABELS[result.channel] || result.channel} copy
+                      {channelOpt?.label || channel} copy
                     </span>
-                    <span style={{ fontSize:9, color:C.muted, fontFamily:FB }}>{result.captionSource}</span>
+                    <div style={{ display:"flex", gap:6, alignItems:"center" }}>
+                      <span style={{ fontSize:9, color:C.muted, fontFamily:FB }}>{result.captionSource}</span>
+                      <button onClick={copyText}
+                        style={{ ...btn(copied ? C.ok : "#6B7280","#fff",10), padding:"3px 10px" }}>
+                        {copied ? "✓ Copied" : "Copy text"}
+                      </button>
+                    </div>
                   </div>
-                  <p style={{ fontSize:13, color:"#374151", fontFamily:FB, lineHeight:1.6, marginBottom:result.hashtags?6:0 }}>
+                  <p style={{ fontSize:13, color:"#374151", fontFamily:FB, lineHeight:1.65, marginBottom: result.hashtags ? 6 : 0, whiteSpace:"pre-wrap" }}>
                     {result.body || result.caption}
                   </p>
                   {result.hashtags && (
                     <p style={{ fontSize:11, color:C.muted, fontFamily:FB }}>{result.hashtags}</p>
                   )}
                 </div>
-              )}
+              </div>
             </div>
           )}
         </div>
@@ -1328,6 +1415,9 @@ export default function AgentPanel({ businessId, businessName, metrics, planInfo
 
   return (
     <div>
+      {/* ── Content Lab — top-level standalone feature ── */}
+      <ContentLab businessId={businessId} businessName={businessName} />
+
       {/* Mode toggle */}
       <ModeToggle mode={agentMode} onChange={saveAgentMode} />
 
@@ -1564,7 +1654,6 @@ export default function AgentPanel({ businessId, businessName, metrics, planInfo
             </div>
           )}
 
-          <ContentLab businessId={businessId} businessName={businessName} />
           <AddCampaignForm mode={agentMode} onAdd={c=>saveCampaigns(p=>[c,...p])} />
 
           {/* Archived campaigns */}

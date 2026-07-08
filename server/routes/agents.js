@@ -594,99 +594,96 @@ router.post("/:businessId/campaigns/task-content", requireAuth, async (req, res,
     });
 
     const brandId = await getBrandIdentity(req.params.businessId);
-    log.info("CONTENT", "Brand identity for task-content", {
-      found: !!brandId,
-      populatedBy: brandId?.populatedBy || "none",
-      hasVoice: !!brandId?.voice,
-      hasBusinessType: !!brandId?.businessType,
-    });
+    let idea = {}; try { idea = JSON.parse(biz.ideaData||"{}"); } catch {}
 
     const marketOut = await prisma.businessOutput.findFirst({ where:{ businessId:req.params.businessId, type:"marketing_insights" } });
     let marketInsights = ""; try { const md=JSON.parse(marketOut?.content||"{}"); marketInsights=md.report?.marketAnalysis?.summary||""; } catch {}
-    log.info("CONTENT", "Market insights for task-content", { found: !!marketOut, len: marketInsights.length });
 
-    // Instagram tasks: use OpenAI caption + DALL-E image
-    if (ch === "instagram" && process.env.OPENAI_API_KEY) {
-      let idea = {}; try { idea = JSON.parse(biz.ideaData||"{}"); } catch {}
-      log.info("CONTENT", "Instagram + OpenAI path — generating caption", { taskName: task.name });
+    // ── 1. Guided task detection (engagement, follow/DM, video) ─────────────
+    const taskText = (task.name || "") + " " + (task.description || "");
+    let stepsData = [];
+    try { stepsData = typeof task.steps === "string" ? JSON.parse(task.steps) : (Array.isArray(task.steps) ? task.steps : []); } catch {}
 
-      let captionResult;
+    const isVideoTask      = stepsData[0]?.isVideoTask      || /\bfilm\b|\brecord\b|\bshoot\b|\bedit\s+(and|the)\b|\bvoiceover\b|\bscreencast\b|\bslideshow\b/i.test(taskText);
+    const isEngagementTask = stepsData[0]?.isEngagementTask || /\bengage\s+with\b|\bfollow\s+(\d+|targeted|accounts)\b|\blike\s+\d+\b|\bcomment\s+on\b|\bdm\b|\bdirect\s+message\b|\bmanually\s+(engage|follow|like)\b/i.test(taskText);
+
+    if (isVideoTask || isEngagementTask) {
+      log.info("CONTENT", "Guided task detected — generating strategy", { taskName: task.name, isVideoTask, isEngagementTask });
+      const guidance = process.env.OPENAI_API_KEY
+        ? await openaiSvc.generateTaskGuidance({ businessName: biz.name, taskName: task.name, taskDescription: task.description, channel: ch, brandIdentity: brandId })
+        : { why: "", steps: ["Plan your approach step by step", "Research what's working in your niche", "Execute consistently and track results"], tips: [] };
+      return res.json({ content: {
+        channel: ch,
+        isGuided: true,
+        type: isVideoTask ? "video" : "engagement",
+        guidanceTitle: task.name,
+        guidanceWhy:   guidance.why,
+        guidanceSteps: guidance.steps,
+        guidanceTips:  guidance.tips,
+      }});
+    }
+
+    // ── 2. Visual channels: caption + background image ───────────────────────
+    const VISUAL_CHANNELS = new Set(["instagram","twitter","tiktok","linkedin","google","facebook","general"]);
+    const isVisual = VISUAL_CHANNELS.has(ch);
+
+    if (isVisual) {
+      // Caption
+      let captionResult, dalleError = null;
       try {
-        captionResult = await openaiSvc.generateInstagramCaption({
-          businessName: biz.name, businessType: idea.name,
-          context: task.name, brandIdentity: brandId, marketInsights,
-        });
-        log.info("CONTENT", "Caption generated for task-content", {
-          bodyLen: captionResult.body?.length,
-          hashtagsLen: captionResult.hashtags?.length,
-        });
+        if (ch === "instagram") {
+          captionResult = await openaiSvc.generateInstagramCaption({
+            businessName: biz.name, businessType: idea.name,
+            context: task.name, brandIdentity: brandId, marketInsights,
+          });
+        } else if (process.env.OPENAI_API_KEY) {
+          const text = await openaiSvc.generateChannelCaption({ businessName: biz.name, channel: ch, context: task.name, brandIdentity: brandId });
+          captionResult = { caption: text, body: text, hashtags: null };
+        } else {
+          const ig = require("../services/instagram");
+          captionResult = await ig.generateCaption(biz.name, idea.name, task.name, "authentic", {});
+        }
       } catch (captionErr) {
-        log.error("CONTENT", "Caption generation FAILED", { error: captionErr.message });
+        log.error("CONTENT", "Caption generation failed", { error: captionErr.message, channel: ch });
         throw captionErr;
       }
 
-      const imgGen = require("../services/imageGen");
-      const appUrl  = log.getAppUrl();
-      log.info("CONTENT", "Attempting DALL-E 3 image for task-content", {
-        appUrl,
-        appUrlSource: process.env.APP_URL ? "APP_URL" : process.env.CLIENT_URL ? "CLIENT_URL" : "default localhost",
-      });
-
-      let imageUrl;
-      let imageSource;
-      let dalleError = null;
-      try {
-        const { buf: imgBuf, model: imgModel } = await openaiSvc.generatePostImage(biz.name, captionResult.body, brandId);
-        const imageId = imgGen.storeImage(imgBuf);
-        imageUrl = `${appUrl}/api/instagram/images/${imageId}`;
-        imageSource = imgModel;
-        log.info("CONTENT", "Image generated for task-content", { model: imgModel, imageId, imageUrl, ms: Date.now() - t0 });
-      } catch (imgErr) {
-        dalleError = imgErr.message || String(imgErr);
-        log.error("CONTENT", "Image generation failed for task-content", {
-          error: dalleError,
-          status: imgErr.status,
-          code: imgErr.code,
-          keyPrefix: process.env.OPENAI_API_KEY ? process.env.OPENAI_API_KEY.slice(0, 7) : "NOT_SET",
-        });
-        imageUrl = null;
-        imageSource = "image_failed";
+      // Background image (client canvas overlays the text)
+      let imageUrl = null, imageSource = null;
+      if (process.env.OPENAI_API_KEY) {
+        const imgGen = require("../services/imageGen");
+        const appUrl = log.getAppUrl();
+        try {
+          const { buf: imgBuf, model: imgModel } = await openaiSvc.generatePostImage(biz.name, captionResult.body, brandId);
+          const imageId = imgGen.storeImage(imgBuf);
+          imageUrl = `${appUrl}/api/instagram/images/${imageId}`;
+          imageSource = imgModel;
+          log.info("CONTENT", "Background image generated", { model: imgModel, channel: ch, ms: Date.now() - t0 });
+        } catch (imgErr) {
+          dalleError = imgErr.message || String(imgErr);
+          log.error("CONTENT", "Image generation failed", { error: dalleError, channel: ch });
+          imageSource = "image_failed";
+        }
+      } else {
+        imageSource = "no_openai_key";
       }
 
-      log.info("CONTENT", "task-content Instagram response ready", {
-        ms: Date.now() - t0,
-        imageSource,
-        hasImageUrl: !!imageUrl,
-        dalleError: dalleError || "none",
-      });
-      return res.json({ content: { channel:"instagram", caption:captionResult.caption, body:captionResult.body, hashtags:captionResult.hashtags, imageUrl, imageSource, dalleError } });
+      return res.json({ content: {
+        channel: ch,
+        caption: captionResult.caption,
+        body:    captionResult.body,
+        hashtags: captionResult.hashtags || null,
+        imageUrl, imageSource, dalleError,
+      }});
     }
 
-    // Instagram without OpenAI key — Claude fallback + null image (client Canvas fills in)
-    if (ch === "instagram" && !process.env.OPENAI_API_KEY) {
-      log.warn("CONTENT", "Instagram task-content but no OPENAI_API_KEY — using Claude caption, no image", {
-        taskName: task.name,
-        hasAnthropicKey: !!process.env.ANTHROPIC_API_KEY,
-      });
-      const ig = require("../services/instagram");
-      let idea = {}; try { idea = JSON.parse(biz.ideaData||"{}"); } catch {}
-      let prefs = {};
-      const metricsOut = await prisma.businessOutput.findFirst({ where:{ businessId:req.params.businessId, type:"user_metrics" } });
-      try { const m=JSON.parse(metricsOut?.content||"{}"); prefs=m.prefs||{}; } catch {}
-      const captionResult = await ig.generateCaption(biz.name, idea.name, task.name, "authentic", prefs);
-      log.info("CONTENT", "Claude caption generated for Instagram task-content (no OpenAI)", { bodyLen: captionResult.body?.length });
-      return res.json({ content: { channel:"instagram", caption:captionResult.caption, body:captionResult.body, hashtags:captionResult.hashtags, imageUrl:null, imageSource:"no_openai_key" } });
+    // ── 3. Text-only channels (email, website) ───────────────────────────────
+    if (process.env.OPENAI_API_KEY) {
+      const text = await openaiSvc.generateChannelCaption({ businessName: biz.name, channel: ch, context: task.name, brandIdentity: brandId });
+      return res.json({ content: { channel: ch, caption: text, body: text } });
     }
 
-    // Other channels: OpenAI or fallback to existing Claude-based generator
-    if (process.env.OPENAI_API_KEY && ch !== "general") {
-      let idea = {}; try { idea = JSON.parse(biz.ideaData||"{}"); } catch {}
-      log.info("CONTENT", "Non-Instagram channel — OpenAI channel caption", { channel: ch, taskName: task.name });
-      const text = await openaiSvc.generateChannelCaption({ businessName:biz.name, channel:ch, context:task.name, brandIdentity:brandId });
-      log.info("CONTENT", "Channel caption ready", { channel: ch, len: text.length, ms: Date.now() - t0 });
-      return res.json({ content: { channel:ch, caption:text, body:text } });
-    }
-
+    // ── 4. Claude fallback ────────────────────────────────────────────────────
     log.info("CONTENT", "Falling back to Claude generateChannelContent", { channel: ch, mode });
     const content = await generateChannelContent(biz, task, ch, mode || "guided");
     log.info("CONTENT", "Claude channel content ready", { type: content.type, ms: Date.now() - t0 });
@@ -809,15 +806,20 @@ router.post("/:businessId/content-lab", requireAuth, async (req, res, next) => {
     let idea = {}; try { idea = JSON.parse(biz.ideaData||"{}"); } catch {}
     const brandId = await getBrandIdentity(req.params.businessId);
 
-    // ── Caption ──────────────────────────────────────────────────────────────
+    // ── Caption (channel-appropriate) ─────────────────────────────────────────
     const ig = require("../services/instagram");
     let captionResult = null, captionError = null, captionSource = "claude";
     if (process.env.OPENAI_API_KEY) {
       try {
-        captionResult = await openaiSvc.generateInstagramCaption({
-          businessName: biz.name, businessType: idea.name,
-          context, brandIdentity: brandId, marketInsights: "",
-        });
+        if (channel === "instagram") {
+          captionResult = await openaiSvc.generateInstagramCaption({
+            businessName: biz.name, businessType: idea.name,
+            context, brandIdentity: brandId, marketInsights: "",
+          });
+        } else {
+          const text = await openaiSvc.generateChannelCaption({ businessName: biz.name, channel, context, brandIdentity: brandId });
+          captionResult = { caption: text, body: text, hashtags: null };
+        }
         captionSource = "gpt4o";
       } catch(e) {
         captionError = e.message;
@@ -832,7 +834,7 @@ router.post("/:businessId/content-lab", requireAuth, async (req, res, next) => {
     const appUrl = log.getAppUrl();
     let imageUrl = null, imageSource = null, dalleError = null;
 
-    const needsImage = ["instagram","twitter","linkedin","tiktok","general"].includes(channel);
+    const needsImage = ["instagram","twitter","linkedin","tiktok","google","facebook","general"].includes(channel);
     if (needsImage) {
       if (process.env.OPENAI_API_KEY) {
         log.info("CONTENT-LAB", "Attempting image generation", {

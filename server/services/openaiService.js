@@ -437,9 +437,60 @@ Return valid JSON with EXACTLY these fields (no extras, no markdown):
   }
 }
 
+/**
+ * Generate step-by-step guidance for tasks that can't be automated via API
+ * (engagement, follow/DM, video production). Returns { why, steps, tips }.
+ */
+async function generateTaskGuidance({ businessName, taskName, taskDescription, channel, brandIdentity }) {
+  const client = getClient();
+  const bi = brandIdentity || {};
+  const bizType  = bi.businessType || bi.businessCategory || "service business";
+  const audience = bi.targetAudience || "potential customers";
+
+  const t0 = Date.now();
+  try {
+    const msg = await client.chat.completions.create({
+      model: "gpt-4o",
+      max_tokens: 500,
+      response_format: { type: "json_object" },
+      messages: [
+        {
+          role: "system",
+          content: `You are a practical marketing advisor for ${businessName}, a ${bizType}. Give specific, actionable guidance — not generic advice. Respond with valid JSON only.`,
+        },
+        {
+          role: "user",
+          content: `Task: "${taskName}"${taskDescription ? ` — ${taskDescription}` : ""}
+Channel: ${channel || "social media"}. Target audience: ${audience}.
+
+Return JSON with:
+- "why": 1 sentence explaining why this task matters for growth
+- "steps": array of 4–6 specific, numbered action steps the user should take
+- "tips": array of 1–2 tips specific to ${businessName} and their audience`,
+        },
+      ],
+    });
+    const parsed = JSON.parse(msg.choices[0]?.message?.content || "{}");
+    log.info("GUIDANCE", "Task guidance generated", { taskName, ms: Date.now() - t0 });
+    return {
+      why:   parsed.why   || "",
+      steps: Array.isArray(parsed.steps) ? parsed.steps : [],
+      tips:  Array.isArray(parsed.tips)  ? parsed.tips  : [],
+    };
+  } catch (err) {
+    log.error("GUIDANCE", "generateTaskGuidance failed", { error: err.message });
+    return {
+      why: "",
+      steps: ["Research your target accounts in this niche", "Engage authentically with relevant content", "Follow up consistently and track your results"],
+      tips: [],
+    };
+  }
+}
+
 module.exports = {
   generateInstagramCaption,
   generateChannelCaption,
+  generateTaskGuidance,
   generatePostImage,
   populateBrandIdentityFromData,
   buildImagePrompt,
