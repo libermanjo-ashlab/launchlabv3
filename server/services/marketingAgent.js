@@ -30,6 +30,78 @@ async function chatStructured(prompt, schema, toolName, max = 3000) {
 
 // ── Channel stat collection ───────────────────────────────────────────────────
 
+async function collectTwitterStats(meta) {
+  if (!meta.accessToken) return null;
+  try {
+    const tw = require("./twitter");
+    const profile = await tw.getProfile(meta.accessToken);
+    const pm = profile.public_metrics || {};
+    const tweets = await tw.getRecentTweets(meta.accessToken, profile.id, 10);
+    const now = Date.now();
+    const lastTweet = tweets[0] ? Math.round((now - new Date(tweets[0].created_at).getTime()) / 86400000) : null;
+    const avgLikes = tweets.length
+      ? Math.round(tweets.reduce((s, t) => s + (t.public_metrics?.like_count || 0), 0) / tweets.length)
+      : 0;
+    return {
+      username: profile.username,
+      followers: pm.followers_count || 0,
+      following: pm.following_count || 0,
+      tweetCount: pm.tweet_count || 0,
+      lastTweetDaysAgo: lastTweet,
+      avgLikes,
+    };
+  } catch {
+    return null;
+  }
+}
+
+async function collectTikTokStats(meta) {
+  if (!meta.accessToken) return null;
+  try {
+    const tt = require("./tiktok");
+    const profile = await tt.getProfile(meta.accessToken);
+    const videos = await tt.getVideos(meta.accessToken, 10);
+    const avgViews = videos.length
+      ? Math.round(videos.reduce((s, v) => s + (v.view_count || 0), 0) / videos.length)
+      : 0;
+    return {
+      username: profile.display_name || profile.open_id,
+      followers: profile.follower_count || 0,
+      following: profile.following_count || 0,
+      videoCount: profile.video_count || 0,
+      likes: profile.likes_count || 0,
+      avgViews,
+    };
+  } catch {
+    return null;
+  }
+}
+
+async function collectEmailStats(meta) {
+  if (!meta.address && !meta.apiKey) return null;
+  const { getEmailStats } = require("./emailChannel");
+  return await getEmailStats(meta);
+}
+
+async function collectWordPressStats(meta) {
+  if (!meta.siteUrl || !meta.wpUsername || !meta.wpAppPassword) return null;
+  try {
+    const wp = require("./wordpress");
+    const [pages, posts] = await Promise.allSettled([
+      wp.getPages(meta.siteUrl, meta.wpUsername, meta.wpAppPassword, 5),
+      wp.getPosts(meta.siteUrl, meta.wpUsername, meta.wpAppPassword, 5),
+    ]);
+    return {
+      siteUrl: meta.siteUrl,
+      pageCount: pages.status === "fulfilled" ? pages.value.length : 0,
+      recentPosts: posts.status === "fulfilled" ? posts.value.length : 0,
+      latestPost: posts.status === "fulfilled" && posts.value[0] ? posts.value[0].title?.rendered : null,
+    };
+  } catch {
+    return null;
+  }
+}
+
 async function collectInstagramStats(meta) {
   if (!meta.accessToken || !meta.businessAccountId) return null;
   try {
@@ -93,12 +165,60 @@ async function runEnhancedMarketingAgent(business, metrics, intake, integrations
       } else {
         channelLines.push(`INSTAGRAM: Connected (credentials set) — could not fetch live stats`);
       }
+    } else if (intg.provider === "twitter") {
+      const stats = await collectTwitterStats(meta);
+      if (stats) {
+        liveStats.twitter = stats;
+        const tweetAlert = stats.lastTweetDaysAgo === null ? "No tweets found"
+          : stats.lastTweetDaysAgo === 0 ? "Tweeted today"
+          : stats.lastTweetDaysAgo === 1 ? "Tweeted yesterday"
+          : `Last tweet ${stats.lastTweetDaysAgo} days ago`;
+        channelLines.push(
+          `X / TWITTER (@${stats.username}): ${stats.followers.toLocaleString()} followers, ` +
+          `${stats.tweetCount} total tweets, ${tweetAlert}, avg ${stats.avgLikes} likes/tweet`
+        );
+      } else if (meta.handle) {
+        channelLines.push(`X / TWITTER (@${meta.handle.replace("@","")}): Handle set — no live stats (connect via OAuth for full analytics)`);
+      }
+    } else if (intg.provider === "tiktok") {
+      const stats = await collectTikTokStats(meta);
+      if (stats) {
+        liveStats.tiktok = stats;
+        channelLines.push(
+          `TIKTOK (@${stats.username}): ${stats.followers.toLocaleString()} followers, ` +
+          `${stats.videoCount} videos, ${stats.likes.toLocaleString()} total likes, avg ${stats.avgViews} views/video`
+        );
+      } else if (meta.handle) {
+        channelLines.push(`TIKTOK (@${meta.handle.replace("@","")}): Handle set — no live stats (connect via OAuth for full analytics)`);
+      }
     } else if (intg.provider === "email") {
-      channelLines.push(`EMAIL: Connected — ${meta.emailsSent || 0} sent, ${meta.openRate || 0}% open rate`);
-    } else if (intg.provider === "website" || intg.provider === "netlify") {
-      channelLines.push(`WEBSITE: Live at ${meta.liveUrl || "unknown URL"}`);
+      const stats = await collectEmailStats(meta);
+      if (stats) {
+        liveStats.email = stats;
+        const detail = stats.subscribers
+          ? `${stats.subscribers.toLocaleString()} subscribers, ${stats.openRate || 0}% open rate`
+          : `${stats.emailsSent || meta.emailsSent || 0} sent, ${stats.openRate || meta.openRate || 0}% open rate`;
+        channelLines.push(`EMAIL (${stats.provider || meta.provider || "connected"}): ${detail}`);
+      } else if (meta.address) {
+        channelLines.push(`EMAIL (${meta.provider || "connected"}): ${meta.address} — ${meta.emailsSent || 0} sent, ${meta.openRate || 0}% open rate`);
+      }
+    } else if (intg.provider === "website") {
+      const stats = await collectWordPressStats(meta);
+      if (stats) {
+        liveStats.website = stats;
+        channelLines.push(
+          `WEBSITE (WordPress): ${stats.siteUrl}, ${stats.pageCount} pages, ${stats.recentPosts} recent posts` +
+          (stats.latestPost ? `, latest: "${stats.latestPost}"` : "")
+        );
+      } else if (meta.siteUrl || meta.liveUrl) {
+        channelLines.push(`WEBSITE: Live at ${meta.liveUrl || meta.siteUrl} (${meta.host || "custom host"})`);
+      }
+    } else if (intg.provider === "netlify") {
+      if (meta.liveUrl) channelLines.push(`WEBSITE (Netlify): Live at ${meta.liveUrl}`);
     } else if (intg.provider === "google") {
       channelLines.push(`GOOGLE BUSINESS: Connected — ${metrics.social?.google_reviews || 0} reviews, ${metrics.social?.google_rating || 0}★ rating`);
+    } else if (intg.provider === "calendly" && meta.bookingUrl) {
+      channelLines.push(`CALENDLY: Booking link set — ${meta.bookingUrl}`);
     } else {
       channelLines.push(`${intg.provider.toUpperCase()}: Connected`);
     }

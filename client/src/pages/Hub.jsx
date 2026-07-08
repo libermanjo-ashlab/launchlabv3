@@ -682,11 +682,14 @@ function SetupGuide({ steps }) {
   );
 }
 
-function IntegrationCard({ provider, label, desc, fields, savedMeta, onSave, isConn, autopilotLabel, autopilotDisabled, setupGuide }) {
-  const [open,   setOpen]   = useState(false);
-  const [vals,   setVals]   = useState(savedMeta||{});
-  const [saving, setSaving] = useState(false);
-  const [saved,  setSaved]  = useState(false);
+function IntegrationCard({ provider, label, desc, fields, savedMeta, onSave, isConn, autopilotLabel, autopilotDisabled, setupGuide, onOAuth, oauthLabel, onTestConnection }) {
+  const [open,       setOpen]       = useState(false);
+  const [vals,       setVals]       = useState(savedMeta||{});
+  const [saving,     setSaving]     = useState(false);
+  const [saved,      setSaved]      = useState(false);
+  const [oauthing,   setOAuthing]   = useState(false);
+  const [testing,    setTesting]    = useState(false);
+  const [testMsg,    setTestMsg]    = useState("");
   const fileRef = useRef();
 
   const autopilotOn = !!(vals.autopilot || savedMeta?.autopilot);
@@ -738,6 +741,32 @@ function IntegrationCard({ provider, label, desc, fields, savedMeta, onSave, isC
       {open && (
         <div style={{ paddingBottom:18, display:"flex", flexDirection:"column", gap:12 }}>
           <AutopilotToggle on={autopilotOn} onToggle={toggleAutopilot} label={autopilotLabel} disabled={autopilotDisabled} />
+
+          {/* OAuth connect button */}
+          {onOAuth && (
+            <div style={{ marginBottom:4 }}>
+              {isConn ? (
+                <div style={{ display:"flex", alignItems:"center", gap:8 }}>
+                  <div style={{ fontSize:12, color:C.ok, fontFamily:FB }}>✓ Connected via OAuth</div>
+                  {savedMeta?.username && <span style={{ fontSize:11, color:C.muted, fontFamily:FB }}>@{savedMeta.username}</span>}
+                </div>
+              ) : (
+                <button onClick={async()=>{
+                  setOAuthing(true);
+                  try {
+                    const { url } = await onOAuth();
+                    window.location.href = url;
+                  } catch(e) {
+                    alert(e.message);
+                    setOAuthing(false);
+                  }
+                }} disabled={oauthing} style={{ ...btn(oauthing?"#9CA3AF":C.primary,"#fff",12), padding:"8px 18px" }}>
+                  {oauthing ? "Redirecting…" : oauthLabel || `Connect ${label}`}
+                </button>
+              )}
+            </div>
+          )}
+
           {setupGuide && <SetupGuide steps={setupGuide} />}
           {fields.map(f => (
             <div key={f.key}>
@@ -767,6 +796,23 @@ function IntegrationCard({ provider, label, desc, fields, savedMeta, onSave, isC
               {f.hint && <div style={{ fontSize:11, color:C.muted, marginTop:5, fontFamily:FB, lineHeight:1.55 }}>{f.hint}</div>}
             </div>
           ))}
+          {onTestConnection && (
+            <div>
+              <button onClick={async()=>{
+                setTesting(true); setTestMsg("");
+                try {
+                  const msg = await onTestConnection(vals);
+                  setTestMsg("✓ " + msg);
+                } catch(e) {
+                  setTestMsg("✗ " + e.message);
+                }
+                setTesting(false);
+              }} disabled={testing} style={{ ...btnO(C.primary,12), padding:"8px 18px" }}>
+                {testing ? "Testing…" : "Test connection"}
+              </button>
+              {testMsg && <div style={{ fontSize:11, fontFamily:FB, marginTop:6, color: testMsg.startsWith("✓") ? C.ok : C.err }}>{testMsg}</div>}
+            </div>
+          )}
           <button onClick={()=>save()} disabled={saving} style={{ ...btn(saved?C.ok:C.primary,"#fff",12), alignSelf:"flex-start", padding:"8px 18px" }}>
             {saved ? "Saved!" : saving ? "Saving…" : "Save"}
           </button>
@@ -843,17 +889,28 @@ function HubPanel({ businessId, integs, onSaveFields, tasks, outputs, isMinor })
     { text:'Note: access tokens expire in about 60 days. Return here and repeat steps 6–8 to refresh when needed.' },
   ];
   const G_EMAIL = [
-    { text:'Enter your business email address in the field above. This is for the agent to reference in outreach plans.' },
+    { text:'Enter your business email address in the field above. This is what the agent will send FROM.' },
     { text:'Select your email provider from the dropdown.' },
-    { text:'If using Gmail: no API key is needed — just enter your address and you are done.' },
-    { text:'If using Mailchimp: log in at mailchimp.com → click your profile icon (bottom-left) → Account & Billing → Extras → API Keys → Create A Key → copy and paste the key above.', link:"https://mailchimp.com" },
-    { text:'If using Klaviyo: go to Account → Settings → API Keys → Create Private API Key → copy and paste it above.', link:"https://www.klaviyo.com/account#api-keys-tab" },
-    { text:'If using ConvertKit: go to Settings → Advanced → API → copy your API Key.', link:"https://app.convertkit.com/account_settings/advanced_settings" },
+    { text:'For Resend (recommended for automated sending): create a free account at resend.com, verify your domain, then go to API Keys → Create API Key and paste it below.', link:"https://resend.com" },
+    { text:'For Mailchimp: log in → click your profile icon (bottom-left) → Account & Billing → Extras → API Keys → Create A Key.', link:"https://mailchimp.com" },
+    { text:'For Klaviyo: Account → Settings → API Keys → Create Private API Key.', link:"https://www.klaviyo.com/account#api-keys-tab" },
+    { text:'For ConvertKit: Settings → Advanced → API → copy your API Key. The agent will create broadcast drafts to your subscriber list.', link:"https://app.convertkit.com/account_settings/advanced_settings" },
+    { text:'For SendGrid: Settings → API Keys → Create API Key → Full Access → copy the key.', link:"https://app.sendgrid.com/settings/api_keys" },
+    { text:'If using Gmail or Outlook without an API key: the agent generates email content for you to copy and send manually.' },
   ];
   const G_WEBSITE = [
-    { text:'Enter your website URL exactly as shown in your browser (e.g., yourbusiness.com or www.yourbusiness.com).' },
-    { text:'Select your hosting platform from the dropdown. This helps the agent understand your setup. No login or access is required — the agent never edits your site.' },
-    { text:'Optional: get your Google Analytics Measurement ID to allow traffic data in reports. Go to analytics.google.com → Admin (bottom-left gear) → Data Streams → click your stream → copy the Measurement ID (starts with G-).', link:"https://analytics.google.com/" },
+    { text:'Enter your website URL exactly as shown in your browser (e.g., https://yourbusiness.com).' },
+    { text:'For WordPress sites: the agent can update pages and create posts automatically. Enter your site URL, WordPress username, and an Application Password (see steps below).' },
+    { text:'To create a WordPress Application Password: log in to your WP Admin → Users → click your username → scroll to "Application Passwords" → enter a name (e.g., "EarnedLab") → click "Add New Application Password" → copy the generated password and paste it below.', link:"https://wordpress.org/documentation/article/application-passwords/" },
+    { text:'For Squarespace, Wix, Webflow, or other platforms: enter your URL and host name. The agent generates content for you to copy and paste — it cannot edit these platforms automatically.' },
+    { text:'Optional: get your Google Analytics Measurement ID. Go to analytics.google.com → Admin → Data Streams → click your stream → copy the Measurement ID (starts with G-).', link:"https://analytics.google.com/" },
+  ];
+  const G_TIKTOK = [
+    { text:'Click "Connect TikTok" above to connect your TikTok Creator or Business account. You will be redirected to TikTok to authorize the connection.' },
+    { text:'If the Connect button shows an error, TikTok OAuth may not yet be configured on our end. In that case: enter your @handle below and the agent will generate TikTok content for you to post manually.' },
+    { text:'For TikTok posting via API: you need a TikTok Business Account or Creator Marketplace account. Personal accounts have limited API access.' },
+    { text:'The agent generates video slideshow content (slides + caption + hashtags) optimized for TikTok. Download the slideshow video from Content Lab and post it using the TikTok mobile app or Creator Studio.' },
+    { text:'To access TikTok Creator Studio for scheduling posts: go to studio.tiktok.com.', link:"https://studio.tiktok.com" },
   ];
   const G_GOOGLE = [
     { text:'Go to business.google.com and sign in with your Google account.', link:"https://business.google.com/" },
@@ -887,9 +944,10 @@ function HubPanel({ businessId, integs, onSaveFields, tasks, outputs, isMinor })
     { text:'To receive payment, tell clients to search your @username in Venmo and send money. You can also share your Venmo QR code.' },
   ];
   const G_TWITTER = [
-    { text:'Log in to x.com and click your profile photo (top-left on desktop or bottom-right on mobile).', link:"https://x.com" },
-    { text:'Your username is shown as @yourhandle on your profile page.' },
-    { text:'Paste it into the field above. Full posting and analytics integration is coming soon.' },
+    { text:'Click "Connect X / Twitter" above to connect your account via OAuth. You will be redirected to Twitter/X to authorize the connection.' },
+    { text:'Once connected, the agent can read your follower count, recent tweets, and post directly to your timeline.' },
+    { text:'If the Connect button shows an error, X OAuth may not yet be configured. In that case: enter your @handle below and the agent will generate tweet content for you to post manually.' },
+    { text:'To create a Twitter/X Developer App (if you want to self-host): go to developer.x.com, create a project, enable OAuth 2.0, and add the callback URL shown in your environment configuration.', link:"https://developer.x.com/en/portal/projects-and-apps" },
   ];
 
   const integrationDefs = isMinor ? [
@@ -909,12 +967,14 @@ function HubPanel({ businessId, integs, onSaveFields, tasks, outputs, isMinor })
       { key:"profileUrl", label:"Profile URL", placeholder:"maps.app.goo.gl/..." },
       { key:"status",     label:"Verification status", placeholder:"Pending / Verified" },
     ]},
-    { provider:"website",  label:"Your Website",           desc:"Your website — any host, never edited",
-      autopilotLabel:"Agent includes your site in marketing reports",
-      setupGuide:G_WEBSITE, fields:[
-      { key:"siteUrl",     label:"Website URL", placeholder:"yourbusiness.com" },
-      { key:"host",        label:"Hosting platform", placeholder:"GoDaddy / Squarespace / Wix / other" },
-      { key:"analyticsId", label:"Google Analytics ID (optional)", placeholder:"G-XXXXXXXXXX" },
+    { provider:"website",  label:"Your Website",           desc:"Agent generates content and updates WordPress sites",
+      autopilotLabel:"Agent updates your site and creates blog posts automatically",
+      setupGuide:G_WEBSITE, wpTest:true, fields:[
+      { key:"siteUrl",         label:"Website URL", placeholder:"https://yourbusiness.com" },
+      { key:"host",            label:"Hosting platform", placeholder:"WordPress / Squarespace / Wix / other" },
+      { key:"wpUsername",      label:"WordPress username (optional)", placeholder:"admin", hint:"Only for WordPress sites — leave blank for other hosts." },
+      { key:"wpAppPassword",   label:"WordPress App Password (optional)", placeholder:"xxxx xxxx xxxx xxxx xxxx xxxx", inputType:"password", mono:true, hint:"WordPress Admin → Users → your user → Application Passwords." },
+      { key:"analyticsId",     label:"Google Analytics ID (optional)", placeholder:"G-XXXXXXXXXX" },
     ]},
     { provider:"calendly", label:"Calendly",               desc:"Let clients book without back-and-forth",
       autopilotLabel:"Agent promotes booking link in posts and emails",
@@ -928,16 +988,24 @@ function HubPanel({ businessId, integs, onSaveFields, tasks, outputs, isMinor })
       { key:"accessToken",       label:"Access Token", placeholder:"EAAxxxxxxx...", inputType:"password", mono:true },
       { key:"businessAccountId", label:"Business Account ID", placeholder:"17841400000000000", mono:true },
     ]},
-    { provider:"email",    label:"Email / Newsletter",     desc:"Agent manages outreach and follow-ups",
+    { provider:"tiktok",   label:"TikTok",                 desc:"Agent generates video content and analyzes performance",
+      autopilotLabel:"Agent creates TikTok slide videos and posts automatically",
+      setupGuide:G_TIKTOK, oauth:"tiktok", oauthLabel:"Connect TikTok", fields:[
+      { key:"handle", label:"@TikTok handle (fallback if OAuth unavailable)", placeholder:"@yourbusiness" },
+    ]},
+    { provider:"email",    label:"Email / Newsletter",     desc:"Agent generates and sends email campaigns",
       autopilotLabel:"Agent sends follow-ups, newsletters, and re-engagement emails",
       setupGuide:G_EMAIL, fields:[
-      { key:"address",  label:"Business email address", placeholder:"hello@yourbusiness.com" },
-      { key:"provider", label:"Email provider", type:"select", options:["Gmail","Outlook","Mailchimp","Klaviyo","ConvertKit","Other"] },
-      { key:"apiKey",   label:"API key (optional)", placeholder:"Mailchimp / Klaviyo key", inputType:"password", mono:true },
+      { key:"address",    label:"Business email address (send FROM)", placeholder:"hello@yourbusiness.com" },
+      { key:"provider",   label:"Email provider", type:"select", options:["Resend","Gmail","Outlook","Mailchimp","Klaviyo","ConvertKit","SendGrid","Other"] },
+      { key:"apiKey",     label:"API key", placeholder:"Resend / Mailchimp / SendGrid key", inputType:"password", mono:true, hint:"Required for automated sending. Leave blank to get content only (copy & paste to send)." },
+      { key:"openRate",   label:"Current open rate %", placeholder:"e.g. 28" },
+      { key:"emailsSent", label:"Emails sent (total)", placeholder:"e.g. 450" },
     ]},
-    { provider:"twitter",  label:"X / Twitter",            desc:"Post and grow your audience — coming soon",
-      autopilotDisabled:true, setupGuide:G_TWITTER, fields:[
-      { key:"handle", label:"@X handle", placeholder:"@yourbusiness" },
+    { provider:"twitter",  label:"X / Twitter",            desc:"Agent posts tweets and analyzes your audience",
+      autopilotLabel:"Agent posts daily updates and engages your audience",
+      setupGuide:G_TWITTER, oauth:"twitter", oauthLabel:"Connect X / Twitter", fields:[
+      { key:"handle", label:"@X handle (fallback if OAuth unavailable)", placeholder:"@yourbusiness" },
     ]},
   ] : [
     { provider:"stripe",   label:"Stripe",                 desc:"Accept card payments",
@@ -952,12 +1020,14 @@ function HubPanel({ businessId, integs, onSaveFields, tasks, outputs, isMinor })
       { key:"profileUrl", label:"Profile URL", placeholder:"maps.app.goo.gl/..." },
       { key:"status",     label:"Verification status", placeholder:"Pending / Verified" },
     ]},
-    { provider:"website",  label:"Your Website",           desc:"Your website — any host, never edited by agents",
-      autopilotLabel:"Agent includes your site in reports and marketing plans",
-      setupGuide:G_WEBSITE, fields:[
-      { key:"siteUrl",     label:"Website URL", placeholder:"yourbusiness.com" },
-      { key:"host",        label:"Hosting platform", placeholder:"GoDaddy / Namecheap / Netlify / Squarespace / other" },
-      { key:"analyticsId", label:"Google Analytics ID (optional)", placeholder:"G-XXXXXXXXXX" },
+    { provider:"website",  label:"Your Website",           desc:"Agent generates content and updates WordPress sites",
+      autopilotLabel:"Agent updates your site and creates blog posts automatically",
+      setupGuide:G_WEBSITE, wpTest:true, fields:[
+      { key:"siteUrl",       label:"Website URL", placeholder:"https://yourbusiness.com" },
+      { key:"host",          label:"Hosting platform", placeholder:"WordPress / Squarespace / Wix / Netlify / other" },
+      { key:"wpUsername",    label:"WordPress username (optional)", placeholder:"admin", hint:"Only for WordPress sites — leave blank for other hosts." },
+      { key:"wpAppPassword", label:"WordPress App Password (optional)", placeholder:"xxxx xxxx xxxx xxxx xxxx xxxx", inputType:"password", mono:true, hint:"WordPress Admin → Users → your user → Application Passwords." },
+      { key:"analyticsId",   label:"Google Analytics ID (optional)", placeholder:"G-XXXXXXXXXX" },
     ]},
     { provider:"calendly", label:"Calendly",               desc:"Let clients book without back-and-forth",
       autopilotLabel:"Agent promotes booking link in posts and emails",
@@ -972,16 +1042,24 @@ function HubPanel({ businessId, integs, onSaveFields, tasks, outputs, isMinor })
       { key:"businessAccountId", label:"Business Account ID", placeholder:"17841400000000000", mono:true },
       { key:"pageId",            label:"Facebook Page ID (optional)", placeholder:"123456789", mono:true, hint:"Required to run Facebook Ads. Found in your Facebook Page settings → Page Info." },
     ]},
-    { provider:"email",    label:"Email / Newsletter",     desc:"Agent manages outreach and follow-ups",
+    { provider:"tiktok",   label:"TikTok",                 desc:"Agent generates video content and analyzes performance",
+      autopilotLabel:"Agent creates TikTok slide videos and posts automatically",
+      setupGuide:G_TIKTOK, oauth:"tiktok", oauthLabel:"Connect TikTok", fields:[
+      { key:"handle", label:"@TikTok handle (fallback if OAuth unavailable)", placeholder:"@yourbusiness" },
+    ]},
+    { provider:"email",    label:"Email / Newsletter",     desc:"Agent generates and sends email campaigns",
       autopilotLabel:"Agent sends follow-ups, newsletters, and re-engagement emails",
       setupGuide:G_EMAIL, fields:[
-      { key:"address",  label:"Business email address", placeholder:"hello@yourbusiness.com" },
-      { key:"provider", label:"Email provider", type:"select", options:["Gmail","Outlook","Mailchimp","Klaviyo","ConvertKit","Other"] },
-      { key:"apiKey",   label:"API key (optional)", placeholder:"Mailchimp / Klaviyo key", inputType:"password", mono:true, hint:"Only needed for bulk sending. Leave blank if using Gmail or Outlook." },
+      { key:"address",    label:"Business email address (send FROM)", placeholder:"hello@yourbusiness.com" },
+      { key:"provider",   label:"Email provider", type:"select", options:["Resend","Gmail","Outlook","Mailchimp","Klaviyo","ConvertKit","SendGrid","Other"] },
+      { key:"apiKey",     label:"API key", placeholder:"Resend / Mailchimp / SendGrid key", inputType:"password", mono:true, hint:"Required for automated sending. Leave blank to get content only (copy & paste to send)." },
+      { key:"openRate",   label:"Current open rate %", placeholder:"e.g. 28" },
+      { key:"emailsSent", label:"Emails sent (total)", placeholder:"e.g. 450" },
     ]},
-    { provider:"twitter",  label:"X / Twitter",            desc:"Post and grow your audience — coming soon",
-      autopilotDisabled:true, setupGuide:G_TWITTER, fields:[
-      { key:"handle", label:"@X handle", placeholder:"@yourbusiness" },
+    { provider:"twitter",  label:"X / Twitter",            desc:"Agent posts tweets and analyzes your audience",
+      autopilotLabel:"Agent posts daily updates and engages your audience",
+      setupGuide:G_TWITTER, oauth:"twitter", oauthLabel:"Connect X / Twitter", fields:[
+      { key:"handle", label:"@X handle (fallback if OAuth unavailable)", placeholder:"@yourbusiness" },
     ]},
   ];
 
@@ -1006,6 +1084,13 @@ function HubPanel({ businessId, integs, onSaveFields, tasks, outputs, isMinor })
             autopilotLabel={def.autopilotLabel}
             autopilotDisabled={def.autopilotDisabled}
             setupGuide={def.setupGuide}
+            oauthLabel={def.oauthLabel}
+            onOAuth={def.oauth ? () => api.integrations[def.oauth + "Auth"](businessId) : undefined}
+            onTestConnection={def.wpTest ? async (vals) => {
+              if (!vals.siteUrl || !vals.wpUsername || !vals.wpAppPassword) throw new Error("Enter site URL, username, and app password first");
+              const r = await api.integrations.testWordPress(businessId, vals);
+              return `Connected as ${r.username} at ${r.url}`;
+            } : undefined}
           />
         ))}
       </div>

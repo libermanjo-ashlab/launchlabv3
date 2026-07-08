@@ -336,6 +336,96 @@ router.post("/:businessId/management/implement", requireAuth, async (req, res, n
       return res.json(igResult);
     }
 
+    // ── Twitter/X ────────────────────────────────────────────────────────────
+    if (channelLabel === "twitter") {
+      const twIntg = await prisma.integration.findFirst({ where:{ businessId:req.params.businessId, provider:"twitter" } });
+      const twMeta = twIntg?.metadata ? JSON.parse(twIntg.metadata) : {};
+      if (!twMeta.accessToken) {
+        return res.json({ success:true, channel:"twitter", actionPlan: insight.recommendation, needsSetup:true,
+          message:"X / Twitter not connected. Connect in Hub → X / Twitter to enable automatic posting." });
+      }
+      const brandId = await getBrandIdentity(req.params.businessId);
+      const tweetText = await openaiSvc.generateChannelCaption({
+        businessName: biz.name, channel: "twitter", context: insight.recommendation, brandIdentity: brandId,
+      });
+      const tw = require("../services/twitter");
+      const tweet = await tw.postTweet(twMeta.accessToken, tweetText.slice(0, 280));
+      logActivity(req.params.businessId,{ agent:"management", action:"Tweet posted", detail:`@${twMeta.username}: "${tweetText.slice(0,60)}…"` });
+      return res.json({ success:true, channel:"twitter", caption:tweetText, body:tweetText, published:true,
+        permalink:`https://x.com/i/web/status/${tweet.id}` });
+    }
+
+    // ── TikTok ───────────────────────────────────────────────────────────────
+    if (channelLabel === "tiktok") {
+      const ttIntg = await prisma.integration.findFirst({ where:{ businessId:req.params.businessId, provider:"tiktok" } });
+      const ttMeta = ttIntg?.metadata ? JSON.parse(ttIntg.metadata) : {};
+      const brandId = await getBrandIdentity(req.params.businessId);
+      const tiktokText = await openaiSvc.generateChannelCaption({
+        businessName: biz.name, channel: "tiktok", context: insight.recommendation, brandIdentity: brandId,
+      });
+      if (!ttMeta.accessToken) {
+        return res.json({ success:true, channel:"tiktok", caption:tiktokText, body:tiktokText, needsSetup:true,
+          message:"TikTok not connected. Connect in Hub → TikTok. Content generated below — download your slideshow and post in TikTok app." });
+      }
+      // TikTok requires video/image content — return caption + slide generation instructions
+      return res.json({ success:true, channel:"tiktok", caption:tiktokText, body:tiktokText,
+        actionPlan:"Use the Content Lab slideshow builder above to create your TikTok video, then post via the TikTok app or API." });
+    }
+
+    // ── Email ────────────────────────────────────────────────────────────────
+    if (channelLabel === "email") {
+      const emIntg = await prisma.integration.findFirst({ where:{ businessId:req.params.businessId, provider:"email" } });
+      const emMeta = emIntg?.metadata ? JSON.parse(emIntg.metadata) : {};
+      const brandId = await getBrandIdentity(req.params.businessId);
+      const emailText = await openaiSvc.generateChannelCaption({
+        businessName: biz.name, channel: "email", context: insight.recommendation, brandIdentity: brandId,
+      });
+      const lines = emailText.split("\n").filter(l => l.trim());
+      const subjectLine = lines.find(l => /^subject:/i.test(l));
+      const subject = subjectLine ? subjectLine.replace(/^subject:\s*/i,"").trim() : `${biz.name} — Newsletter`;
+      const body = lines.filter(l => !/^subject:/i.test(l)).join("\n").trim();
+
+      if (emMeta.apiKey && emMeta.provider && mode === "auto") {
+        const { sendEmail } = require("../services/emailChannel");
+        const sendResult = await sendEmail({
+          provider: emMeta.provider, apiKey: emMeta.apiKey,
+          fromEmail: emMeta.address, fromName: biz.name,
+          to: emMeta.address, subject, body,
+        });
+        if (sendResult.sent) {
+          logActivity(req.params.businessId,{ agent:"management", action:"Email sent", detail:`Subject: ${subject}` });
+          return res.json({ success:true, channel:"email", caption:emailText, body, subject, published:true });
+        }
+      }
+      return res.json({ success:true, channel:"email", caption:emailText, body, subject,
+        actionPlan:`Email draft ready. Subject: "${subject}" — copy and send via ${emMeta.provider || "your email provider"}.` });
+    }
+
+    // ── Website (WordPress) ──────────────────────────────────────────────────
+    if (channelLabel === "website" || channelLabel === "web") {
+      const webIntg = await prisma.integration.findFirst({ where:{ businessId:req.params.businessId, provider:"website" } });
+      const webMeta = webIntg?.metadata ? JSON.parse(webIntg.metadata) : {};
+      const brandId = await getBrandIdentity(req.params.businessId);
+      const webText = await openaiSvc.generateChannelCaption({
+        businessName: biz.name, channel: "website", context: insight.recommendation, brandIdentity: brandId,
+      });
+      if (webMeta.siteUrl && webMeta.wpUsername && webMeta.wpAppPassword) {
+        const wp = require("../services/wordpress");
+        const post = await wp.createPost(webMeta.siteUrl, webMeta.wpUsername, webMeta.wpAppPassword, {
+          title: insight.title || `${biz.name} Update`,
+          content: `<p>${webText}</p>`,
+          status: mode === "auto" ? "publish" : "draft",
+        });
+        const postUrl = post.link || webMeta.siteUrl;
+        logActivity(req.params.businessId,{ agent:"management", action:"WordPress post created", detail:postUrl });
+        return res.json({ success:true, channel:"website", caption:webText, body:webText,
+          published: mode === "auto", liveUrl: mode === "auto" ? postUrl : undefined,
+          actionPlan: mode !== "auto" ? `Draft created in WordPress — review and publish at ${webMeta.siteUrl}` : undefined });
+      }
+      return res.json({ success:true, channel:"website", caption:webText, body:webText,
+        actionPlan:`Website content ready. Copy and update your site at ${webMeta.siteUrl || webMeta.liveUrl || "your website"}.` });
+    }
+
     logActivity(req.params.businessId,{ agent:"management", action:"Ready to act", detail:`Apply the recommendation on your ${channelLabel} channel` });
     if (effective.plan === "trial") await bumpUsage(req.params.businessId, "managementImplements");
     return res.json({ success:true, channel: channelLabel, actionPlan: insight.managementAction || insight.recommendation });

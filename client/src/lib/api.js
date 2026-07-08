@@ -51,11 +51,14 @@ export const api = {
     chat:           (msg,bizId) => req("POST", "/generate/chat",   { message:msg, businessId:bizId }),
   },
   integrations: {
-    list:       bizId        => req("GET",  `/integrations/${bizId}`),
-    stripe:     bizId        => req("POST", `/integrations/${bizId}/stripe`),
-    googleAuth: bizId        => req("GET",  `/integrations/google/auth?businessId=${bizId}`),
-    disconnect: (bizId,p)    => req("POST", `/integrations/${bizId}/${p}/disconnect`),
-    saveFields: (bizId,p,fields) => req("PUT", `/integrations/${bizId}/${p}`, { fields }),
+    list:          bizId            => req("GET",  `/integrations/${bizId}`),
+    stripe:        bizId            => req("POST", `/integrations/${bizId}/stripe`),
+    googleAuth:    bizId            => req("GET",  `/integrations/google/auth?businessId=${bizId}`),
+    twitterAuth:   bizId            => req("GET",  `/integrations/twitter/auth?businessId=${bizId}`),
+    tiktokAuth:    bizId            => req("GET",  `/integrations/tiktok/auth?businessId=${bizId}`),
+    testWordPress: (bizId, fields)  => req("POST", `/integrations/${bizId}/wordpress/test`, fields),
+    disconnect:    (bizId,p)        => req("POST", `/integrations/${bizId}/${p}/disconnect`),
+    saveFields:    (bizId,p,fields) => req("PUT",  `/integrations/${bizId}/${p}`, { fields }),
   },
 
   instagram: {
@@ -82,6 +85,21 @@ export const api = {
       if (!res.ok) throw new Error(data.error || "Upload failed");
       return data;
     },
+  },
+  twitter: {
+    profile: bizId         => req("GET",  `/twitter/${bizId}/profile`),
+    tweets:  (bizId,limit) => req("GET",  `/twitter/${bizId}/tweets?limit=${limit||10}`),
+    post:    (bizId,text)  => req("POST", `/twitter/${bizId}/post`, { text }),
+  },
+  tiktok: {
+    profile:   bizId                   => req("GET",  `/tiktok/${bizId}/profile`),
+    videos:    (bizId,limit)           => req("GET",  `/tiktok/${bizId}/videos?limit=${limit||10}`),
+    post:      (bizId,caption,imgUrls) => req("POST", `/tiktok/${bizId}/post`, { caption, imageUrls: imgUrls }),
+  },
+  email: {
+    stats:    bizId               => req("GET",  `/email/${bizId}/stats`),
+    send:     (bizId,body)        => req("POST", `/email/${bizId}/send`, body),
+    generate: (bizId,context,type)=> req("POST", `/email/${bizId}/generate`, { context, type }),
   },
   subscriptions: {
     plans:    () => req("GET",  "/subscriptions/plans"),
