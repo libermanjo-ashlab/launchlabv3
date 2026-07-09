@@ -34,6 +34,7 @@ router.get("/images/:id", (req, res) => {
   if (!buf) return res.status(404).json({ error: "Image not found or expired" });
   res.set("Content-Type", "image/png");
   res.set("Cache-Control", "public, max-age=7200");
+  res.set("Access-Control-Allow-Origin", "*"); // allow canvas crossOrigin load from any origin
   res.send(buf);
 });
 

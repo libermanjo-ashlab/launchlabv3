@@ -876,34 +876,21 @@ router.post("/:businessId/campaigns/task-content", requireAuth, async (req, res,
         throw captionErr;
       }
 
-      // Background image — generate, then compose caption text over it
-      let imageUrl = null, imageSource = null, _rawImgBuf = null;
+      // Background image — stored raw; text is composited client-side via browser canvas
+      let imageUrl = null, imageSource = null;
       if (mode !== "manual" && process.env.OPENAI_API_KEY) {
         const imgGen = require("../services/imageGen");
         const appUrl = log.getAppUrl();
         try {
           const { buf: imgBuf, model: imgModel } = await openaiSvc.generatePostImage(biz.name, captionResult.body, brandId);
-          _rawImgBuf  = imgBuf;
+          const imageId = imgGen.storeImage(imgBuf);
+          imageUrl = `${appUrl}/api/instagram/images/${imageId}`;
           imageSource = imgModel;
-          log.info("CONTENT", "AI image generated (pre-composition)", { model: imgModel, channel: ch, ms: Date.now() - t0 });
+          log.info("CONTENT", "Background image generated", { model: imgModel, channel: ch, ms: Date.now() - t0 });
         } catch (imgErr) {
           dalleError = imgErr.message || String(imgErr);
           log.error("CONTENT", "Image generation failed", { error: dalleError, channel: ch });
           imageSource = "image_failed";
-        }
-        // Compose caption text over AI image
-        if (_rawImgBuf) {
-          const captionText = captionResult.body || captionResult.caption || "";
-          try {
-            const composedBuf = await imgGen.composeCaptionOverImage(_rawImgBuf, captionText, biz.name);
-            const imageId = imgGen.storeImage(composedBuf);
-            imageUrl = `${appUrl}/api/instagram/images/${imageId}`;
-            log.info("CONTENT", "Caption composited over image", { channel: ch, bytes: composedBuf.length });
-          } catch(composeErr) {
-            log.error("CONTENT", "Text composition failed — using raw image", { error: composeErr.message });
-            const imageId = imgGen.storeImage(_rawImgBuf);
-            imageUrl = `${appUrl}/api/instagram/images/${imageId}`;
-          }
         }
       } else if (mode === "manual") {
         imageSource = null;
@@ -1053,16 +1040,19 @@ router.post("/:businessId/content-lab", requireAuth, async (req, res, next) => {
     const imgGen = require("../services/imageGen");
     const appUrl = log.getAppUrl();
 
-    // ── Background image — generate now, compose with caption text after ────────
+    // ── Background image ──────────────────────────────────────────────────────
+    // Text overlay is composited client-side via browser canvas (system fonts always available).
+    // Server stores the raw AI image; the client loads it with crossOrigin="anonymous" (CORS
+    // header set on the images endpoint) and draws the caption text on top via Canvas API.
     let imageUrl = null, imageSource = null, dalleError = null;
-    let _rawImgBuf = null;
     const needsImage = ["instagram","twitter","linkedin","tiktok","google","facebook","general"].includes(channel);
     if (needsImage && process.env.OPENAI_API_KEY) {
       try {
         const { buf: imgBuf, model: imgModel } = await openaiSvc.generatePostImage(biz.name, context, brandId);
-        _rawImgBuf  = imgBuf;
+        const imageId = imgGen.storeImage(imgBuf);
+        imageUrl = `${appUrl}/api/instagram/images/${imageId}`;
         imageSource = imgModel;
-        log.info("CONTENT-LAB", "AI image generated (pre-composition)", { model: imgModel, channel });
+        log.info("CONTENT-LAB", "Background image generated", { model: imgModel, channel });
       } catch(e) {
         dalleError = e.message || String(e);
         log.error("CONTENT-LAB", "Image generation failed", { error: dalleError });
@@ -1079,11 +1069,7 @@ router.post("/:businessId/content-lab", requireAuth, async (req, res, next) => {
 
     // ── Video (TikTok etc.): generate slides ──────────────────────────────────
     if (isVideo && process.env.OPENAI_API_KEY) {
-      // Store raw image for slideshow background (no text overlay needed — text is in the slides)
-      if (_rawImgBuf && !imageUrl) {
-        const imageId = imgGen.storeImage(_rawImgBuf);
-        imageUrl = `${appUrl}/api/instagram/images/${imageId}`;
-      }
+      // imageUrl already stored above — use as slideshow background
       try {
         const { slides, captionBody, hashtags } = await openaiSvc.generateSlideContent({
           businessName: biz.name, context, brandIdentity: brandId, channel,
@@ -1120,21 +1106,6 @@ router.post("/:businessId/content-lab", requireAuth, async (req, res, next) => {
       }
     } else {
       captionResult = await ig.generateCaption(biz.name, idea.name, context, tone, {});
-    }
-
-    // ── Compose caption text over AI image (server-side) ──────────────────────
-    if (_rawImgBuf && captionResult) {
-      const captionText = captionResult.body || captionResult.caption || "";
-      try {
-        const composedBuf = await imgGen.composeCaptionOverImage(_rawImgBuf, captionText, biz.name);
-        const imageId = imgGen.storeImage(composedBuf);
-        imageUrl = `${appUrl}/api/instagram/images/${imageId}`;
-        log.info("CONTENT-LAB", "Caption composited over image", { channel, bytes: composedBuf.length });
-      } catch(composeErr) {
-        log.error("CONTENT-LAB", "Text composition failed — using raw image", { error: composeErr.message });
-        const imageId = imgGen.storeImage(_rawImgBuf);
-        imageUrl = `${appUrl}/api/instagram/images/${imageId}`;
-      }
     }
 
     return res.json({

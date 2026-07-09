@@ -540,7 +540,16 @@ function CampaignTaskRow({ task:t, mode, channel, businessId, businessName, onCo
       console.log(`[TASK:getContent] Server response — channel=${c?.channel} imageSource=${c?.imageSource} hasImageUrl=${!!c?.imageUrl} captionLen=${c?.caption?.length || 0}`);
       if (c?.dalleError) console.error(`[TASK:getContent] DALL-E error: ${c.dalleError}`);
 
-      // Server composes caption text over image before returning — display directly
+      // Composite caption text client-side for AI-generated images (browser canvas has system fonts)
+      const taskChannel = channel || c?.channel || "general";
+      if (!c?.isGuided && !c?.isVideo && c?.imageUrl && c?.imageSource?.startsWith("gpt-image") && VISUAL_CHANNEL_SET.has(taskChannel)) {
+        try {
+          const blob = await generatePostImageBlob(businessName || "Business", c.body || c.caption, c.imageUrl);
+          c = { ...c, imageUrl: URL.createObjectURL(blob), imageSource: "canvas" };
+        } catch(imgErr) {
+          console.error(`[TASK:getContent] Canvas failed — ${imgErr.message}. Keeping server image.`);
+        }
+      }
       setContent(c);
       setShowContent(true);
       setExtraChannels({});
@@ -1321,6 +1330,16 @@ function ContentLab({ businessId, businessName, plan }) {
     try {
       const data = await api.agents.contentLab(businessId, { channel, context: context.trim(), tone });
       setResult(data);
+      // Composite caption text client-side using browser canvas (system fonts always available).
+      // Image URL is loaded directly — CORS header on /api/instagram/images/:id allows this.
+      if (hasImage && data.imageUrl && !data.isVideo && data.imageSource?.startsWith("gpt-image")) {
+        try {
+          const blob = await generatePostImageBlob(businessName || "Business", data.body || data.caption, data.imageUrl);
+          setComposedBlob(blob);
+        } catch(canvasErr) {
+          console.error("[ContentLab] Canvas composition failed:", canvasErr.message);
+        }
+      }
     } catch(e) {
       setError(e.message);
     }
@@ -1348,21 +1367,14 @@ function ContentLab({ businessId, businessName, plan }) {
     setVideoLoading(false);
   };
 
-  const downloadImage = async () => {
-    const url = result?.imageUrl;
-    if (!url) return;
-    try {
-      const resp = await fetch(url);
-      const blob = await resp.blob();
-      const objUrl = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = objUrl;
-      a.download = `${(businessName || "post").replace(/\s+/g, "-").toLowerCase()}-${channel}.png`;
-      document.body.appendChild(a); a.click(); document.body.removeChild(a);
-      URL.revokeObjectURL(objUrl);
-    } catch(e) {
-      console.error("[ContentLab] Download failed:", e.message);
-    }
+  const downloadImage = () => {
+    if (!composedBlob) return;
+    const url = URL.createObjectURL(composedBlob);
+    const a   = document.createElement("a");
+    a.href    = url;
+    a.download = `${(businessName || "post").replace(/\s+/g, "-").toLowerCase()}-${channel}.png`;
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    URL.revokeObjectURL(url);
   };
 
   const downloadVideo = () => {
@@ -1522,29 +1534,35 @@ function ContentLab({ businessId, businessName, plan }) {
 
               {/* ── Static image result ── */}
               {!result.isVideo && (
-                <div style={{ display:"grid", gridTemplateColumns: (hasImage && result.imageUrl) ? "260px 1fr" : "1fr", gap:16, alignItems:"start" }}>
-                  {/* Image column — server returns pre-composed image (caption already baked in) */}
+                <div style={{ display:"grid", gridTemplateColumns: (hasImage && (composedUrl || result.imageUrl)) ? "260px 1fr" : "1fr", gap:16, alignItems:"start" }}>
+                  {/* Image column */}
                   {hasImage && (
                     <div>
-                      {result.imageUrl && result.imageSource?.startsWith("gpt-image") && (
-                        <>
-                          <img src={result.imageUrl} alt="Generated post" style={{ width:"100%", borderRadius:8, display:"block", marginBottom:8 }} />
-                          <div style={{ display:"flex", gap:6, alignItems:"center" }}>
-                            <button onClick={downloadImage}
-                              style={{ ...btn(C.ok,"#fff",11), padding:"5px 0", flex:1, textAlign:"center" }}>
-                              ↓ Download PNG
-                            </button>
-                            <span style={{
-                              fontSize:9, fontWeight:700, fontFamily:FB, padding:"5px 8px", borderRadius:6,
-                              background: (SRC_CLR[result.imageSource] || C.muted) + "20",
-                              color: SRC_CLR[result.imageSource] || C.muted,
-                              textTransform:"uppercase", letterSpacing:"0.04em",
-                            }}>
-                              {SRC_BADGE[result.imageSource] || result.imageSource}
-                            </span>
-                          </div>
-                        </>
-                      )}
+                      {(() => {
+                        const displayUrl = composedUrl || (result.imageSource?.startsWith("gpt-image") ? result.imageUrl : null);
+                        if (!displayUrl) return null;
+                        return (
+                          <>
+                            <img src={displayUrl} alt="Generated post" style={{ width:"100%", borderRadius:8, display:"block", marginBottom:8 }} />
+                            <div style={{ display:"flex", gap:6, alignItems:"center" }}>
+                              {composedUrl && (
+                                <button onClick={downloadImage}
+                                  style={{ ...btn(C.ok,"#fff",11), padding:"5px 0", flex:1, textAlign:"center" }}>
+                                  ↓ Download PNG
+                                </button>
+                              )}
+                              <span style={{
+                                fontSize:9, fontWeight:700, fontFamily:FB, padding:"5px 8px", borderRadius:6,
+                                background: (SRC_CLR[result.imageSource] || C.muted) + "20",
+                                color: SRC_CLR[result.imageSource] || C.muted,
+                                textTransform:"uppercase", letterSpacing:"0.04em",
+                              }}>
+                                {SRC_BADGE[result.imageSource] || result.imageSource}
+                              </span>
+                            </div>
+                          </>
+                        );
+                      })()}
                       {result.dalleError ? (
                         <div style={{ ...card("10px 12px"), background:"#FEF2F2", border:"1px solid #FECACA", fontSize:11, color:C.err, fontFamily:FB, borderRadius:8 }}>
                           <strong>Image failed:</strong> {result.dalleError}
@@ -1593,7 +1611,7 @@ function ContentLab({ businessId, businessName, plan }) {
                             setPosting(true); setPostResult(null);
                             try {
                               const text = [result.body||result.caption, result.hashtags].filter(Boolean).join("\n\n");
-                              const imgUrl = result.imageUrl || null;
+                              const imgUrl = composedUrl || result.imageUrl || null;
                               let res;
                               if (channel === "instagram") res = await api.instagram.createPost(businessId, imgUrl||result.imageUrl, text);
                               else if (channel === "twitter") res = await api.twitter.post(businessId, text);
