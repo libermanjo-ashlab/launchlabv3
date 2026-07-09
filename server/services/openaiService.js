@@ -539,12 +539,92 @@ Return JSON with:
   }
 }
 
+// ── Content schedule generation ───────────────────────────────────────────────
+
+/**
+ * Generate a 30-day content calendar using GPT-4o.
+ * Returns a structured JSON calendar saved to BusinessOutput type "content_calendar".
+ */
+async function generateContentSchedule({ businessName, brandIdentity, marketInsights, idea }) {
+  const client  = getClient();
+  const bi      = brandIdentity || {};
+  const bizType = bi.businessType || idea?.name || "service business";
+  const voice   = bi.voice        || "professional";
+  const palette = (bi.channelPresence?.channels || []).map(c => c.name).join(", ") || "Instagram, Email";
+
+  const today = new Date();
+  // Build 4 week date ranges starting from next Monday
+  const nextMonday = new Date(today);
+  nextMonday.setDate(today.getDate() + ((1 + 7 - today.getDay()) % 7 || 7));
+  const fmt = d => d.toLocaleDateString("en-US", { month:"short", day:"numeric" });
+  const weeks = [0,1,2,3].map(w => {
+    const start = new Date(nextMonday); start.setDate(nextMonday.getDate() + w*7);
+    const end   = new Date(start);      end.setDate(start.getDate() + 6);
+    return { week: w+1, dateRange: `${fmt(start)}–${fmt(end)}` };
+  });
+
+  const systemPrompt = `You are a senior content strategist. Generate a practical 30-day content calendar.
+Return ONLY valid JSON matching this exact schema — no extra text:
+{
+  "strategy": "2-3 sentence high-level posting strategy",
+  "weeks": [
+    {
+      "week": 1,
+      "dateRange": "...",
+      "theme": "Week theme in 4-6 words",
+      "posts": [
+        {
+          "day": "Mon Jan 6",
+          "channel": "instagram|twitter|linkedin|email|website|google|tiktok|facebook",
+          "format": "post|story|video|newsletter|update|article",
+          "headline": "Post headline — 8 words max",
+          "concept": "What to show or structure — 1 sentence",
+          "contentBrief": "Specific angle, hook, key points, and CTA — 2-3 sentences"
+        }
+      ]
+    }
+  ]
+}
+Generate exactly 4 weeks. Each week gets 3-5 posts. Mix channels based on what's available.
+Posts must be specific to the business type and brand voice — NOT generic templates.`;
+
+  const userMsg = `Business: ${businessName}
+Type: ${bizType}
+Voice: ${voice}
+Active channels: ${palette}
+${marketInsights ? `Market insights: ${marketInsights.slice(0, 400)}` : ""}
+
+Week date ranges:
+${weeks.map(w => `Week ${w.week}: ${w.dateRange}`).join("\n")}
+
+Generate a 30-day content calendar for this specific business.`;
+
+  const t0 = Date.now();
+  const res = await client.chat.completions.create({
+    model: "gpt-4o",
+    messages: [{ role:"system", content:systemPrompt }, { role:"user", content:userMsg }],
+    response_format: { type: "json_object" },
+    max_tokens: 3500,
+    temperature: 0.7,
+  });
+  const raw = res.choices[0]?.message?.content || "{}";
+  const data = JSON.parse(raw);
+  log.info("SCHEDULE", "Content schedule generated", { ms: Date.now()-t0, businessName, weeks: data.weeks?.length });
+
+  // Merge in the date ranges we computed
+  if (Array.isArray(data.weeks)) {
+    data.weeks = data.weeks.map((w, i) => ({ ...weeks[i] || {}, ...w, dateRange: weeks[i]?.dateRange || w.dateRange }));
+  }
+  return data;
+}
+
 module.exports = {
   generateInstagramCaption,
   generateChannelCaption,
   generateSlideContent,
   generateTaskGuidance,
   generatePostImage,
+  generateContentSchedule,
   populateBrandIdentityFromData,
   buildImagePrompt,
   buildChannelLines,

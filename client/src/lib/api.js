@@ -125,6 +125,8 @@ export const api = {
     saveBrandIdentity:     (bizId,identity) => req("PUT",  `/agents/${bizId}/brand-identity`, { identity }),
     populateBrandIdentity: bizId            => req("POST", `/agents/${bizId}/brand-identity/populate`),
     contentLab:            (bizId,body)     => req("POST", `/agents/${bizId}/content-lab`, body),
+    generateSchedule:      bizId            => req("POST", `/agents/${bizId}/content-schedule`, {}),
+    getSchedule:           bizId            => req("GET",  `/agents/${bizId}/content-schedule`),
   },
   metrics: {
     get:     bizId          => req("GET", `/metrics/${bizId}`),

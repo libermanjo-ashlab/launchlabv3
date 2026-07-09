@@ -1119,6 +1119,46 @@ router.post("/:businessId/content-lab", requireAuth, async (req, res, next) => {
   } catch(e) { next(e); }
 });
 
+// ── Content schedule: generate + persist ──────────────────────────────────────
+
+router.post("/:businessId/content-schedule", requireAuth, async (req, res, next) => {
+  try {
+    const biz = await prisma.business.findFirst({ where:{ id:req.params.businessId, userId:req.userId } });
+    if (!biz) return res.status(404).json({ error:"Business not found" });
+    if (!process.env.OPENAI_API_KEY) return res.status(503).json({ error:"OpenAI API key not configured" });
+
+    const brandId = await getBrandIdentity(req.params.businessId);
+    let idea = {}; try { idea = JSON.parse(biz.ideaData||"{}"); } catch {}
+
+    const marketOut = await prisma.businessOutput.findFirst({ where:{ businessId:req.params.businessId, type:"marketing_insights" } });
+    let marketInsights = "";
+    try { const md = JSON.parse(marketOut?.content||"{}"); marketInsights = md.report?.marketAnalysis?.summary || ""; } catch {}
+
+    const calendar = await openaiSvc.generateContentSchedule({ businessName:biz.name, brandIdentity:brandId, marketInsights, idea });
+    const content  = JSON.stringify({ ...calendar, savedAt: new Date().toISOString() });
+
+    const existing = await prisma.businessOutput.findFirst({ where:{ businessId:req.params.businessId, type:"content_calendar" } });
+    if (existing) {
+      await prisma.businessOutput.update({ where:{ id:existing.id }, data:{ content } });
+    } else {
+      await prisma.businessOutput.create({ data:{ businessId:req.params.businessId, type:"content_calendar", title:"Content Calendar", content } });
+    }
+
+    res.json({ calendar });
+  } catch(e) { next(e); }
+});
+
+router.get("/:businessId/content-schedule", requireAuth, async (req, res, next) => {
+  try {
+    const biz = await prisma.business.findFirst({ where:{ id:req.params.businessId, userId:req.userId } });
+    if (!biz) return res.status(404).json({ error:"Business not found" });
+
+    const out = await prisma.businessOutput.findFirst({ where:{ businessId:req.params.businessId, type:"content_calendar" } });
+    if (!out) return res.json({ calendar:null });
+    try { res.json({ calendar: JSON.parse(out.content) }); } catch { res.json({ calendar:null }); }
+  } catch(e) { next(e); }
+});
+
 // Called once at server startup to resume autopilot for any businesses left enabled
 async function resumeAllAutopilots() {
   try {

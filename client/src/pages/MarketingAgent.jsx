@@ -23,7 +23,7 @@ import { generateSlideshowBlob } from "../lib/slideshowVideo";
 const CH_LABELS = {
   instagram:"Instagram", email:"Email", website:"Website",
   google:"Google Business", calendly:"Calendly", twitter:"X / Twitter",
-  tiktok:"TikTok", general:"General",
+  tiktok:"TikTok", general:"General", linkedin:"LinkedIn", facebook:"Facebook",
 };
 const PRI_CLR  = { high:"#EF4444", medium:C.warn, low:C.muted };
 const STAT_CLR = { planned:C.primary, active:C.warn, monitoring:"#8B5CF6", archived:C.ok };
@@ -465,8 +465,8 @@ function SuggestionCard({ suggestion:s, mode, onAddToCampaign }) {
 
       <div style={{ display:"flex", gap:6, flexWrap:"wrap", alignItems:"center" }}>
         {mode === "guided" && (
-          <button onClick={()=>onAddToCampaign(s)} style={{ ...btnO(C.primary,11), flex:1, textAlign:"center", padding:"5px 10px" }}>
-            + Add to campaigns
+          <button onClick={()=>onAddToCampaign(s)} style={{ ...btnO("#8B5CF6",11), flex:1, textAlign:"center", padding:"5px 10px" }}>
+            + Save as market insight
           </button>
         )}
         {mode === "auto" && (
@@ -1644,6 +1644,447 @@ function ContentLab({ businessId, businessName, plan }) {
   );
 }
 
+// ── Quick Create ─────────────────────────────────────────────────────────────
+
+const QUICK_TYPES = [
+  { id:"post",       label:"Create Post",       channels:["instagram","tiktok","facebook"], default:"instagram",
+    hint:"Topic or idea — e.g. 'New product launch'" },
+  { id:"update",     label:"Create Update",     channels:["twitter","website","google"],   default:"twitter",
+    hint:"Update topic — e.g. 'Holiday hours'" },
+  { id:"article",    label:"Create Article",    channels:["linkedin"],                     default:"linkedin",
+    hint:"Article topic — e.g. '5 lessons from scaling our team'" },
+  { id:"newsletter", label:"Create Newsletter", channels:["email"],                        default:"email",
+    hint:"Newsletter focus — e.g. 'Monthly customer roundup'" },
+  { id:"schedule",   label:"Content Schedule",  channels:[],                              default:null,
+    hint:"30-day content calendar with ideas and briefs per channel" },
+];
+
+function ContentSchedulePanel({ businessId, businessName }) {
+  const [loading,   setLoading]   = useState(false);
+  const [schedule,  setSchedule]  = useState(null);
+  const [savedAt,   setSavedAt]   = useState(null);
+  const [error,     setError]     = useState("");
+  const [openWeeks, setOpenWeeks] = useState(new Set([0]));
+
+  useEffect(()=>{
+    api.agents.getSchedule(businessId)
+      .then(d=>{ if (d.schedule) { setSchedule(d.schedule); setSavedAt(d.savedAt); } })
+      .catch(()=>{});
+  },[businessId]);
+
+  const generate = async () => {
+    setLoading(true); setError("");
+    try {
+      const d = await api.agents.generateSchedule(businessId);
+      setSchedule(d.schedule);
+      setSavedAt(d.savedAt||new Date().toISOString());
+      setOpenWeeks(new Set([0]));
+    } catch(e) { setError(e.message); }
+    setLoading(false);
+  };
+
+  const download = () => {
+    if (!schedule) return;
+    const lines = [`Content Schedule — ${businessName||"Your Business"}`,
+      `Generated: ${savedAt?new Date(savedAt).toLocaleDateString():"today"}`, ""];
+    if (schedule.strategy) lines.push(`Strategy: ${schedule.strategy}`,"");
+    (schedule.weeks||[]).forEach((w,wi)=>{
+      lines.push(`WEEK ${wi+1}: ${w.dateRange||""} — ${w.theme||""}`);
+      (w.posts||[]).forEach(p=>{
+        lines.push(`  ${p.day} · ${CH_LABELS[p.channel]||p.channel} · ${p.format}`);
+        lines.push(`  Headline: ${p.headline}`);
+        if (p.concept) lines.push(`  Concept: ${p.concept}`);
+        if (p.contentBrief) lines.push(`  Brief: ${p.contentBrief}`, "");
+      });
+    });
+    const blob = new Blob([lines.join("\n")],{type:"text/plain"});
+    const url  = URL.createObjectURL(blob);
+    const a    = document.createElement("a");
+    a.href     = url;
+    a.download = `${(businessName||"schedule").replace(/\s+/g,"-").toLowerCase()}-content-schedule.txt`;
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  };
+
+  const toggleWeek = (wi) => setOpenWeeks(prev=>{
+    const next = new Set(prev);
+    if (next.has(wi)) next.delete(wi); else next.add(wi);
+    return next;
+  });
+
+  return (
+    <div style={{ paddingTop:12 }}>
+      <div style={{ display:"flex", gap:8, alignItems:"center", flexWrap:"wrap", marginBottom:12 }}>
+        <button onClick={generate} disabled={loading}
+          style={{ ...btn(loading?"#9CA3AF":C.primary,"#fff",12), padding:"8px 18px", display:"flex", alignItems:"center", gap:6 }}>
+          {loading&&<div style={spin()}/>}
+          {loading?"Generating…":schedule?"Regenerate 30-day schedule":"Generate 30-day schedule"}
+        </button>
+        {schedule && (
+          <button onClick={download} style={{ ...btnO(C.ok,11), padding:"7px 14px" }}>↓ Download</button>
+        )}
+        {savedAt && (
+          <span style={{ fontSize:10, color:C.muted, fontFamily:FB }}>
+            Saved {new Date(savedAt).toLocaleDateString()}
+          </span>
+        )}
+      </div>
+
+      {error && (
+        <div style={{ ...card("8px 12px"), background:C.errBg, border:`1px solid #DC262630`, marginBottom:10, fontSize:12, color:C.err, fontFamily:FB }}>
+          {error}
+        </div>
+      )}
+
+      {!schedule && !loading && (
+        <div style={{ ...card("14px"), textAlign:"center", border:"1px dashed "+C.border }}>
+          <div style={{ fontSize:12, color:C.muted, fontFamily:FB, lineHeight:1.6 }}>
+            Generate a 30-day content calendar with weekly themes,<br/>post ideas, and content briefs for each channel.
+          </div>
+        </div>
+      )}
+
+      {schedule && (
+        <div>
+          {schedule.strategy && (
+            <div style={{ ...card("10px 12px"), background:C.primaryBg, border:`1px solid ${C.primary}20`, marginBottom:10, fontSize:12, color:C.text, fontFamily:FB, lineHeight:1.6 }}>
+              <span style={{ fontWeight:700, color:C.primary }}>Strategy: </span>{schedule.strategy}
+            </div>
+          )}
+          {(schedule.weeks||[]).map((w,wi)=>(
+            <div key={wi} style={{ marginBottom:6 }}>
+              <button onClick={()=>toggleWeek(wi)} style={{
+                width:"100%", background:"#F8FAFC", border:`1px solid ${C.border}`,
+                borderRadius: openWeeks.has(wi) ? "8px 8px 0 0" : 8,
+                padding:"8px 12px", textAlign:"left", cursor:"pointer",
+                display:"flex", justifyContent:"space-between", alignItems:"center",
+              }}>
+                <div>
+                  <span style={{ fontFamily:FH, fontWeight:700, fontSize:12, color:C.text }}>Week {wi+1}</span>
+                  {w.dateRange&&<span style={{ fontSize:11, color:C.muted, fontFamily:FB, marginLeft:8 }}>{w.dateRange}</span>}
+                  {w.theme&&<span style={{ fontSize:11, color:C.primary, fontFamily:FB, marginLeft:8 }}>• {w.theme}</span>}
+                </div>
+                <span style={{ fontSize:10, color:C.muted }}>{openWeeks.has(wi)?"▲":"▼"} {(w.posts||[]).length} posts</span>
+              </button>
+              {openWeeks.has(wi) && (
+                <div style={{ border:`1px solid ${C.border}`, borderTop:"none", borderRadius:"0 0 8px 8px", overflow:"hidden" }}>
+                  {(w.posts||[]).map((p,pi)=>(
+                    <div key={pi} style={{ padding:"10px 12px", borderBottom: pi<(w.posts.length-1)?`1px solid ${C.border}`:"none", background: pi%2===0?"#fff":"#FAFAFA" }}>
+                      <div style={{ display:"flex", gap:6, alignItems:"center", marginBottom:4, flexWrap:"wrap" }}>
+                        <span style={{ fontSize:10, fontWeight:700, color:C.muted, fontFamily:FB }}>{p.day}</span>
+                        <span style={{ fontSize:10, background:C.primaryBg, color:C.primary, padding:"1px 6px", borderRadius:10, fontFamily:FB }}>{CH_LABELS[p.channel]||p.channel}</span>
+                        <span style={{ fontSize:10, color:C.muted, fontFamily:FB, textTransform:"capitalize" }}>{p.format}</span>
+                      </div>
+                      <div style={{ fontSize:12, fontWeight:600, color:C.text, fontFamily:FH, marginBottom:3 }}>{p.headline}</div>
+                      {p.concept&&<div style={{ fontSize:11, color:C.muted, fontFamily:FB, marginBottom:2 }}>Concept: {p.concept}</div>}
+                      {p.contentBrief&&<div style={{ fontSize:11, color:"#6B7280", fontFamily:FB, lineHeight:1.5 }}>{p.contentBrief}</div>}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function MarketInsightCard({ campaign:c, onDelete }) {
+  return (
+    <div style={{ ...card("12px 14px"), marginBottom:10, border:"1px solid #8B5CF620", background:"#F5F3FF" }}>
+      <div style={{ display:"flex", gap:6, marginBottom:6, flexWrap:"wrap", alignItems:"center" }}>
+        <span style={{ fontSize:9, fontWeight:700, background:"#8B5CF6", color:"#fff", padding:"2px 8px", borderRadius:20, textTransform:"uppercase", letterSpacing:"0.06em", fontFamily:FB }}>Market Insight</span>
+        {c.channel&&<span style={{ background:C.primaryBg, color:C.primary, fontSize:9, fontWeight:600, padding:"2px 8px", borderRadius:20, fontFamily:FB }}>{CH_LABELS[c.channel]||c.channel}</span>}
+        <span style={{ fontSize:10, color:"#7C3AED", fontFamily:FB, marginLeft:"auto", fontStyle:"italic" }}>Requires manual planning</span>
+        <button onClick={()=>onDelete(c.id)} style={{ background:"none", border:"none", cursor:"pointer", color:C.muted, fontSize:18, padding:"0 2px", lineHeight:1, marginLeft:4 }}>×</button>
+      </div>
+      <p style={{ fontSize:13, fontWeight:600, color:C.text, fontFamily:FH, marginBottom:4, lineHeight:1.4 }}>{c.title}</p>
+      {c.rationale&&<p style={{ fontSize:12, color:C.muted, fontFamily:FB, lineHeight:1.55, marginBottom:4 }}>{c.rationale}</p>}
+      {c.expectedImpact&&<p style={{ fontSize:11, color:C.ok, fontFamily:FB }}>{c.expectedImpact}</p>}
+    </div>
+  );
+}
+
+function QuickCreatePanel({ businessId, businessName, plan, agentMode }) {
+  const navigate          = useNavigate();
+  const [activeType,      setActiveType]      = useState(null);
+  const [channel,         setChannel]         = useState("instagram");
+  const [context,         setContext]         = useState("");
+  const [tone,            setTone]            = useState("professional");
+  const [loading,         setLoading]         = useState(false);
+  const [result,          setResult]          = useState(null);
+  const [composedBlob,    setComposedBlob]    = useState(null);
+  const [videoBlob,       setVideoBlob]       = useState(null);
+  const [videoLoading,    setVideoLoading]    = useState(false);
+  const [error,           setError]           = useState("");
+  const [copied,          setCopied]          = useState(false);
+  const [posting,         setPosting]         = useState(false);
+  const [postResult,      setPostResult]      = useState(null);
+  const [markedPosted,    setMarkedPosted]    = useState(false);
+
+  const isStarter   = plan === "starter" || plan === "trial";
+  const isAutopilot = plan === "pro_autopilot" && agentMode === "auto";
+  const isGuided    = !isStarter && agentMode === "guided";
+
+  const typeConfig  = QUICK_TYPES.find(t=>t.id===activeType);
+  const channelOpt  = CHANNEL_OPTS.find(o=>o.value===channel);
+  const hasImage    = channelOpt?.hasImage;
+
+  const composedUrl = useMemo(()=>composedBlob?URL.createObjectURL(composedBlob):null,[composedBlob]);
+  useEffect(()=>()=>{ if (composedUrl) URL.revokeObjectURL(composedUrl); },[composedUrl]);
+  const videoUrl = useMemo(()=>videoBlob?URL.createObjectURL(videoBlob):null,[videoBlob]);
+  useEffect(()=>()=>{ if (videoUrl) URL.revokeObjectURL(videoUrl); },[videoUrl]);
+
+  const selectType = (typeId) => {
+    if (typeId===activeType) { setActiveType(null); return; }
+    const cfg = QUICK_TYPES.find(t=>t.id===typeId);
+    setActiveType(typeId);
+    if (cfg?.default) setChannel(cfg.default);
+    setResult(null); setComposedBlob(null); setVideoBlob(null);
+    setError(""); setPostResult(null); setMarkedPosted(false); setContext("");
+  };
+
+  const generate = async () => {
+    if (!context.trim()) return;
+    setLoading(true); setError(""); setResult(null); setComposedBlob(null);
+    setVideoBlob(null); setPostResult(null); setMarkedPosted(false);
+    try {
+      const data = await api.agents.contentLab(businessId, { channel, context:context.trim(), tone });
+      setResult(data);
+      if (hasImage && data.imageUrl && !data.isVideo && data.imageSource?.startsWith("gpt-image")) {
+        try {
+          const blob = await generatePostImageBlob(businessName||"Business", data.body||data.caption, data.imageUrl);
+          setComposedBlob(blob);
+        } catch(e) { console.error("[QuickCreate] Canvas err:", e.message); }
+      }
+    } catch(e) { setError(e.message); }
+    setLoading(false);
+  };
+
+  const createVideo = async () => {
+    if (!result?.slides) return;
+    setVideoLoading(true);
+    try {
+      let bgUrl = null;
+      if (result.imageSource?.startsWith("gpt-image") && result.imageUrl) {
+        try { const r=await fetch(result.imageUrl); bgUrl=URL.createObjectURL(await r.blob()); } catch {}
+      }
+      const blob = await generateSlideshowBlob(result.slides, bgUrl, businessName||"Business");
+      if (bgUrl) URL.revokeObjectURL(bgUrl);
+      setVideoBlob(blob);
+    } catch(e) { console.error("[QuickCreate] Video err:", e.message); }
+    setVideoLoading(false);
+  };
+
+  const downloadImage = () => {
+    if (!composedBlob) return;
+    const url = URL.createObjectURL(composedBlob);
+    const a   = document.createElement("a"); a.href=url;
+    a.download=`${(businessName||"post").replace(/\s+/g,"-").toLowerCase()}-${channel}.png`;
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  };
+
+  const copyText = async () => {
+    if (!result) return;
+    const parts = [result.body||result.caption, result.hashtags].filter(Boolean);
+    try { await navigator.clipboard.writeText(parts.join("\n\n")); } catch {}
+    setCopied(true); setTimeout(()=>setCopied(false),2000);
+  };
+
+  return (
+    <div style={{ marginBottom:14 }}>
+      {/* Type buttons */}
+      <div style={{ display:"flex", gap:6, flexWrap:"wrap", marginBottom: activeType ? 10 : 0 }}>
+        {QUICK_TYPES.map(t=>(
+          <button key={t.id} onClick={()=>selectType(t.id)} style={{
+            fontSize:11, fontWeight:600, fontFamily:FB,
+            padding:"7px 13px", borderRadius:20, cursor:"pointer",
+            border: activeType===t.id ? `1.5px solid ${C.primary}` : `1.5px solid ${C.border}`,
+            background: activeType===t.id ? C.primaryBg : "#fff",
+            color: activeType===t.id ? C.primary : C.muted,
+          }}>{t.label}</button>
+        ))}
+      </div>
+
+      {/* Content Schedule — special panel */}
+      {activeType==="schedule" && (
+        <ContentSchedulePanel businessId={businessId} businessName={businessName} />
+      )}
+
+      {/* Generator for post / update / article / newsletter */}
+      {activeType && activeType!=="schedule" && typeConfig && (
+        <div style={{ ...card("14px 16px"), border:`1px solid ${C.primary}20`, marginTop:4 }}>
+          {isStarter ? (
+            <div style={{ textAlign:"center", padding:"8px 0" }}>
+              <div style={{ fontSize:13, color:C.muted, fontFamily:FB, marginBottom:10 }}>Quick Create requires a Pro plan.</div>
+              <button onClick={()=>navigate("/pricing")} style={{ ...btn(C.primary,"#fff",12), padding:"7px 20px" }}>Upgrade to Pro</button>
+            </div>
+          ) : (
+            <>
+              <div style={{ display:"grid", gridTemplateColumns: typeConfig.channels.length>1 ? "1fr 1fr 2fr auto" : "1fr 2fr auto", gap:10, marginBottom:12, alignItems:"end" }}>
+                {typeConfig.channels.length>1 && (
+                  <div>
+                    <div style={{ ...lbl, fontSize:10, marginBottom:4 }}>Channel</div>
+                    <select value={channel} onChange={e=>{ setChannel(e.target.value); setResult(null); setComposedBlob(null); }}
+                      style={{ ...inp({ fontSize:12 }), width:"100%" }}>
+                      {typeConfig.channels.map(ch=>{
+                        const opt=CHANNEL_OPTS.find(o=>o.value===ch);
+                        return <option key={ch} value={ch}>{opt?.label||ch}</option>;
+                      })}
+                    </select>
+                  </div>
+                )}
+                <div>
+                  <div style={{ ...lbl, fontSize:10, marginBottom:4 }}>Tone</div>
+                  <select value={tone} onChange={e=>setTone(e.target.value)} style={{ ...inp({ fontSize:12 }), width:"100%" }}>
+                    {TONE_OPTS.map(t=><option key={t} value={t}>{t.charAt(0).toUpperCase()+t.slice(1)}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <div style={{ ...lbl, fontSize:10, marginBottom:4 }}>Topic / context</div>
+                  <input value={context} onChange={e=>setContext(e.target.value)}
+                    onKeyDown={e=>e.key==="Enter"&&!loading&&context.trim()&&generate()}
+                    placeholder={typeConfig.hint}
+                    style={{ ...inp({ fontSize:12 }), width:"100%" }} />
+                </div>
+                <button onClick={generate} disabled={loading||!context.trim()}
+                  style={{ ...btn(loading?"#9CA3AF":C.primary,"#fff",12), padding:"8px 18px", display:"flex", alignItems:"center", gap:6, whiteSpace:"nowrap" }}>
+                  {loading&&<div style={spin()}/>}
+                  {loading?"Generating…":"Generate"}
+                </button>
+              </div>
+
+              {error && (
+                <div style={{ ...card("8px 12px"), background:C.errBg, border:`1px solid #DC262630`, marginBottom:10, fontSize:12, color:C.err, fontFamily:FB }}>
+                  {error}
+                </div>
+              )}
+
+              {result && (
+                <div>
+                  {/* Video result */}
+                  {result.isVideo && result.slides && (
+                    <div style={{ display:"grid", gridTemplateColumns: videoUrl ? "200px 1fr" : "1fr", gap:14, alignItems:"start" }}>
+                      <div>
+                        {videoUrl ? (
+                          <>
+                            <video src={videoUrl} controls style={{ width:"100%", borderRadius:8, display:"block", marginBottom:6 }} />
+                            <button onClick={()=>{ const u=URL.createObjectURL(videoBlob);const a=document.createElement("a");a.href=u;a.download=`${(businessName||"post").replace(/\s+/g,"-").toLowerCase()}-${channel}.webm`;document.body.appendChild(a);a.click();document.body.removeChild(a);URL.revokeObjectURL(u); }}
+                              style={{ ...btn(C.ok,"#fff",11), padding:"5px 0", width:"100%", textAlign:"center" }}>
+                              ↓ Download Video
+                            </button>
+                          </>
+                        ) : (
+                          <div style={{ ...card("14px"), background:"#EFF6FF", textAlign:"center" }}>
+                            <div style={{ fontSize:20, marginBottom:6 }}>🎬</div>
+                            <div style={{ fontSize:11, color:C.muted, fontFamily:FB, marginBottom:10 }}>{result.slides.length} slides ready</div>
+                            <button onClick={createVideo} disabled={videoLoading}
+                              style={{ ...btn(videoLoading?"#9CA3AF":C.primary,"#fff",11), padding:"6px 14px", display:"inline-flex", alignItems:"center", gap:6 }}>
+                              {videoLoading&&<div style={spin()}/>}
+                              {videoLoading?"Rendering…":"Create Video"}
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                      <div style={{ ...card("10px 12px"), background:"#F0FDF4", border:`1px solid ${C.ok}25` }}>
+                        <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:6 }}>
+                          <span style={{ fontSize:10, fontWeight:700, color:C.ok, fontFamily:FB, textTransform:"uppercase", letterSpacing:"0.05em" }}>Caption</span>
+                          <button onClick={copyText} style={{ ...btn(copied?C.ok:"#6B7280","#fff",10), padding:"3px 10px" }}>{copied?"✓ Copied":"Copy text"}</button>
+                        </div>
+                        <p style={{ fontSize:12, color:"#374151", fontFamily:FB, lineHeight:1.6, marginBottom:result.hashtags?4:0 }}>{result.body||result.caption}</p>
+                        {result.hashtags&&<p style={{ fontSize:11, color:C.muted, fontFamily:FB }}>{result.hashtags}</p>}
+                        {isGuided&&!markedPosted&&(
+                          <button onClick={()=>setMarkedPosted(true)} style={{ ...btnO(C.ok,11), padding:"5px 14px", marginTop:8, width:"100%" }}>✓ Mark as posted manually</button>
+                        )}
+                        {markedPosted&&<div style={{ fontSize:11, color:C.ok, fontFamily:FB, marginTop:8, fontWeight:600 }}>✓ Marked as posted</div>}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Static image / text result */}
+                  {!result.isVideo && (
+                    <div style={{ display:"grid", gridTemplateColumns:(hasImage&&(composedUrl||result.imageUrl))?"200px 1fr":"1fr", gap:14, alignItems:"start" }}>
+                      {hasImage && (
+                        <div>
+                          {(()=>{
+                            const displayUrl = composedUrl||(result.imageSource?.startsWith("gpt-image")?result.imageUrl:null);
+                            if (!displayUrl) return null;
+                            return (
+                              <>
+                                <img src={displayUrl} alt="Generated post" style={{ width:"100%", borderRadius:8, display:"block", marginBottom:6 }} />
+                                {composedUrl&&(
+                                  <button onClick={downloadImage} style={{ ...btn(C.ok,"#fff",11), padding:"5px 0", width:"100%", textAlign:"center" }}>↓ Download PNG</button>
+                                )}
+                              </>
+                            );
+                          })()}
+                          {result.dalleError&&(
+                            <div style={{ ...card("8px 10px"), background:"#FEF2F2", border:"1px solid #FECACA", fontSize:11, color:C.err, fontFamily:FB, marginTop:4 }}>
+                              Image failed: {result.dalleError}
+                            </div>
+                          )}
+                        </div>
+                      )}
+                      <div style={{ ...card("12px 14px"), background:"#F0FDF4", border:`1px solid ${C.ok}25` }}>
+                        <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:8 }}>
+                          <span style={{ fontSize:10, fontWeight:700, color:C.ok, fontFamily:FB, textTransform:"uppercase", letterSpacing:"0.05em" }}>
+                            {channelOpt?.label||channel} copy
+                          </span>
+                          <button onClick={copyText} style={{ ...btn(copied?C.ok:"#6B7280","#fff",10), padding:"3px 10px" }}>{copied?"✓ Copied":"Copy text"}</button>
+                        </div>
+                        <p style={{ fontSize:13, color:"#374151", fontFamily:FB, lineHeight:1.65, marginBottom:result.hashtags?6:0, whiteSpace:"pre-wrap" }}>
+                          {result.body||result.caption}
+                        </p>
+                        {result.hashtags&&<p style={{ fontSize:11, color:C.muted, fontFamily:FB }}>{result.hashtags}</p>}
+
+                        {/* Guided: mark as posted (no auto-publish) */}
+                        {isGuided&&!markedPosted&&!postResult?.success&&(
+                          <button onClick={()=>setMarkedPosted(true)} style={{ ...btnO(C.ok,11), padding:"5px 14px", marginTop:10, width:"100%" }}>✓ Mark as posted manually</button>
+                        )}
+                        {markedPosted&&!postResult?.success&&(
+                          <div style={{ fontSize:11, color:C.ok, fontFamily:FB, marginTop:8, fontWeight:600 }}>✓ Marked as posted</div>
+                        )}
+
+                        {/* Autopilot: auto-post */}
+                        {isAutopilot&&(result.body||result.caption)&&(
+                          <button disabled={posting||postResult?.success||markedPosted}
+                            onClick={async()=>{
+                              setPosting(true); setPostResult(null);
+                              try {
+                                const text=[result.body||result.caption,result.hashtags].filter(Boolean).join("\n\n");
+                                const imgUrl=composedUrl||result.imageUrl||null;
+                                let res;
+                                if (channel==="instagram") res=await api.instagram.createPost(businessId,imgUrl,text);
+                                else if (channel==="twitter") res=await api.twitter.post(businessId,text);
+                                else if (channel==="tiktok") res=await api.tiktok.post(businessId,text,imgUrl?[imgUrl]:[]);
+                                else { setPostResult({success:false,msg:`Auto-posting to ${channelOpt?.label||channel} not yet available.`}); setPosting(false); return; }
+                                setPostResult({success:res.success||!!res.id,msg:res.success||res.id?`Posted to ${channelOpt?.label||channel}!`:"Post failed."});
+                              } catch(e) { setPostResult({success:false,msg:e.message||"Post failed"}); }
+                              setPosting(false);
+                            }}
+                            style={{ ...btn(postResult?.success?"#6B7280":posting?"#9CA3AF":C.primary,"#fff",11), padding:"5px 14px", marginTop:10, display:"flex", alignItems:"center", gap:6 }}>
+                            {posting&&<span style={{...spin(),width:10,height:10,borderWidth:1.5}}/>}
+                            {postResult?.success?"Posted!":posting?"Posting…":`Post to ${channelOpt?.label||channel}`}
+                          </button>
+                        )}
+                        {postResult?.msg&&!postResult.success&&(
+                          <div style={{ fontSize:11, color:C.err, fontFamily:FB, marginTop:4 }}>{postResult.msg}</div>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+            </>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ── MAIN AGENT PANEL ──────────────────────────────────────────────────────────
 
 export default function AgentPanel({ businessId, businessName, metrics, planInfo, integs, setTab, refreshTasks, hubNotes, stickyAssignments, onAssignSticky, onUnstickNote }) {
@@ -1819,6 +2260,7 @@ export default function AgentPanel({ businessId, businessName, metrics, planInfo
       contentPreview: suggestion.contentPreview,
       estimatedMinutes: suggestion.estimatedMinutes,
       status: "planned",
+      type: "market_insight",
       mode: agentMode==="auto"?"auto":agentMode==="manual"?"manual":"guided",
       createdAt: new Date().toISOString(),
     };
@@ -1836,10 +2278,11 @@ export default function AgentPanel({ businessId, businessName, metrics, planInfo
   const deleteCampaign = (id) => saveCampaigns(p=>p.filter(c=>c.id!==id));
 
   // Campaign buckets
-  const plannedCampaigns    = campaigns.filter(c=>c.status==="planned");
-  const activeCampaigns     = campaigns.filter(c=>c.status==="active");
-  const monitoringCampaigns = campaigns.filter(c=>c.status==="monitoring");
-  const archivedCampaigns   = campaigns.filter(c=>c.status==="archived");
+  const marketInsightCampaigns = campaigns.filter(c=>c.type==="market_insight");
+  const plannedCampaigns    = campaigns.filter(c=>c.status==="planned"&&c.type!=="market_insight");
+  const activeCampaigns     = campaigns.filter(c=>c.status==="active"&&c.type!=="market_insight");
+  const monitoringCampaigns = campaigns.filter(c=>c.status==="monitoring"&&c.type!=="market_insight");
+  const archivedCampaigns   = campaigns.filter(c=>c.status==="archived"&&c.type!=="market_insight");
   const [showArchived, setShowArchived] = useState(false);
 
   const nextRunIn = ranAt ? Math.max(0, Math.round((12*3600*1000-(Date.now()-new Date(ranAt).getTime()))/3600000)) : null;
@@ -2073,16 +2516,31 @@ export default function AgentPanel({ businessId, businessName, metrics, planInfo
           )}
         </div>
 
-        {/* ── RIGHT — Campaign Manager ──────────────────────────────────── */}
+        {/* ── RIGHT — Campaigns ────────────────────────────────────────── */}
         <div>
           <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:12 }}>
-            <span style={{ fontFamily:FH, fontWeight:700, fontSize:16 }}>Campaign Manager</span>
-            {campaigns.length>0 && (
+            <span style={{ fontFamily:FH, fontWeight:700, fontSize:16 }}>Campaigns</span>
+            {(activeCampaigns.length>0||monitoringCampaigns.length>0) && (
               <span style={{ fontSize:11, color:C.muted, fontFamily:FB }}>
                 {activeCampaigns.length} active · {monitoringCampaigns.length} monitoring
               </span>
             )}
           </div>
+
+          {/* Quick Create */}
+          <QuickCreatePanel businessId={businessId} businessName={businessName} plan={access?.effective?.plan} agentMode={agentMode} />
+
+          {/* Market insights from analysis */}
+          {marketInsightCampaigns.length>0 && (
+            <div style={{ marginBottom:14 }}>
+              <p style={{ fontSize:11, fontWeight:700, color:"#8B5CF6", textTransform:"uppercase", letterSpacing:"0.07em", marginBottom:6, fontFamily:FB }}>
+                From your market analysis ({marketInsightCampaigns.length})
+              </p>
+              {marketInsightCampaigns.map(c=>(
+                <MarketInsightCard key={c.id} campaign={c} onDelete={deleteCampaign} />
+              ))}
+            </div>
+          )}
 
           {/* Planned */}
           {plannedCampaigns.length>0 && (
@@ -2128,15 +2586,15 @@ export default function AgentPanel({ businessId, businessName, metrics, planInfo
             </div>
           )}
 
-          {/* Empty state */}
-          {campaigns.length===0 && (
-            <div style={{ ...card("16px"), textAlign:"center", border:"1px dashed "+C.border, marginBottom:14 }}>
+          {/* Empty state — only when no active/planned/monitoring campaigns */}
+          {plannedCampaigns.length===0&&activeCampaigns.length===0&&monitoringCampaigns.length===0 && (
+            <div style={{ ...card("14px"), textAlign:"center", border:"1px dashed "+C.border, marginBottom:14 }}>
               <div style={{ fontSize:12, color:C.muted, fontFamily:FB, lineHeight:1.6 }}>
-                {agentMode==="auto"
-                  ? "Run an analysis to get suggestions. High-priority ones will be queued here automatically (45s apart) — you can delete any before it starts."
-                  : agentMode==="guided"
-                  ? "Run an analysis, then hit \"Add to campaigns\" on any suggestion. Or add a campaign manually below."
-                  : "Create a campaign manually below to start tracking your marketing work."}
+                {agentMode==="guided"
+                  ? "Run a market analysis → save insights above. Use Quick Create above to generate and post content."
+                  : agentMode==="auto"
+                  ? "Analysis will auto-queue high-priority insights here. Use Quick Create above to generate content at any time."
+                  : "Use Quick Create above to generate content, or add a campaign manually below."}
               </div>
             </div>
           )}
