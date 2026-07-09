@@ -1298,91 +1298,39 @@ function suggestedTitle(type, channel) {
   }
 }
 
-function SuggestedContentCard({ item, agentMode, businessId, businessName, onAddToQueue }) {
-  const [loading,       setLoading]       = useState(false);
-  const [result,        setResult]        = useState(null);
-  const [composedBlob,  setComposedBlob]  = useState(null);
-  const [error,         setError]         = useState("");
-  const [copied,        setCopied]        = useState(false);
+function SuggestedContentCard({ item, onAddToQueue }) {
   const [showRationale, setShowRationale] = useState(false);
   const [added,         setAdded]         = useState(false);
 
   const TYPE_CLR = { post:"#3B82F6", update:"#10B981", article:"#8B5CF6", newsletter:"#F59E0B", schedule:"#EC4899" };
-  const clr = TYPE_CLR[item.type] || C.primary;
+  const clr  = TYPE_CLR[item.type] || C.primary;
   const title = suggestedTitle(item.type, item.channel);
 
-  const composedUrl = useMemo(()=>composedBlob?URL.createObjectURL(composedBlob):null,[composedBlob]);
-  useEffect(()=>()=>{ if (composedUrl) URL.revokeObjectURL(composedUrl); },[composedUrl]);
-
-  const handleAdd = async () => {
-    setLoading(true); setError(""); setResult(null); setComposedBlob(null);
-    try {
-      const data = await api.agents.contentLab(businessId, {
-        channel: item.channel || "general",
-        context: item.topic,
-        tone: item.tone || "professional",
-      });
-      setResult(data);
-      if (data.imageUrl && businessName && !data.isVideo) {
-        try {
-          const blob = await generatePostImageBlob(businessName, data.body||data.caption, data.imageUrl);
-          setComposedBlob(blob);
-        } catch {}
-      }
-      onAddToQueue({
-        title,
-        channel: item.channel,
-        rationale: item.rationale,
-        contentPreview: data,
-        tone: item.tone,
-        topic: item.topic,
-        type: item.type,
-      });
-      setAdded(true);
-    } catch(e) { setError(e.message); }
-    setLoading(false);
-  };
-
-  const copy = async () => {
-    if (!result) return;
-    const text = [result.body||result.caption, result.hashtags].filter(Boolean).join("\n\n");
-    try { await navigator.clipboard.writeText(text); } catch {}
-    setCopied(true); setTimeout(()=>setCopied(false), 2000);
-  };
-
-  const downloadImage = () => {
-    if (!composedBlob) return;
-    const url = URL.createObjectURL(composedBlob);
-    const a   = document.createElement("a"); a.href=url;
-    a.download = `${title.replace(/\s+/g,"-").toLowerCase()}.png`;
-    document.body.appendChild(a); a.click(); document.body.removeChild(a);
-    URL.revokeObjectURL(url);
+  const handleAdd = () => {
+    onAddToQueue({ title, channel:item.channel, rationale:item.rationale, tone:item.tone, topic:item.topic, type:item.type });
+    setAdded(true);
   };
 
   return (
     <div style={{ ...card("10px 12px"), marginBottom:8, border:`1px solid ${clr}25` }}>
-      {/* Header badges */}
       <div style={{ display:"flex", gap:5, alignItems:"center", marginBottom:5, flexWrap:"wrap" }}>
         <span style={{ fontSize:9, fontWeight:700, padding:"2px 7px", borderRadius:20, background:`${clr}20`, color:clr, textTransform:"uppercase", fontFamily:FB }}>{item.type}</span>
         {item.channel && <span style={{ fontSize:9, fontWeight:600, padding:"2px 7px", borderRadius:20, background:C.primaryBg, color:C.primary, fontFamily:FB }}>{CH_LABELS[item.channel]||item.channel}</span>}
         {item.priority && <span style={{ fontSize:9, color:PRI_CLR[item.priority]||C.muted, fontFamily:FB, marginLeft:"auto" }}>{item.priority}</span>}
       </div>
-      {/* Simple title */}
       <div style={{ fontSize:13, fontWeight:700, color:C.text, fontFamily:FH, marginBottom:3, lineHeight:1.3 }}>{title}</div>
-      {/* Tone + topic as gray prompt text */}
-      {(item.tone || item.topic) && (
+      {(item.tone||item.topic) && (
         <div style={{ fontSize:11, color:C.muted, fontFamily:FB, lineHeight:1.5, marginBottom:6 }}>
           {item.tone && <span style={{ fontStyle:"italic" }}>{item.tone}</span>}
           {item.tone && item.topic && " — "}
           {item.topic}
         </div>
       )}
-      {/* Rationale dropdown */}
       {item.rationale && (
         <div style={{ marginBottom:6 }}>
           <button onClick={()=>setShowRationale(o=>!o)}
             style={{ background:"none", border:"none", cursor:"pointer", fontSize:10, color:C.muted, fontFamily:FB, padding:0, display:"flex", alignItems:"center", gap:4 }}>
-            <span>{showRationale?"▲":"▼"}</span> Why this?
+            {showRationale?"▲":"▼"} Why this?
           </button>
           {showRationale && (
             <div style={{ fontSize:11, color:C.muted, fontFamily:FB, lineHeight:1.5, marginTop:4, paddingLeft:8, borderLeft:`2px solid ${C.border}` }}>
@@ -1391,7 +1339,98 @@ function SuggestedContentCard({ item, agentMode, businessId, businessName, onAdd
           )}
         </div>
       )}
-      {/* Generated content */}
+      {added
+        ? <span style={{ fontSize:11, color:C.ok, fontFamily:FB }}>✓ Added to campaigns →</span>
+        : <button onClick={handleAdd} style={{ ...btn(clr,"#fff",10), padding:"5px 12px" }}>Add to campaigns</button>
+      }
+    </div>
+  );
+}
+
+// ── Suggested Campaign Card (right side — content generation for suggested items) ──
+
+function SuggestedCampaignCard({ campaign:c, agentMode, businessId, businessName, onUpdate, onDelete }) {
+  const [loading,       setLoading]       = useState(false);
+  const [result,        setResult]        = useState(null);
+  const [composedBlob,  setComposedBlob]  = useState(null);
+  const [error,         setError]         = useState("");
+  const [copied,        setCopied]        = useState(false);
+  const [showRationale, setShowRationale] = useState(false);
+  const [markedPosted,  setMarkedPosted]  = useState(c.status==="monitoring");
+
+  const TYPE_CLR = { post:"#3B82F6", update:"#10B981", article:"#8B5CF6", newsletter:"#F59E0B", schedule:"#EC4899" };
+  const clr = TYPE_CLR[c.type] || C.primary;
+
+  const composedUrl = useMemo(()=>composedBlob?URL.createObjectURL(composedBlob):null,[composedBlob]);
+  useEffect(()=>()=>{ if (composedUrl) URL.revokeObjectURL(composedUrl); },[composedUrl]);
+
+  const generate = async () => {
+    setLoading(true); setError(""); setResult(null); setComposedBlob(null);
+    try {
+      const data = await api.agents.contentLab(businessId, {
+        channel: c.channel || "general",
+        context: c.topic,
+        tone: c.tone || "professional",
+      });
+      setResult(data);
+      if (data.imageUrl && businessName && !data.isVideo && data.imageSource?.startsWith("gpt-image")) {
+        try {
+          const blob = await generatePostImageBlob(businessName, data.body||data.caption, data.imageUrl);
+          setComposedBlob(blob);
+        } catch {}
+      }
+      onUpdate({ ...c, status:"active", generatedContent:data });
+    } catch(e) { setError(e.message); }
+    setLoading(false);
+  };
+
+  const copy = async () => {
+    const text = [result?.body||result?.caption, result?.hashtags].filter(Boolean).join("\n\n");
+    try { await navigator.clipboard.writeText(text); } catch {}
+    setCopied(true); setTimeout(()=>setCopied(false), 2000);
+  };
+
+  const downloadImage = () => {
+    if (!composedBlob) return;
+    const url = URL.createObjectURL(composedBlob);
+    const a   = document.createElement("a"); a.href=url;
+    a.download = `${(c.title||"post").replace(/\s+/g,"-").toLowerCase()}.png`;
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  };
+
+  return (
+    <div style={{ ...card("12px 14px"), marginBottom:10, border:`1px solid ${clr}20` }}>
+      <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", marginBottom:6 }}>
+        <div style={{ flex:1, paddingRight:8 }}>
+          <div style={{ display:"flex", gap:5, marginBottom:4, flexWrap:"wrap", alignItems:"center" }}>
+            {c.type && <span style={{ fontSize:9, fontWeight:700, padding:"2px 7px", borderRadius:20, background:`${clr}20`, color:clr, textTransform:"uppercase", fontFamily:FB }}>{c.type}</span>}
+            {c.channel && <span style={{ fontSize:9, fontWeight:600, padding:"2px 7px", borderRadius:20, background:C.primaryBg, color:C.primary, fontFamily:FB }}>{CH_LABELS[c.channel]||c.channel}</span>}
+          </div>
+          <div style={{ fontSize:13, fontWeight:600, fontFamily:FH, lineHeight:1.4 }}>{c.title}</div>
+        </div>
+        <button onClick={()=>onDelete(c.id)} style={{ background:"none", border:"none", cursor:"pointer", color:C.muted, fontSize:16, padding:0, flexShrink:0 }}>×</button>
+      </div>
+      {(c.tone||c.topic) && (
+        <div style={{ fontSize:11, color:C.muted, fontFamily:FB, lineHeight:1.5, marginBottom:6 }}>
+          {c.tone && <span style={{ fontStyle:"italic" }}>{c.tone}</span>}
+          {c.tone && c.topic && " — "}
+          {c.topic}
+        </div>
+      )}
+      {c.rationale && (
+        <div style={{ marginBottom:8 }}>
+          <button onClick={()=>setShowRationale(o=>!o)}
+            style={{ background:"none", border:"none", cursor:"pointer", fontSize:10, color:C.muted, fontFamily:FB, padding:0, display:"flex", alignItems:"center", gap:4 }}>
+            {showRationale?"▲":"▼"} Why this?
+          </button>
+          {showRationale && (
+            <div style={{ fontSize:11, color:C.muted, fontFamily:FB, lineHeight:1.5, marginTop:4, paddingLeft:8, borderLeft:`2px solid ${C.border}` }}>
+              {c.rationale}
+            </div>
+          )}
+        </div>
+      )}
       {result && (
         <div style={{ background:C.primaryBg, borderRadius:8, padding:"8px 10px", marginBottom:8 }}>
           {composedUrl && <img src={composedUrl} alt="Generated" style={{ width:"100%", borderRadius:6, marginBottom:8, display:"block" }} />}
@@ -1400,21 +1439,31 @@ function SuggestedContentCard({ item, agentMode, businessId, businessName, onAdd
         </div>
       )}
       {error && <p style={{ fontSize:11, color:C.err, fontFamily:FB, marginBottom:6 }}>{error}</p>}
-      {/* Actions */}
-      {!result && (
-        <button onClick={handleAdd} disabled={loading}
-          style={{ ...btn(loading?"#9CA3AF":clr,"#fff",10), padding:"5px 12px", display:"flex", alignItems:"center", gap:5 }}>
-          {loading && <span style={spin()}/>}
-          {loading ? "Generating…" : agentMode==="guided" ? "Generate & add to campaigns" : "Generate content"}
-        </button>
-      )}
-      {result && (
-        <div style={{ display:"flex", gap:6, flexWrap:"wrap", alignItems:"center" }}>
-          <button onClick={copy} style={{ ...btnO(C.primary,10), padding:"4px 10px" }}>{copied?"Copied!":"Copy text"}</button>
-          {composedBlob && <button onClick={downloadImage} style={{ ...btnO(C.muted,10), padding:"4px 10px" }}>Download image</button>}
-          {added && <span style={{ fontSize:10, color:C.ok, fontFamily:FB }}>✓ Added to campaigns</span>}
-        </div>
-      )}
+      <div style={{ display:"flex", gap:6, flexWrap:"wrap", alignItems:"center" }}>
+        {!result ? (
+          <button onClick={generate} disabled={loading}
+            style={{ ...btn(loading?"#9CA3AF":C.primary,"#fff",11), padding:"5px 12px", display:"flex", alignItems:"center", gap:5 }}>
+            {loading && <span style={spin()}/>}
+            {loading ? "Generating…" : "Generate"}
+          </button>
+        ) : (
+          <>
+            <button onClick={generate} disabled={loading}
+              style={{ ...btnO(C.muted,10), padding:"4px 10px" }}>
+              {loading ? "…" : "Regenerate"}
+            </button>
+            <button onClick={copy} style={{ ...btnO(C.primary,10), padding:"4px 10px" }}>{copied?"Copied!":"Copy"}</button>
+            {composedBlob && <button onClick={downloadImage} style={{ ...btnO(C.muted,10), padding:"4px 10px" }}>Download</button>}
+            {agentMode==="guided" && !markedPosted && (
+              <button onClick={()=>{ setMarkedPosted(true); onUpdate({...c,status:"monitoring",completedAt:new Date().toISOString()}); }}
+                style={{ ...btn(C.ok,"#fff",10), padding:"4px 10px", marginLeft:"auto" }}>
+                ✓ Mark as posted
+              </button>
+            )}
+            {markedPosted && <span style={{ fontSize:11, color:C.ok, fontFamily:FB, marginLeft:"auto" }}>Posted ✓</span>}
+          </>
+        )}
+      </div>
     </div>
   );
 }
@@ -1819,7 +1868,7 @@ const QUICK_TYPES = [
   { id:"newsletter", label:"Create Newsletter", channels:["email"],                        default:"email",
     hint:"Newsletter focus — e.g. 'Monthly customer roundup'" },
   { id:"schedule",   label:"Content Schedule",  channels:[],                              default:null,
-    hint:"30-day content calendar with ideas and briefs per channel" },
+    hint:"30-day content calendar with ideas and briefs per channel", proOnly:true },
 ];
 
 function ContentSchedulePanel({ businessId, businessName }) {
@@ -1953,18 +2002,63 @@ function ContentSchedulePanel({ businessId, businessName }) {
   );
 }
 
-function MarketInsightCard({ campaign:c, onDelete }) {
+function MarketInsightCard({ campaign:c, businessId, onUpdate, onDelete }) {
+  const [loading,  setLoading]  = useState(false);
+  const [error,    setError]    = useState("");
+  const [tasks,    setTasks]    = useState(c.tasks || []);
+
+  const getActionSteps = async () => {
+    setLoading(true); setError("");
+    try {
+      const data = await api.agents.campaignBreakdown(businessId, {
+        campaign: { ...c, mode: "guided", status: "active" },
+      });
+      const newTasks = data.tasks || [];
+      setTasks(newTasks);
+      onUpdate({ ...c, tasks: newTasks });
+    } catch(e) { setError(e.message); }
+    setLoading(false);
+  };
+
+  const toggleTask = (idx) => {
+    const updated = tasks.map((t, i) => i === idx ? { ...t, done: !t.done } : t);
+    setTasks(updated);
+    onUpdate({ ...c, tasks: updated });
+  };
+
   return (
     <div style={{ ...card("12px 14px"), marginBottom:10, border:"1px solid #8B5CF620", background:"#F5F3FF" }}>
       <div style={{ display:"flex", gap:6, marginBottom:6, flexWrap:"wrap", alignItems:"center" }}>
         <span style={{ fontSize:9, fontWeight:700, background:"#8B5CF6", color:"#fff", padding:"2px 8px", borderRadius:20, textTransform:"uppercase", letterSpacing:"0.06em", fontFamily:FB }}>Market Insight</span>
         {c.channel&&<span style={{ background:C.primaryBg, color:C.primary, fontSize:9, fontWeight:600, padding:"2px 8px", borderRadius:20, fontFamily:FB }}>{CH_LABELS[c.channel]||c.channel}</span>}
-        <span style={{ fontSize:10, color:"#7C3AED", fontFamily:FB, marginLeft:"auto", fontStyle:"italic" }}>Requires manual planning</span>
+        <span style={{ fontSize:10, color:"#7C3AED", fontFamily:FB, marginLeft:"auto", fontStyle:"italic" }}>Manual action required</span>
         <button onClick={()=>onDelete(c.id)} style={{ background:"none", border:"none", cursor:"pointer", color:C.muted, fontSize:18, padding:"0 2px", lineHeight:1, marginLeft:4 }}>×</button>
       </div>
       <p style={{ fontSize:13, fontWeight:600, color:C.text, fontFamily:FH, marginBottom:4, lineHeight:1.4 }}>{c.title}</p>
-      {c.rationale&&<p style={{ fontSize:12, color:C.muted, fontFamily:FB, lineHeight:1.55, marginBottom:4 }}>{c.rationale}</p>}
-      {c.expectedImpact&&<p style={{ fontSize:11, color:C.ok, fontFamily:FB }}>{c.expectedImpact}</p>}
+      {c.rationale&&<p style={{ fontSize:12, color:C.muted, fontFamily:FB, lineHeight:1.55, marginBottom:6 }}>{c.rationale}</p>}
+      {c.expectedImpact&&<p style={{ fontSize:11, color:C.ok, fontFamily:FB, marginBottom:6 }}>{c.expectedImpact}</p>}
+      {/* Task checklist */}
+      {tasks.length > 0 && (
+        <div style={{ marginBottom:8 }}>
+          {tasks.map((t, i) => (
+            <label key={i} style={{ display:"flex", alignItems:"flex-start", gap:7, cursor:"pointer", marginBottom:5 }}>
+              <input type="checkbox" checked={!!t.done} onChange={()=>toggleTask(i)}
+                style={{ marginTop:2, accentColor:"#8B5CF6", flexShrink:0 }} />
+              <span style={{ fontSize:12, color: t.done ? C.muted : C.text, fontFamily:FB, lineHeight:1.45,
+                textDecoration: t.done ? "line-through" : "none" }}>
+                {t.title || t.text || t}
+                {t.description && <span style={{ display:"block", fontSize:11, color:C.muted, marginTop:1 }}>{t.description}</span>}
+              </span>
+            </label>
+          ))}
+        </div>
+      )}
+      {error && <p style={{ fontSize:11, color:C.err, fontFamily:FB, marginBottom:6 }}>{error}</p>}
+      <button onClick={getActionSteps} disabled={loading}
+        style={{ ...btn(loading?"#9CA3AF":"#8B5CF6","#fff",10), padding:"5px 12px", display:"flex", alignItems:"center", gap:5 }}>
+        {loading && <span style={spin()}/>}
+        {loading ? "Loading…" : tasks.length > 0 ? "Refresh action steps" : "Get action steps"}
+      </button>
     </div>
   );
 }
@@ -2000,8 +2094,9 @@ function QuickCreatePanel({ businessId, businessName, plan, agentMode }) {
   useEffect(()=>()=>{ if (videoUrl) URL.revokeObjectURL(videoUrl); },[videoUrl]);
 
   const selectType = (typeId) => {
-    if (typeId===activeType) { setActiveType(null); return; }
     const cfg = QUICK_TYPES.find(t=>t.id===typeId);
+    if (cfg?.proOnly && isStarter) { setHighlightPlan("pro"); setShowPlans(true); return; }
+    if (typeId===activeType) { setActiveType(null); return; }
     setActiveType(typeId);
     if (cfg?.default) setChannel(cfg.default);
     setResult(null); setComposedBlob(null); setVideoBlob(null);
@@ -2063,11 +2158,14 @@ function QuickCreatePanel({ businessId, businessName, plan, agentMode }) {
         {QUICK_TYPES.map(t=>(
           <button key={t.id} onClick={()=>selectType(t.id)} style={{
             fontSize:11, fontWeight:600, fontFamily:FB,
-            padding:"7px 13px", borderRadius:20, cursor:"pointer",
+            padding:"7px 13px", borderRadius:20, cursor:"pointer", position:"relative",
             border: activeType===t.id ? `1.5px solid ${C.primary}` : `1.5px solid ${C.border}`,
             background: activeType===t.id ? C.primaryBg : "#fff",
             color: activeType===t.id ? C.primary : C.muted,
-          }}>{t.label}</button>
+          }}>
+            {t.label}
+            {t.proOnly && isStarter && <span style={{ position:"absolute", top:-6, right:-4, fontSize:8, background:"#2563EB", color:"#fff", borderRadius:8, padding:"1px 4px", fontWeight:700 }}>PRO</span>}
+          </button>
         ))}
       </div>
 
@@ -2436,15 +2534,15 @@ export default function AgentPanel({ businessId, businessName, metrics, planInfo
   };
 
   // Suggested content campaigns (NOT market insights — don't require manual planning)
-  const addSuggestedContent = ({ title, channel, rationale, contentPreview, tone, topic, type: ctype }) => {
+  const addSuggestedContent = ({ title, channel, rationale, tone, topic, type: ctype }) => {
     const c = {
       id: `sc_${Date.now()}${Math.random().toString(36).slice(2,6)}`,
       title,
       rationale,
       channel,
-      contentPreview,
       tone,
       topic,
+      type: ctype,
       status: "planned",
       mode: agentMode === "auto" ? "auto" : "guided",
       createdAt: new Date().toISOString(),
@@ -2737,7 +2835,7 @@ export default function AgentPanel({ businessId, businessName, metrics, planInfo
                 From your market analysis ({marketInsightCampaigns.length})
               </p>
               {marketInsightCampaigns.map(c=>(
-                <MarketInsightCard key={c.id} campaign={c} onDelete={deleteCampaign} />
+                <MarketInsightCard key={c.id} campaign={c} businessId={businessId} onUpdate={updateCampaign} onDelete={deleteCampaign} />
               ))}
             </div>
           )}
@@ -2749,7 +2847,9 @@ export default function AgentPanel({ businessId, businessName, metrics, planInfo
                 Queued — ready to start ({plannedCampaigns.length})
               </p>
               {plannedCampaigns.map(c=>(
-                <CampaignCard key={c.id} campaign={c} onUpdate={updateCampaign} onDelete={deleteCampaign} businessId={businessId} businessName={businessName} setTab={setTab} activeCampaignCount={activeCampaigns.length} refreshTasks={refreshTasks} stickyNote={stickyAssignments?.[c.id] ? hubNotes?.find(n=>n.id===stickyAssignments[c.id]?.noteId) : null} onAssignSticky={onAssignSticky} onUnstickNote={onUnstickNote} />
+                c.topic && c.tone
+                  ? <SuggestedCampaignCard key={c.id} campaign={c} agentMode={agentMode} businessId={businessId} businessName={businessName} onUpdate={updateCampaign} onDelete={deleteCampaign} />
+                  : <CampaignCard key={c.id} campaign={c} onUpdate={updateCampaign} onDelete={deleteCampaign} businessId={businessId} businessName={businessName} setTab={setTab} activeCampaignCount={activeCampaigns.length} refreshTasks={refreshTasks} stickyNote={stickyAssignments?.[c.id] ? hubNotes?.find(n=>n.id===stickyAssignments[c.id]?.noteId) : null} onAssignSticky={onAssignSticky} onUnstickNote={onUnstickNote} />
               ))}
             </div>
           )}
@@ -2761,7 +2861,9 @@ export default function AgentPanel({ businessId, businessName, metrics, planInfo
                 Active ({activeCampaigns.length})
               </p>
               {activeCampaigns.map(c=>(
-                <CampaignCard key={c.id} campaign={c} onUpdate={updateCampaign} onDelete={deleteCampaign} businessId={businessId} businessName={businessName} setTab={setTab} activeCampaignCount={activeCampaigns.length} refreshTasks={refreshTasks} stickyNote={stickyAssignments?.[c.id] ? hubNotes?.find(n=>n.id===stickyAssignments[c.id]?.noteId) : null} onAssignSticky={onAssignSticky} onUnstickNote={onUnstickNote} />
+                c.topic && c.tone
+                  ? <SuggestedCampaignCard key={c.id} campaign={c} agentMode={agentMode} businessId={businessId} businessName={businessName} onUpdate={updateCampaign} onDelete={deleteCampaign} />
+                  : <CampaignCard key={c.id} campaign={c} onUpdate={updateCampaign} onDelete={deleteCampaign} businessId={businessId} businessName={businessName} setTab={setTab} activeCampaignCount={activeCampaigns.length} refreshTasks={refreshTasks} stickyNote={stickyAssignments?.[c.id] ? hubNotes?.find(n=>n.id===stickyAssignments[c.id]?.noteId) : null} onAssignSticky={onAssignSticky} onUnstickNote={onUnstickNote} />
               ))}
             </div>
           )}
@@ -2781,7 +2883,9 @@ export default function AgentPanel({ businessId, businessName, metrics, planInfo
                 )}
               </div>
               {monitoringCampaigns.map(c=>(
-                <CampaignCard key={c.id} campaign={c} onUpdate={updateCampaign} onDelete={deleteCampaign} businessId={businessId} businessName={businessName} setTab={setTab} activeCampaignCount={activeCampaigns.length} refreshTasks={refreshTasks} stickyNote={stickyAssignments?.[c.id] ? hubNotes?.find(n=>n.id===stickyAssignments[c.id]?.noteId) : null} onAssignSticky={onAssignSticky} onUnstickNote={onUnstickNote} />
+                c.topic && c.tone
+                  ? <SuggestedCampaignCard key={c.id} campaign={c} agentMode={agentMode} businessId={businessId} businessName={businessName} onUpdate={updateCampaign} onDelete={deleteCampaign} />
+                  : <CampaignCard key={c.id} campaign={c} onUpdate={updateCampaign} onDelete={deleteCampaign} businessId={businessId} businessName={businessName} setTab={setTab} activeCampaignCount={activeCampaigns.length} refreshTasks={refreshTasks} stickyNote={stickyAssignments?.[c.id] ? hubNotes?.find(n=>n.id===stickyAssignments[c.id]?.noteId) : null} onAssignSticky={onAssignSticky} onUnstickNote={onUnstickNote} />
               ))}
             </div>
           )}
@@ -2809,7 +2913,9 @@ export default function AgentPanel({ businessId, businessName, metrics, planInfo
                 {showArchived?"▲":"▼"} Archived Campaigns ({archivedCampaigns.length})
               </button>
               {showArchived && archivedCampaigns.map(c=>(
-                <CampaignCard key={c.id} campaign={c} onUpdate={updateCampaign} onDelete={deleteCampaign} businessId={businessId} businessName={businessName} setTab={setTab} activeCampaignCount={activeCampaigns.length} refreshTasks={refreshTasks} stickyNote={stickyAssignments?.[c.id] ? hubNotes?.find(n=>n.id===stickyAssignments[c.id]?.noteId) : null} onAssignSticky={onAssignSticky} onUnstickNote={onUnstickNote} />
+                c.topic && c.tone
+                  ? <SuggestedCampaignCard key={c.id} campaign={c} agentMode={agentMode} businessId={businessId} businessName={businessName} onUpdate={updateCampaign} onDelete={deleteCampaign} />
+                  : <CampaignCard key={c.id} campaign={c} onUpdate={updateCampaign} onDelete={deleteCampaign} businessId={businessId} businessName={businessName} setTab={setTab} activeCampaignCount={activeCampaigns.length} refreshTasks={refreshTasks} stickyNote={stickyAssignments?.[c.id] ? hubNotes?.find(n=>n.id===stickyAssignments[c.id]?.noteId) : null} onAssignSticky={onAssignSticky} onUnstickNote={onUnstickNote} />
               ))}
             </div>
           )}
