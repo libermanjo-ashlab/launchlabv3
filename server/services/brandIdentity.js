@@ -127,6 +127,7 @@ function bootstrapFromIdea(business, idea, integrations, metrics) {
     },
     competitorAccounts: "",
     postingRecommendation: "3-4x/week: 50% tips, 30% social proof, 20% offers or announcements",
+    productDescription: why.slice(0, 200) || `${businessType} services for ${target || "clients"}`,
     populatedBy: "discovery",
     populatedAt: new Date().toISOString(),
   };

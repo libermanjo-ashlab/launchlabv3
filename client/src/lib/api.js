@@ -58,6 +58,7 @@ export const api = {
     testWordPress: (bizId, fields)  => req("POST", `/integrations/${bizId}/wordpress/test`, fields),
     disconnect:    (bizId,p)        => req("POST", `/integrations/${bizId}/${p}/disconnect`),
     saveFields:    (bizId,p,fields) => req("PUT",  `/integrations/${bizId}/${p}`, { fields }),
+    checkViewable: (bizId,p)        => req("POST", `/integrations/${bizId}/${p}/check-viewable`, {}),
   },
 
   instagram: {

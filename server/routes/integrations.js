@@ -61,6 +61,69 @@ router.put("/:businessId/:provider", requireAuth, async (req, res, next) => {
   } catch (e) { next(e); }
 });
 
+// POST /api/integrations/:businessId/:provider/check-viewable
+// Attempts a HEAD request to the channel's public URL, saves result in metadata
+router.post("/:businessId/:provider/check-viewable", requireAuth, async (req, res, next) => {
+  try {
+    const business = await prisma.business.findFirst({ where: { id: req.params.businessId, userId: req.userId } });
+    if (!business) return res.status(404).json({ error: "Business not found" });
+
+    const { provider } = req.params;
+    const existing = await prisma.integration.findFirst({ where: { businessId: req.params.businessId, provider } });
+    let meta = {};
+    try { meta = JSON.parse(existing?.metadata || "{}"); } catch {}
+
+    // Determine the public URL to check per provider
+    const publicUrlMap = {
+      instagram: m => m.handle ? `https://www.instagram.com/${m.handle.replace(/^@/, "")}/` : null,
+      tiktok:    m => m.handle ? `https://www.tiktok.com/@${m.handle.replace(/^@/, "")}` : null,
+      twitter:   m => m.handle ? `https://x.com/${m.handle.replace(/^@/, "")}` : null,
+      google:    m => m.profileUrl || null,
+      website:   m => m.siteUrl || null,
+      calendly:  m => m.bookingUrl ? `https://${m.bookingUrl.replace(/^https?:\/\//, "")}` : null,
+      email:     m => null, // no public URL for email
+      facebook:  m => m.handle ? `https://www.facebook.com/${m.handle.replace(/^@/, "")}` : null,
+      linkedin:  m => m.handle ? `https://www.linkedin.com/company/${m.handle.replace(/^@/, "")}` : null,
+    };
+
+    const getUrl = publicUrlMap[provider];
+    const publicUrl = getUrl ? getUrl(meta) : null;
+
+    let viewableStatus = "not_connected";
+
+    if (!publicUrl) {
+      // Email: viewable if address field is non-empty
+      if (provider === "email" && meta.address && meta.address.includes("@")) viewableStatus = "viewable";
+    } else {
+      try {
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), 6000);
+        const resp = await fetch(publicUrl, {
+          method: "HEAD",
+          headers: { "User-Agent": "Mozilla/5.0 (compatible; EarnedLab/1.0)" },
+          signal: controller.signal,
+          redirect: "follow",
+        });
+        clearTimeout(timeout);
+        // 200-399 or 403 (bot protection) = page exists = viewable
+        if (resp.status < 500) viewableStatus = "viewable";
+      } catch {
+        viewableStatus = "not_connected";
+      }
+    }
+
+    // Save status to metadata
+    const updatedMeta = { ...meta, _viewableStatus: viewableStatus, _viewableCheckedAt: new Date().toISOString() };
+    const intg = await prisma.integration.upsert({
+      where: { businessId_provider: { businessId: req.params.businessId, provider } },
+      update: { metadata: JSON.stringify(updatedMeta) },
+      create: { businessId: req.params.businessId, provider, status: "manual", metadata: JSON.stringify(updatedMeta) },
+    });
+
+    res.json({ integration: intg, viewableStatus });
+  } catch (e) { next(e); }
+});
+
 // POST /api/integrations/:businessId/:provider/disconnect
 router.post("/:businessId/:provider/disconnect", requireAuth, async (req, res, next) => {
   try {

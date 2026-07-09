@@ -2136,12 +2136,24 @@ export default function Hub() {
   const askMgmt = async()=>{ if(!mgmtQ.trim())return; setHubLoading(true); try{const{suggestion}=await api.metrics.suggest(businessId,mgmtQ,prefs);setMgmtAns(suggestion);}catch(e){setMgmtAns("Error: "+e.message);} setHubLoading(false); setMgmtQ(""); };
   const sendChat = async msg=>{ setChatMsgs(p=>[...p,{role:"user",text:msg}]); try{const{reply}=await api.generate.chat(msg,businessId);setChatMsgs(p=>[...p,{role:"ai",text:reply}]);}catch{setChatMsgs(p=>[...p,{role:"ai",text:"Sorry, couldn't process that."}]);} };
 
+  const VIEWABLE_FIELDS = {
+    instagram:"handle", tiktok:"handle", twitter:"handle",
+    facebook:"handle",  linkedin:"handle",
+    google:"profileUrl", website:"siteUrl", calendly:"bookingUrl", email:"address",
+  };
   const saveIntegFields = async (provider, vals) => {
     const intg = await api.integrations.saveFields(businessId, provider, vals);
     setIntegs(p => {
       const existing = p.find(i=>i.provider===provider);
       return existing ? p.map(i=>i.provider===provider?intg.integration:i) : [...p, intg.integration];
     });
+    const vf = VIEWABLE_FIELDS[provider];
+    if (vf && vals[vf] !== undefined) {
+      try {
+        const checked = await api.integrations.checkViewable(businessId, provider);
+        setIntegs(p => p.map(i=>i.provider===provider?checked.integration:i));
+      } catch { /* silent — viewable check is best-effort */ }
+    }
   };
 
   if(loading) return (

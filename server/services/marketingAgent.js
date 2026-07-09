@@ -28,6 +28,38 @@ async function chatStructured(prompt, schema, toolName, max = 3000) {
   return block.input;
 }
 
+// ── Channel status rules ──────────────────────────────────────────────────────
+// Defines which fields indicate viewable (public identifier) vs connected (API credentials)
+
+const CHANNEL_STATUS_RULES = {
+  instagram: { viewableField:"handle",     connectedFields:["accessToken","businessAccountId"] },
+  tiktok:    { viewableField:"handle",     connectedFields:["accessToken","clientKey"] },
+  twitter:   { viewableField:"handle",     connectedFields:["apiKey","accessToken"] },
+  google:    { viewableField:"profileUrl", connectedFields:[] },
+  website:   { viewableField:"siteUrl",    connectedFields:["wpAppPassword","analyticsId"] },
+  calendly:  { viewableField:"bookingUrl", connectedFields:[] },
+  email:     { viewableField:"address",    connectedFields:["apiKey"] },
+  facebook:  { viewableField:"handle",     connectedFields:["accessToken"] },
+  linkedin:  { viewableField:"handle",     connectedFields:["accessToken"] },
+};
+
+// Returns "connected" | "viewable" | "not_connected"
+function determineChannelStatus(provider, meta) {
+  const rule = CHANNEL_STATUS_RULES[provider];
+  if (!rule) return "not_connected";
+  // API credentials present → connected
+  if (rule.connectedFields.some(f => typeof meta[f] === "string" && meta[f].length > 4)) return "connected";
+  // Stored check result (from Hub check-viewable call)
+  if (meta._viewableStatus === "viewable") return "viewable";
+  if (meta._viewableStatus === "not_connected") return "not_connected";
+  // Infer from field presence (before any check has run)
+  if (typeof meta[rule.viewableField] === "string" && meta[rule.viewableField].length > 2) return "viewable";
+  return "not_connected";
+}
+
+// Exposed for reuse in routes
+module.exports.determineChannelStatus = determineChannelStatus;
+
 // ── Channel stat collection ───────────────────────────────────────────────────
 
 async function collectTwitterStats(meta) {
@@ -133,176 +165,214 @@ async function collectInstagramStats(meta) {
 
 // ── Report generation ─────────────────────────────────────────────────────────
 
-async function runEnhancedMarketingAgent(business, metrics, intake, integrations) {
+// Predicted token cost per content type when user clicks "Generate now"
+const CONTENT_TOKEN_COSTS = {
+  post: 2500, update: 600, article: 1500, newsletter: 1000, schedule: 4000, manual: 0,
+};
+
+// Max suggested content per run based on plan (daily_limit/2 divided by avg cost ~1200)
+const MAX_SUGGESTIONS_PER_RUN = { trial: 2, starter: 2, pro: 4, pro_autopilot: 6 };
+
+async function runEnhancedMarketingAgent(business, metrics, intake, integrations, opts = {}) {
+  const { brandIdentity = {}, previousAnalysis = null, plan = "starter" } = opts;
   let idea = {};
   try { idea = JSON.parse(business.ideaData || "{}"); } catch {}
   const prefs = metrics.prefs || {};
   const today = new Date().toLocaleDateString("en-US", { weekday:"long", month:"long", day:"numeric", year:"numeric" });
 
-  // Build per-channel context
-  const channelLines = [];
-  const liveStats = {};
+  // ── Determine channel status and collect live data ──────────────────────────
+  const channelLines  = [];
+  const viewableLines = [];
+  const liveStats     = {};
+  const channelStatuses = {}; // provider → "connected" | "viewable" | "not_connected"
 
   for (const intg of (integrations || [])) {
     let meta = {};
     try { meta = JSON.parse(intg.metadata || "{}"); } catch {}
-    const hasCredentials = meta.accessToken || meta.apiKey || meta.handle || meta.spreadsheetId;
-    if (!hasCredentials && intg.status !== "connected") continue;
+    const status = determineChannelStatus(intg.provider, meta);
+    channelStatuses[intg.provider] = status;
+    if (status === "not_connected") continue;
 
     if (intg.provider === "instagram") {
-      const stats = await collectInstagramStats(meta);
-      if (stats) {
-        liveStats.instagram = stats;
-        const postAlert = stats.lastPostDaysAgo === null
-          ? "No posts found"
-          : stats.lastPostDaysAgo === 0 ? "Posted today"
-          : stats.lastPostDaysAgo === 1 ? "Posted yesterday"
-          : `Last post was ${stats.lastPostDaysAgo} days ago`;
-        channelLines.push(
-          `INSTAGRAM (@${stats.username || "account"}): ${stats.followers.toLocaleString()} followers, ` +
-          `${stats.mediaCount} total posts, ${postAlert}, avg ${stats.avgLikes} likes/post`
-        );
+      if (status === "connected") {
+        const stats = await collectInstagramStats(meta);
+        if (stats) {
+          liveStats.instagram = stats;
+          const postAlert = stats.lastPostDaysAgo === null ? "no posts yet"
+            : stats.lastPostDaysAgo === 0 ? "posted today"
+            : stats.lastPostDaysAgo === 1 ? "posted yesterday"
+            : `last post ${stats.lastPostDaysAgo} days ago`;
+          channelLines.push(
+            `INSTAGRAM (@${stats.username || meta.handle || "account"}) [CONNECTED]: ` +
+            `${stats.followers.toLocaleString()} followers, ${stats.mediaCount} posts, ${postAlert}, avg ${stats.avgLikes} likes/post`
+          );
+        } else {
+          channelLines.push(`INSTAGRAM (@${meta.handle || "account"}) [CONNECTED]: credentials set — could not fetch live stats`);
+        }
       } else {
-        channelLines.push(`INSTAGRAM: Connected (credentials set) — could not fetch live stats`);
+        viewableLines.push(`INSTAGRAM (@${meta.handle?.replace("@","") || "handle"}) [VIEWABLE]: public profile set — general best-practice insights apply`);
       }
     } else if (intg.provider === "twitter") {
-      const stats = await collectTwitterStats(meta);
-      if (stats) {
-        liveStats.twitter = stats;
-        const tweetAlert = stats.lastTweetDaysAgo === null ? "No tweets found"
-          : stats.lastTweetDaysAgo === 0 ? "Tweeted today"
-          : stats.lastTweetDaysAgo === 1 ? "Tweeted yesterday"
-          : `Last tweet ${stats.lastTweetDaysAgo} days ago`;
-        channelLines.push(
-          `X / TWITTER (@${stats.username}): ${stats.followers.toLocaleString()} followers, ` +
-          `${stats.tweetCount} total tweets, ${tweetAlert}, avg ${stats.avgLikes} likes/tweet`
-        );
-      } else if (meta.handle) {
-        channelLines.push(`X / TWITTER (@${meta.handle.replace("@","")}): Handle set — no live stats (connect via OAuth for full analytics)`);
+      if (status === "connected") {
+        const stats = await collectTwitterStats(meta);
+        if (stats) {
+          liveStats.twitter = stats;
+          const alert = stats.lastTweetDaysAgo === null ? "no tweets" : `last tweet ${stats.lastTweetDaysAgo} days ago`;
+          channelLines.push(
+            `X / TWITTER (@${stats.username}) [CONNECTED]: ${stats.followers.toLocaleString()} followers, ${stats.tweetCount} tweets, ${alert}, avg ${stats.avgLikes} likes/tweet`
+          );
+        } else {
+          channelLines.push(`X / TWITTER (@${meta.handle?.replace("@","")}) [CONNECTED]: credentials set — could not fetch live stats`);
+        }
+      } else {
+        viewableLines.push(`X / TWITTER (@${meta.handle?.replace("@","") || "handle"}) [VIEWABLE]: handle set`);
       }
     } else if (intg.provider === "tiktok") {
-      const stats = await collectTikTokStats(meta);
-      if (stats) {
-        liveStats.tiktok = stats;
-        channelLines.push(
-          `TIKTOK (@${stats.username}): ${stats.followers.toLocaleString()} followers, ` +
-          `${stats.videoCount} videos, ${stats.likes.toLocaleString()} total likes, avg ${stats.avgViews} views/video`
-        );
-      } else if (meta.handle) {
-        channelLines.push(`TIKTOK (@${meta.handle.replace("@","")}): Handle set — no live stats (connect via OAuth for full analytics)`);
+      if (status === "connected") {
+        const stats = await collectTikTokStats(meta);
+        if (stats) {
+          liveStats.tiktok = stats;
+          channelLines.push(
+            `TIKTOK (@${stats.username}) [CONNECTED]: ${stats.followers.toLocaleString()} followers, ${stats.videoCount} videos, avg ${stats.avgViews} views/video`
+          );
+        } else {
+          channelLines.push(`TIKTOK (@${meta.handle?.replace("@","")}) [CONNECTED]: credentials set — could not fetch live stats`);
+        }
+      } else {
+        viewableLines.push(`TIKTOK (@${meta.handle?.replace("@","") || "handle"}) [VIEWABLE]: handle set`);
       }
     } else if (intg.provider === "email") {
-      const stats = await collectEmailStats(meta);
-      if (stats) {
-        liveStats.email = stats;
-        const detail = stats.subscribers
-          ? `${stats.subscribers.toLocaleString()} subscribers, ${stats.openRate || 0}% open rate`
-          : `${stats.emailsSent || meta.emailsSent || 0} sent, ${stats.openRate || meta.openRate || 0}% open rate`;
-        channelLines.push(`EMAIL (${stats.provider || meta.provider || "connected"}): ${detail}`);
-      } else if (meta.address) {
-        channelLines.push(`EMAIL (${meta.provider || "connected"}): ${meta.address} — ${meta.emailsSent || 0} sent, ${meta.openRate || 0}% open rate`);
+      if (status === "connected") {
+        const stats = await collectEmailStats(meta);
+        if (stats) {
+          liveStats.email = stats;
+          const detail = stats.subscribers
+            ? `${stats.subscribers.toLocaleString()} subscribers, ${stats.openRate || 0}% open rate`
+            : `${stats.emailsSent || meta.emailsSent || 0} sent, ${stats.openRate || meta.openRate || 0}% open rate`;
+          channelLines.push(`EMAIL [CONNECTED] (${stats.provider || meta.provider || "email"}): ${meta.address} — ${detail}`);
+        } else {
+          channelLines.push(`EMAIL [CONNECTED]: ${meta.address} — ${meta.emailsSent || 0} sent`);
+        }
+      } else {
+        viewableLines.push(`EMAIL [VIEWABLE]: ${meta.address} — address set, no API connected`);
       }
     } else if (intg.provider === "website") {
-      const stats = await collectWordPressStats(meta);
-      if (stats) {
-        liveStats.website = stats;
-        channelLines.push(
-          `WEBSITE (WordPress): ${stats.siteUrl}, ${stats.pageCount} pages, ${stats.recentPosts} recent posts` +
-          (stats.latestPost ? `, latest: "${stats.latestPost}"` : "")
-        );
-      } else if (meta.siteUrl || meta.liveUrl) {
-        channelLines.push(`WEBSITE: Live at ${meta.liveUrl || meta.siteUrl} (${meta.host || "custom host"})`);
+      if (status === "connected") {
+        const stats = await collectWordPressStats(meta);
+        if (stats) {
+          liveStats.website = stats;
+          channelLines.push(
+            `WEBSITE [CONNECTED] (WordPress): ${stats.siteUrl}, ${stats.pageCount} pages, ${stats.recentPosts} recent posts` +
+            (stats.latestPost ? `, latest: "${stats.latestPost}"` : "")
+          );
+        } else {
+          channelLines.push(`WEBSITE [CONNECTED]: ${meta.siteUrl || meta.liveUrl} (${meta.host || "custom host"})`);
+        }
+      } else {
+        viewableLines.push(`WEBSITE [VIEWABLE]: ${meta.siteUrl || meta.liveUrl || "URL set"} (${meta.host || "custom host"})`);
       }
     } else if (intg.provider === "netlify") {
-      if (meta.liveUrl) channelLines.push(`WEBSITE (Netlify): Live at ${meta.liveUrl}`);
+      if (meta.liveUrl) viewableLines.push(`WEBSITE (Netlify) [VIEWABLE]: live at ${meta.liveUrl}`);
     } else if (intg.provider === "google") {
-      channelLines.push(`GOOGLE BUSINESS: Connected — ${metrics.social?.google_reviews || 0} reviews, ${metrics.social?.google_rating || 0}★ rating`);
+      if (status === "connected" || meta.profileUrl) {
+        viewableLines.push(`GOOGLE BUSINESS [${status.toUpperCase()}]: profile URL set`);
+      }
     } else if (intg.provider === "calendly" && meta.bookingUrl) {
-      channelLines.push(`CALENDLY: Booking link set — ${meta.bookingUrl}`);
-    } else {
-      channelLines.push(`${intg.provider.toUpperCase()}: Connected`);
+      viewableLines.push(`CALENDLY [VIEWABLE]: booking link set — ${meta.bookingUrl}`);
     }
   }
 
-  const channelSection = channelLines.length > 0
-    ? channelLines.join("\n")
-    : "No channels connected — provide general advice and suggest connecting channels for richer insights";
+  const allChannelLines = [
+    ...(channelLines.length  ? ["── CONNECTED (private analytics available) ──", ...channelLines]  : []),
+    ...(viewableLines.length ? ["── VIEWABLE (public info only) ──",              ...viewableLines] : []),
+  ];
+  const channelSection = allChannelLines.length > 0
+    ? allChannelLines.join("\n")
+    : "No marketing channels set up yet — provide general strategy advice and suggest which channels to start with";
+
+  // ── Brand identity context ──────────────────────────────────────────────────
+  const brandSection = [
+    brandIdentity.productDescription && `Product/Service: ${brandIdentity.productDescription}`,
+    brandIdentity.targetAudience     && `Target audience: ${brandIdentity.targetAudience}`,
+    brandIdentity.voice              && `Brand voice: ${brandIdentity.voice}`,
+    brandIdentity.visualStyle        && `Visual style: ${brandIdentity.visualStyle}`,
+    brandIdentity.colorPalette       && `Color palette: ${brandIdentity.colorPalette}`,
+    brandIdentity.contentPillars?.length && `Content pillars: ${Array.isArray(brandIdentity.contentPillars) ? brandIdentity.contentPillars.join(", ") : brandIdentity.contentPillars}`,
+    brandIdentity.competitorAccounts && `Competitor/inspiration accounts: ${brandIdentity.competitorAccounts}`,
+    brandIdentity.postingRecommendation && `Current posting strategy: ${brandIdentity.postingRecommendation}`,
+  ].filter(Boolean).join("\n");
+
+  // ── Previous analysis for change comparison ─────────────────────────────────
+  const prevSection = previousAnalysis
+    ? `PREVIOUS ANALYSIS (${new Date(previousAnalysis.ranAt || 0).toLocaleDateString()}):
+${previousAnalysis.report?.marketAnalysis?.summary || ""}
+Key observations: ${(previousAnalysis.insights||[]).slice(0,3).map(i=>i.recommendation||i.title).join("; ") || "none"}
+
+Compare: no change since last run = action is needed. Negative trends = change strategy. Positive trends = maintain strategy.`
+    : "";
 
   const audienceNote = prefs.audience === "local"
     ? `Local business serving ${business.location}`
-    : prefs.audience === "global" ? "Global/online business — no location-specific language"
-    : prefs.audience === "national" ? "National audience"
-    : prefs.targetMarket ? `Niche audience: ${prefs.targetMarket}` : "General audience";
+    : prefs.audience === "global" ? "Global/online business"
+    : prefs.targetMarket ? `Target market: ${prefs.targetMarket}` : "";
 
   const stageNote = {
     starting: "Just starting — focus on first clients, brand visibility, quick wins",
-    growing: "Growing — focus on consistency, reviews, referrals",
-    scaling: "Scaling — focus on efficiency, content volume, paid acquisition",
+    growing:  "Growing — focus on consistency, reviews, referrals",
+    scaling:  "Scaling — focus on efficiency, content volume, paid acquisition",
     established: "Established — focus on retention, upsells, new revenue streams",
-  }[prefs.stage] || "Early stage";
+  }[prefs.stage] || "";
 
-  const prompt = `
-You are the senior marketing strategist for "${business.name}" (${idea.name || business.name}).
+  const maxSuggestions = MAX_SUGGESTIONS_PER_RUN[plan] || 2;
+
+  const prompt = `You are the senior marketing strategist for "${business.name}" (${idea.name || business.name}).
 Today: ${today}
 ${audienceNote}
-Stage: ${stageNote}
-${prefs.goals ? `Owner's current goal: ${prefs.goals}` : ""}
+${stageNote}
+${prefs.goals ? `Owner goal: ${prefs.goals}` : ""}
 
-CONNECTED CHANNELS (live data):
+MARKETING CHANNELS:
 ${channelSection}
 
-BUSINESS METRICS:
-- Revenue: $${metrics.revenue?.this_month || 0}/month (last month: $${metrics.revenue?.last_month || 0})
-- Active clients: ${metrics.clients?.active || 0} (total ever: ${metrics.clients?.total || 0})
-- Leads this month: ${metrics.leads?.this_month || 0}
-- Bookings this week: ${metrics.bookings?.this_week || 0}
-- Instagram followers: ${metrics.social?.instagram || liveStats.instagram?.followers || 0}
+BRAND IDENTITY:
+${brandSection || "(not yet configured — infer from business type)"}
 
-Generate a high-quality marketing intelligence report. Be SPECIFIC — reference actual numbers above.
-Suggestions should be immediately actionable TODAY, not vague long-term advice.
+${prevSection}
 
-CONTENT STYLE RULES for Instagram captions:
-- Write like a successful service business that educates its audience
-- Hook first (one punchy sentence), value second (1-2 sentences), CTA third (1 sentence)
-- No emojis, no markdown formatting
-- Mention the business name or its specific service
-- Make it feel authentic, not corporate
-- Hashtags: 10-12 tightly relevant tags on their own line
+ANALYSIS RULES:
+- Focus ONLY on marketing channel performance and content strategy
+- For CONNECTED channels: cite actual numbers (followers, post dates, engagement rates)
+- For VIEWABLE channels: note public-facing signals (handle set, booking link live)
+- Compare to previous run if provided — call out changes (positive/negative/stagnant)
+- Stagnant = bad (action required). Negative = bad (change strategy). Positive = good (maintain + act more)
+- Always generate action items after analysis
 
-SUGGESTION RULES:
-- Title must be SPECIFIC: "Post today on Instagram" not "Increase social presence"
-- Cite the data: "You haven't posted in 4 days" not "Post more often"
-- Max 15 minutes to complete each campaign
-- If a channel has no posts/content: suggest creating the first piece
-- If posting was recent: suggest the next content type (tips, testimonial, offer, etc.)
+BRAND IDENTITY UPDATES:
+Analyze the connected/viewable channels and update brand identity fields where you can observe them:
+- colorPalette: dominant colors seen in posts/branding (if observable)
+- visualStyle: content style observed (photography, graphics, video, etc.)
+- voice: tone of captions/copy observed
+- competitorAccounts: accounts in the same space worth tracking (comma-separated handles)
+- postingRecommendation: optimal posting schedule based on what you see working
 
-Return JSON matching the schema exactly.
-`;
+SUGGESTED CONTENT:
+Generate exactly ${maxSuggestions} high-priority content suggestions. Each must be immediately actionable.
+Order by priority (high first). Include the specific channel, tone, and topic for each — these will pre-fill the content generator.
+Topic must be SPECIFIC: "Share before/after results from this week's client project" not "Post about your work".
+Map to types: post=Instagram/TikTok/Facebook visual, update=Twitter/Website/Google short text, article=LinkedIn long-form, newsletter=Email, schedule=content calendar.
+
+Return JSON matching the schema exactly.`;
 
   const schema = {
     type: "object",
     properties: {
-      channelStats: {
-        type: "array",
-        items: {
-          type: "object",
-          properties: {
-            channel:    { type: "string" },
-            label:      { type: "string" },
-            connected:  { type: "boolean" },
-            score:      { type: "number" },
-            highlights: { type: "array", items: { type: "string" } },
-            alerts:     { type: "array", items: { type: "string" } },
-          },
-          required: ["channel","label","connected","score","highlights","alerts"],
-        },
-      },
       marketAnalysis: {
         type: "object",
         properties: {
-          summary:             { type: "string" },
-          competitorBehavior:  { type: "string" },
-          opportunities:       { type: "array", items: { type: "string" } },
+          summary:            { type: "string" },
+          competitorBehavior: { type: "string" },
+          opportunities:      { type: "array", items: { type: "string" } },
+          changesSinceLast:   { type: "string" },
         },
         required: ["summary","competitorBehavior","opportunities"],
       },
@@ -318,82 +388,53 @@ Return JSON matching the schema exactly.
             priority:         { type: "string", enum: ["high","medium","low"] },
             estimatedMinutes: { type: "number" },
             expectedImpact:   { type: "string" },
-            tasks: {
-              type: "array",
-              items: {
-                type: "object",
-                properties: {
-                  name:          { type: "string" },
-                  description:   { type: "string" },
-                  estimatedTime: { type: "string" },
-                  canAutomate:   { type: "boolean" },
-                },
-                required: ["name","description","estimatedTime","canAutomate"],
-              },
-            },
             contentPreview: {
               type: "object",
               properties: {
-                instagram: {
-                  type: "object",
-                  properties: {
-                    postType:   { type: "string" },
-                    caption:    { type: "string" },
-                    hashtags:   { type: "string" },
-                    imageNote:  { type: "string" },
-                  },
-                },
-                website: {
-                  type: "object",
-                  properties: {
-                    section:   { type: "string" },
-                    changeType:{ type: "string" },
-                    newContent: { type: "string" },
-                  },
-                },
-                email: {
-                  type: "object",
-                  properties: {
-                    subject:  { type: "string" },
-                    preheader:{ type: "string" },
-                    bodyHook: { type: "string" },
-                    cta:      { type: "string" },
-                  },
-                },
-                tiktok: {
-                  type: "object",
-                  properties: {
-                    concept: { type: "string" },
-                    hook:    { type: "string" },
-                    caption: { type: "string" },
-                  },
-                },
-                twitter: {
-                  type: "object",
-                  properties: {
-                    tweet:   { type: "string" },
-                    thread1: { type: "string" },
-                  },
-                },
-                manual: {
-                  type: "object",
-                  properties: {
-                    tip:   { type: "string" },
-                    steps: { type: "array", items: { type: "string" } },
-                  },
-                },
+                instagram: { type: "object", properties: { postType:{type:"string"}, caption:{type:"string"}, hashtags:{type:"string"} } },
+                website:   { type: "object", properties: { section:{type:"string"}, newContent:{type:"string"} } },
+                email:     { type: "object", properties: { subject:{type:"string"}, bodyHook:{type:"string"}, cta:{type:"string"} } },
+                tiktok:    { type: "object", properties: { concept:{type:"string"}, hook:{type:"string"}, caption:{type:"string"} } },
+                twitter:   { type: "object", properties: { tweet:{type:"string"} } },
+                manual:    { type: "object", properties: { tip:{type:"string"}, steps:{type:"array",items:{type:"string"}} } },
               },
             },
           },
-          required: ["id","title","rationale","channel","priority","estimatedMinutes","expectedImpact","tasks","contentPreview"],
+          required: ["id","title","rationale","channel","priority","estimatedMinutes","expectedImpact","contentPreview"],
+        },
+      },
+      suggestedContent: {
+        type: "array",
+        items: {
+          type: "object",
+          properties: {
+            type:      { type: "string", enum: ["post","update","article","newsletter","schedule","manual"] },
+            channel:   { type: "string" },
+            tone:      { type: "string" },
+            topic:     { type: "string" },
+            rationale: { type: "string" },
+            priority:  { type: "string", enum: ["high","medium","low"] },
+          },
+          required: ["type","channel","tone","topic","rationale","priority"],
+        },
+      },
+      brandIdentityUpdates: {
+        type: "object",
+        properties: {
+          colorPalette:        { type: "string" },
+          visualStyle:         { type: "string" },
+          voice:               { type: "string" },
+          competitorAccounts:  { type: "string" },
+          postingRecommendation: { type: "string" },
+          productDescription:  { type: "string" },
         },
       },
     },
-    required: ["channelStats","marketAnalysis","suggestions"],
+    required: ["marketAnalysis","suggestions","suggestedContent","brandIdentityUpdates"],
   };
 
-  const result = await chatStructured(prompt, schema, "submit_marketing_report", 4000);
-  return { ...result, liveStats, generatedAt: new Date().toISOString() };
+  const result = await chatStructured(prompt, schema, "submit_marketing_report", 5000);
+  return { ...result, liveStats, channelStatuses, generatedAt: new Date().toISOString() };
 }
 
 // ── Manual mode — basic overview from user-inputted stats ─────────────────────
@@ -402,21 +443,21 @@ async function runBasicOverview(business, metrics, integrations) {
   let idea = {};
   try { idea = JSON.parse(business.ideaData || "{}"); } catch {}
 
-  const connectedChannels = (integrations || [])
-    .filter(i => {
-      try { const m = JSON.parse(i.metadata || "{}"); return Object.values(m).some(v => typeof v === "string" && v.length > 3); } catch { return false; }
-    })
-    .map(i => i.provider);
+  const channelSummary = (integrations || []).map(i => {
+    let meta = {};
+    try { meta = JSON.parse(i.metadata || "{}"); } catch {}
+    const status = determineChannelStatus(i.provider, meta);
+    if (status === "not_connected") return null;
+    return `${i.provider} (${status})`;
+  }).filter(Boolean);
 
-  const prompt = `
-You are a marketing advisor giving basic guidance for "${business.name}" (${idea.name || "service business"}).
+  const prompt = `You are a marketing advisor giving basic guidance for "${business.name}" (${idea.name || "service business"}).
 
-Connected channels: ${connectedChannels.join(", ") || "none"}
-Metrics: revenue $${metrics.revenue?.this_month || 0}/mo, clients ${metrics.clients?.active || 0} active, leads ${metrics.leads?.this_month || 0}/mo, Instagram ${metrics.social?.instagram || 0} followers
+Marketing channels: ${channelSummary.join(", ") || "none set up yet"}
 
-Provide a basic marketing overview with general tips. Be concise and practical.
-Do NOT do a deep AI analysis — just surface-level observations and general best practices.
-Note that full AI analysis is available in Guided and Autopilot modes.
+Provide a basic marketing overview with general tips focused on the connected channels.
+Be concise and practical. Focus on channel activity and content strategy, not business metrics.
+Note that full AI analysis with channel data is available in Guided and Autopilot modes.
 `;
 
   const schema = {
@@ -630,4 +671,6 @@ module.exports = {
   runEnhancedMarketingAgent,
   runBasicOverview,
   generateChannelContent,
+  determineChannelStatus,
+  CONTENT_TOKEN_COSTS,
 };

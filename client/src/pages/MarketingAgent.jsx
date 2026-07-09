@@ -1200,10 +1200,13 @@ function ImplementResult({ result, businessId, businessName }) {
 // ── Brand Identity Q&A (manual mode prompts) ─────────────────────────────────
 
 const BRAND_QA = [
-  { key:"voice",          q:"What is your brand voice?",              ph:"e.g. educational, direct, no-fluff" },
-  { key:"targetAudience", q:"Who is your target customer?",           ph:"e.g. freelancers aged 25-35 who struggle with pricing" },
-  { key:"contentPillars", q:"What topics do you post about?",         ph:"e.g. tips, client wins, behind the scenes", isArray:true },
-  { key:"uniqueAngle",    q:"What makes your content different?",     ph:"e.g. we show real revenue numbers, not vague results" },
+  { key:"productDescription",    q:"What is your product/service?",          ph:"Describe your offering and what makes it unique" },
+  { key:"voice",                 q:"What is your brand voice?",              ph:"e.g. educational, direct, no-fluff" },
+  { key:"targetAudience",        q:"Who is your target customer?",           ph:"e.g. freelancers aged 25-35 who struggle with pricing" },
+  { key:"contentPillars",        q:"What topics do you post about?",         ph:"e.g. tips, client wins, behind the scenes", isArray:true },
+  { key:"uniqueAngle",           q:"What makes your content different?",     ph:"e.g. we show real revenue numbers, not vague results" },
+  { key:"competitorAccounts",    q:"Competitor accounts to watch?",          ph:"e.g. @competitor1, @competitor2" },
+  { key:"postingRecommendation", q:"Posting schedule/strategy?",             ph:"e.g. 3-4x/week: 50% tips, 30% social proof" },
 ];
 
 function BrandQAPanel({ businessId }) {
@@ -1251,6 +1254,97 @@ function BrandQAPanel({ businessId }) {
         <button onClick={save} disabled={saving} style={{ ...btnO(C.primary,11), padding:"3px 10px" }}>
           {saved ? "Saved ✓" : saving ? "Saving…" : "Save answers"}
         </button>
+      </div>
+    </div>
+  );
+}
+
+// ── Channel Status Bar ────────────────────────────────────────────────────────
+
+function ChannelStatusBar({ channelStatuses }) {
+  const STATUS_STYLE = {
+    connected:     { bg:"#D1FAE5", color:"#065F46", dot:"#10B981" },
+    viewable:      { bg:"#FEF3C7", color:"#92400E", dot:"#F59E0B" },
+    not_connected: { bg:"#F3F4F6", color:"#9CA3AF", dot:"#D1D5DB" },
+  };
+  const entries = Object.entries(channelStatuses);
+  if (!entries.length) return null;
+  return (
+    <div style={{ marginBottom:12 }}>
+      <div style={{ fontSize:10, fontWeight:700, color:C.muted, textTransform:"uppercase", letterSpacing:"0.06em", fontFamily:FB, marginBottom:5 }}>Channel status</div>
+      <div style={{ display:"flex", gap:5, flexWrap:"wrap" }}>
+        {entries.map(([ch, status]) => {
+          const s = STATUS_STYLE[status] || STATUS_STYLE.not_connected;
+          return (
+            <span key={ch} title={status.replace(/_/g," ")} style={{ fontSize:10, fontWeight:600, fontFamily:FB, padding:"3px 9px", borderRadius:20, background:s.bg, color:s.color, display:"flex", alignItems:"center", gap:4 }}>
+              <span style={{ width:5, height:5, borderRadius:"50%", background:s.dot, flexShrink:0, display:"inline-block" }}/>
+              {CH_LABELS[ch]||ch}
+            </span>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+// ── Suggested Content Card (from market analysis) ─────────────────────────────
+
+function SuggestedContentCard({ item, agentMode, businessId, onMoveToQueue }) {
+  const [generating, setGenerating] = useState(false);
+  const [result,     setResult]     = useState(null);
+  const [error,      setError]      = useState("");
+  const [copied,     setCopied]     = useState(false);
+
+  const TYPE_CLR = { post:"#3B82F6", update:"#10B981", article:"#8B5CF6", newsletter:"#F59E0B", schedule:"#EC4899" };
+  const clr = TYPE_CLR[item.type] || C.primary;
+
+  const generate = async () => {
+    setGenerating(true); setError(""); setResult(null);
+    try {
+      const data = await api.agents.contentLab(businessId, {
+        channel: item.channel || "general",
+        context: item.topic,
+        tone: item.tone || "professional",
+      });
+      setResult(data);
+    } catch(e) { setError(e.message); }
+    setGenerating(false);
+  };
+
+  const copy = async () => {
+    if (!result) return;
+    const text = [result.body||result.caption, result.hashtags].filter(Boolean).join("\n\n");
+    try { await navigator.clipboard.writeText(text); } catch {}
+    setCopied(true); setTimeout(()=>setCopied(false), 2000);
+  };
+
+  return (
+    <div style={{ ...card("10px 12px"), marginBottom:8, border:`1px solid ${clr}25` }}>
+      <div style={{ display:"flex", gap:5, alignItems:"center", marginBottom:5, flexWrap:"wrap" }}>
+        <span style={{ fontSize:9, fontWeight:700, padding:"2px 7px", borderRadius:20, background:`${clr}20`, color:clr, textTransform:"uppercase", fontFamily:FB }}>{item.type}</span>
+        {item.channel && <span style={{ fontSize:9, fontWeight:600, padding:"2px 7px", borderRadius:20, background:C.primaryBg, color:C.primary, fontFamily:FB }}>{CH_LABELS[item.channel]||item.channel}</span>}
+        {item.tone && <span style={{ fontSize:9, color:C.muted, fontFamily:FB }}>{item.tone}</span>}
+        {item.priority && <span style={{ fontSize:9, color:PRI_CLR[item.priority]||C.muted, fontFamily:FB, marginLeft:"auto" }}>{item.priority} priority</span>}
+      </div>
+      <div style={{ fontSize:12, fontWeight:600, color:C.text, fontFamily:FH, marginBottom:3, lineHeight:1.4 }}>{item.topic}</div>
+      {item.rationale && <div style={{ fontSize:11, color:C.muted, fontFamily:FB, lineHeight:1.5, marginBottom:6 }}>{item.rationale}</div>}
+      {result && (
+        <div style={{ background:C.primaryBg, borderRadius:8, padding:"8px 10px", marginBottom:8 }}>
+          <p style={{ fontSize:12, color:C.text, fontFamily:FB, lineHeight:1.6, marginBottom:result.hashtags?4:0, whiteSpace:"pre-wrap" }}>{result.body||result.caption}</p>
+          {result.hashtags && <p style={{ fontSize:11, color:C.primary, fontFamily:FB }}>{result.hashtags}</p>}
+        </div>
+      )}
+      {error && <p style={{ fontSize:11, color:C.err, fontFamily:FB, marginBottom:6 }}>{error}</p>}
+      <div style={{ display:"flex", gap:6, flexWrap:"wrap" }}>
+        <button onClick={generate} disabled={generating}
+          style={{ ...btn(generating?"#9CA3AF":clr,"#fff",10), padding:"4px 10px", display:"flex", alignItems:"center", gap:5 }}>
+          {generating && <span style={spin()}/>}
+          {generating ? "Generating…" : result ? "Regenerate" : "Generate now"}
+        </button>
+        {result && <button onClick={copy} style={{ ...btnO(C.primary,10), padding:"4px 10px" }}>{copied?"Copied!":"Copy"}</button>}
+        {agentMode==="guided" && (
+          <button onClick={()=>onMoveToQueue(item)} style={{ ...btnO(C.muted,10), padding:"4px 10px" }}>Add to campaigns</button>
+        )}
       </div>
     </div>
   );
@@ -2100,12 +2194,14 @@ export default function AgentPanel({ businessId, businessName, metrics, planInfo
   };
 
   // Analysis state
-  const [running,      setRunning]      = useState(false);
-  const [report,       setReport]       = useState(null);
-  const [overview,     setOverview]     = useState(null);
-  const [insights,     setInsights]     = useState([]);
-  const [ranAt,        setRanAt]        = useState(null);
-  const [error,        setError]        = useState("");
+  const [running,          setRunning]          = useState(false);
+  const [report,           setReport]           = useState(null);
+  const [overview,         setOverview]         = useState(null);
+  const [insights,         setInsights]         = useState([]);
+  const [ranAt,            setRanAt]            = useState(null);
+  const [error,            setError]            = useState("");
+  const [suggestedContent, setSuggestedContent] = useState([]);
+  const [channelStatuses,  setChannelStatuses]  = useState({});
 
   // Implement state
   const [implementing, setImplementing] = useState(null);
@@ -2141,7 +2237,8 @@ export default function AgentPanel({ businessId, businessName, metrics, planInfo
         setReport(d.report||null);
         setOverview(d.overview||null);
         setRanAt(d.ranAt||null);
-        // Restore mode from saved report
+        setSuggestedContent(d.suggestedContent||[]);
+        setChannelStatuses(d.channelStatuses||{});
         if (d.mode && !localStorage.getItem(`earnedlab_agentmode_${businessId}`)) saveAgentMode(d.mode);
       }
     }).catch(()=>{});
@@ -2184,6 +2281,8 @@ export default function AgentPanel({ businessId, businessName, metrics, planInfo
       setReport(data.report||null);
       setOverview(data.overview||null);
       setRanAt(data.ranAt||new Date().toISOString());
+      setSuggestedContent(data.suggestedContent||[]);
+      setChannelStatuses(data.channelStatuses||{});
       api.agents.activity(businessId).then(d=>setActivity(d.activity||[])).catch(()=>{});
       refreshAccess();
 
@@ -2374,14 +2473,17 @@ export default function AgentPanel({ businessId, businessName, metrics, planInfo
           )}
           {access && !access.marketing.allowed && <UpgradeCard reason={access.marketing.reason} navigate={navigate} />}
 
-          {/* Connected channels */}
-          {connectedChannels.length>0 && (
-            <div style={{ display:"flex", gap:5, flexWrap:"wrap", marginBottom:12 }}>
-              {connectedChannels.map(ch=>(
-                <span key={ch} style={{ fontSize:10, fontWeight:600, fontFamily:FB, padding:"3px 9px", borderRadius:20, background:C.primaryBg, color:C.primary }}>{CH_LABELS[ch]||ch} ✓</span>
-              ))}
-            </div>
-          )}
+          {/* Channel status — colored pills after first analysis run, plain chips before */}
+          {Object.keys(channelStatuses).length > 0
+            ? <ChannelStatusBar channelStatuses={channelStatuses} />
+            : connectedChannels.length > 0 && (
+              <div style={{ display:"flex", gap:5, flexWrap:"wrap", marginBottom:12 }}>
+                {connectedChannels.map(ch=>(
+                  <span key={ch} style={{ fontSize:10, fontWeight:600, fontFamily:FB, padding:"3px 9px", borderRadius:20, background:C.primaryBg, color:C.primary }}>{CH_LABELS[ch]||ch} ✓</span>
+                ))}
+              </div>
+            )
+          }
 
           {/* ── MANUAL MODE ── */}
           {agentMode==="manual" && (
@@ -2484,6 +2586,18 @@ export default function AgentPanel({ businessId, businessName, metrics, planInfo
 
               {/* Market analysis */}
               {report?.marketAnalysis && <MarketAnalysisSection analysis={report.marketAnalysis} />}
+
+              {/* Suggested content from analysis */}
+              {suggestedContent.length>0 && (
+                <div style={{ marginBottom:12 }}>
+                  <p style={{ fontSize:11, fontWeight:700, color:C.muted, textTransform:"uppercase", letterSpacing:"0.07em", marginBottom:6, fontFamily:FB }}>
+                    Suggested content ({suggestedContent.length})
+                  </p>
+                  {suggestedContent.map((item,i)=>(
+                    <SuggestedContentCard key={i} item={item} agentMode={agentMode} businessId={businessId} onMoveToQueue={addToCampaigns} />
+                  ))}
+                </div>
+              )}
 
               {/* Suggestions */}
               {insights.length===0 && !running && (

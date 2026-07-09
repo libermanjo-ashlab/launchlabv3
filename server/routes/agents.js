@@ -5,7 +5,7 @@ const router      = require("express").Router();
 const requireAuth = require("../middleware/auth");
 const { PrismaClient } = require("@prisma/client");
 const { runMarketingAgent, runManagementAgent } = require("../services/agents");
-const { runEnhancedMarketingAgent, runBasicOverview, generateChannelContent } = require("../services/marketingAgent");
+const { runEnhancedMarketingAgent, runBasicOverview, generateChannelContent, determineChannelStatus } = require("../services/marketingAgent");
 const { createSite, deploySite } = require("../services/netlify");
 const { runAutopilotIteration } = require("../services/autopilotLoop");
 const { getEffectivePlan, canRunMarketing, canImplement, canUseAutopilot } = require("../services/plans");
@@ -107,9 +107,14 @@ router.get("/:businessId/marketing/insights", requireAuth, async (req, res, next
     if (!out) return res.json({ insights:[], report:null, overview:null, ranAt:null, mode:null });
     try {
       const d = JSON.parse(out.content);
-      return res.json({ insights: d.insights||[], report: d.report||null, overview: d.overview||null, ranAt: d.ranAt||null, mode: d.mode||null });
+      return res.json({
+        insights: d.insights||[], report: d.report||null, overview: d.overview||null,
+        ranAt: d.ranAt||null, mode: d.mode||null,
+        suggestedContent: d.suggestedContent||[], channelStatuses: d.channelStatuses||{},
+        brandIdentityUpdates: d.brandIdentityUpdates||null,
+      });
     }
-    catch { return res.json({ insights:[], report:null, overview:null, ranAt:null, mode:null }); }
+    catch { return res.json({ insights:[], report:null, overview:null, ranAt:null, mode:null, suggestedContent:[], channelStatuses:{} }); }
   } catch(e) { next(e); }
 });
 
@@ -142,7 +147,13 @@ router.post("/:businessId/marketing/run", requireAuth, async (req, res, next) =>
     const metrics = await getUserMetrics(req.params.businessId);
     const integrations = await prisma.integration.findMany({ where:{ businessId:req.params.businessId } });
 
-    logActivity(req.params.businessId,{ agent:"marketing", action:"Analysis started", detail:"Scanning your business metrics and channels for growth opportunities" });
+    // Load brand identity + previous analysis for comparison
+    const brandIdentity = await getBrandIdentity(req.params.businessId).catch(() => ({}));
+    const prevOutput    = await prisma.businessOutput.findFirst({ where:{ businessId:req.params.businessId, type:"marketing_insights" } });
+    let previousAnalysis = null;
+    try { if (prevOutput) previousAnalysis = JSON.parse(prevOutput.content); } catch {}
+
+    logActivity(req.params.businessId,{ agent:"marketing", action:"Analysis started", detail:"Scanning your marketing channels for growth opportunities" });
 
     let reportData;
 
@@ -151,41 +162,63 @@ router.post("/:businessId/marketing/run", requireAuth, async (req, res, next) =>
       const overview = await runBasicOverview(biz, metrics, integrations);
       reportData = { insights:[], overview, ranAt:new Date().toISOString(), mode:"manual" };
       await addDailyTokens(req.params.businessId, TOKEN_EST.marketing_basic);
-      logActivity(req.params.businessId,{ agent:"marketing", action:"Basic overview generated", detail:"Channel stats and general tips ready" });
+      logActivity(req.params.businessId,{ agent:"marketing", action:"Basic overview generated", detail:"Channel tips ready" });
     } else {
-      // Guided/Auto: full enhanced report
-      const report = await runEnhancedMarketingAgent(biz, metrics, intake, integrations);
+      // Guided/Auto: full enhanced report with channel status, brand identity, previous analysis
+      const report = await runEnhancedMarketingAgent(biz, metrics, intake, integrations, {
+        brandIdentity: brandIdentity || {},
+        previousAnalysis,
+        plan: effective.plan,
+      });
+
       const insights = (report.suggestions || []).map(s => ({
         id: s.id,
         type: s.channel,
         priority: s.priority,
         agentObservation: s.rationale,
         recommendation: s.title,
+        title: s.title,
+        rationale: s.rationale,
         expectedImpact: s.expectedImpact,
         implementationChannel: s.channel,
+        channel: s.channel,
         managementAction: s.title,
         estimatedMinutes: s.estimatedMinutes,
-        tasks: s.tasks,
         contentPreview: s.contentPreview,
       }));
-      reportData = { insights, report, ranAt:new Date().toISOString(), mode: mode || "guided" };
+
+      reportData = {
+        insights,
+        report,
+        suggestedContent: report.suggestedContent || [],
+        brandIdentityUpdates: report.brandIdentityUpdates || null,
+        channelStatuses: report.channelStatuses || {},
+        ranAt: new Date().toISOString(),
+        mode: mode || "guided",
+      };
+
       await addDailyTokens(req.params.businessId, TOKEN_EST.marketing_full);
       if (effective.plan === "trial") await bumpUsage(req.params.businessId, "marketingRuns");
-      logActivity(req.params.businessId,{ agent:"marketing", action:`Found ${insights.length} insights`, detail:`${insights.filter(i=>i.priority==="high").length} high priority, market analysis ready` });
+      logActivity(req.params.businessId,{ agent:"marketing", action:`Found ${insights.length} insights`, detail:`${insights.filter(i=>i.priority==="high").length} high priority · ${(report.suggestedContent||[]).length} content suggestions` });
+
+      // Auto-save brand identity updates from analysis (non-blocking, best-effort)
+      if (report.brandIdentityUpdates) {
+        const updates = report.brandIdentityUpdates;
+        const merged  = { ...(brandIdentity || {}), populatedBy:"market_analysis", populatedAt:new Date().toISOString() };
+        if (updates.colorPalette)         merged.colorPalette         = updates.colorPalette;
+        if (updates.visualStyle)          merged.visualStyle          = updates.visualStyle;
+        if (updates.voice)                merged.voice                = updates.voice;
+        if (updates.competitorAccounts)   merged.competitorAccounts   = updates.competitorAccounts;
+        if (updates.postingRecommendation) merged.postingRecommendation = updates.postingRecommendation;
+        if (updates.productDescription && !merged.productDescription) merged.productDescription = updates.productDescription;
+        saveBrandIdentity(req.params.businessId, merged).catch(() => {});
+      }
     }
 
     // Persist report so it survives page navigation
     const content = JSON.stringify(reportData);
-    const existing = await prisma.businessOutput.findFirst({ where:{ businessId:req.params.businessId, type:"marketing_insights" } });
-    if (existing) await prisma.businessOutput.update({ where:{ id:existing.id }, data:{ content } });
+    if (prevOutput) await prisma.businessOutput.update({ where:{ id:prevOutput.id }, data:{ content } });
     else await prisma.businessOutput.create({ data:{ businessId:req.params.businessId, type:"marketing_insights", title:"Marketing Analysis", content } });
-
-    // Auto-populate brand identity in guided/auto mode (non-blocking)
-    // Reuse integrations and metrics already loaded above — no extra DB round trips
-    if (mode !== "manual" && process.env.OPENAI_API_KEY) {
-      populateAndSave(req.params.businessId, biz, JSON.parse(biz.ideaData||"{}"), integrations, metrics, reportData.report||null)
-        .catch(() => {}); // non-blocking, best-effort
-    }
 
     res.json(reportData);
   } catch(e) { next(e); }
