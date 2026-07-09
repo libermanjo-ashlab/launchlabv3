@@ -2484,11 +2484,13 @@ function LeadsContent({ metrics, saveM, businessId, notesByTarget, onDropNote, o
   const [newSource, setNewSource] = useState("");
   const [newDate, setNewDate] = useState(()=>new Date().toISOString().slice(0,10));
   const [filter, setFilter] = useState("all");
+  const [rangeMode, setRangeMode] = useState("month");
+  const [cStart, setCStart] = useState("");
+  const [cEnd, setCEnd] = useState("");
   const STATUS = ["new","contacted","qualified","proposal","won","lost"];
   const STATUS_CLR = { new:"#3B82F6", contacted:"#8B5CF6", qualified:"#10B981", proposal:"#F59E0B", won:"#22C55E", lost:"#9CA3AF" };
 
   const saveLeads = l=>{ setLeads(l); try{localStorage.setItem(KEY,JSON.stringify(l));}catch{} };
-
   const addLead = ()=>{
     if(!newName.trim()) return;
     const today = new Date().toISOString().slice(0,10);
@@ -2498,24 +2500,21 @@ function LeadsContent({ metrics, saveM, businessId, notesByTarget, onDropNote, o
     saveM("leads.total",(metrics.leads.total||0)+1);
     setNewName(""); setNewSource(""); setNewDate(today); setAdding(false);
   };
-
   const updateStatus = (id,status)=>saveLeads(leads.map(l=>l.id===id?{...l,status}:l));
   const deleteLead   = id=>saveLeads(leads.filter(l=>l.id!==id));
-  const filtered     = filter==="all"?leads:leads.filter(l=>l.status===filter);
+
+  const rangedCount = filterDateRange(leads, rangeMode, cStart, cEnd).length;
+  const filtered    = filter==="all"?leads:leads.filter(l=>l.status===filter);
 
   return (
     <div>
-      <div style={{ display:"flex", gap:8, marginBottom:12 }}>
-        <MCell label="This month" value={metrics.leads.this_month} onChange={v=>saveM("leads.this_month",v)} />
-        <MCell label="Total" value={metrics.leads.total} onChange={v=>saveM("leads.total",v)} />
-        <MCell label="Pipeline" value={leads.filter(l=>!["won","lost"].includes(l.status)).length} onChange={()=>{}} />
-      </div>
+      <RangeDropdown mode={rangeMode} setMode={setRangeMode} cStart={cStart} setCStart={setCStart} cEnd={cEnd} setCEnd={setCEnd} count={rangedCount} />
       <div style={{ display:"flex", gap:5, marginBottom:10, flexWrap:"wrap" }}>
         {["all",...STATUS].map(s=>{
-          const cnt = s!=="all"?leads.filter(l=>l.status===s).length:0;
+          const cnt = s==="all"?leads.length:leads.filter(l=>l.status===s).length;
           return (
             <button key={s} onClick={()=>setFilter(s)} style={{ fontSize:10, padding:"3px 8px", borderRadius:12, border:`1px solid ${filter===s?C.primary:C.border}`, background:filter===s?C.primaryBg:"transparent", color:filter===s?C.primary:C.muted, cursor:"pointer", fontFamily:FB }}>
-              {s.charAt(0).toUpperCase()+s.slice(1)}{cnt>0?` (${cnt})`:""}
+              {s==="all"?"All":s.charAt(0).toUpperCase()+s.slice(1)} ({cnt})
             </button>
           );
         })}
@@ -2529,7 +2528,7 @@ function LeadsContent({ metrics, saveM, businessId, notesByTarget, onDropNote, o
                 <div style={{ fontSize:12, fontWeight:500, fontFamily:FB, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{l.name}</div>
                 <div style={{ display:"flex", gap:6 }}>
                   {l.source&&<span style={{ fontSize:10, color:C.muted, fontFamily:FB }}>{l.source}</span>}
-                  {l.date&&<span style={{ fontSize:9, color:C.subtle, fontFamily:FB }}>{typeof l.date==="string"&&l.date.length>10?l.date.slice(0,10):l.date}</span>}
+                  {l.date&&<span style={{ fontSize:9, color:C.subtle, fontFamily:FB }}>{normDate(l.date)}</span>}
                 </div>
               </div>
               <select value={l.status} onChange={e=>updateStatus(l.id,e.target.value)} style={{ fontSize:10, padding:"2px 4px", border:`1px solid ${C.border}`, borderRadius:6, background:C.surface, color:C.text, fontFamily:FB }}>
@@ -2564,11 +2563,13 @@ function ClientsContent({ metrics, saveM, businessId, notesByTarget, onDropNote,
   const [newType, setNewType] = useState("current");
   const [newDate, setNewDate] = useState(()=>new Date().toISOString().slice(0,10));
   const [tab, setTab] = useState("current");
+  const [rangeMode, setRangeMode] = useState("month");
+  const [cStart, setCStart] = useState("");
+  const [cEnd, setCEnd] = useState("");
   const TABS = ["current","past","potential"];
   const TAB_CLR = { current:"#22C55E", past:"#9CA3AF", potential:"#3B82F6" };
 
   const saveClients = c=>{ setClients(c); try{localStorage.setItem(KEY,JSON.stringify(c));}catch{} };
-
   const addClient = ()=>{
     if(!newName.trim()) return;
     const today = new Date().toISOString().slice(0,10);
@@ -2578,14 +2579,12 @@ function ClientsContent({ metrics, saveM, businessId, notesByTarget, onDropNote,
     saveM("clients.total",(metrics.clients.total||0)+1);
     setNewName(""); setNewDate(today); setAdding(false);
   };
-
   const moveClient = (id,type)=>{
     const prev=clients.find(c=>c.id===id);
     saveClients(clients.map(c=>c.id===id?{...c,type}:c));
     if(prev?.type==="current"&&type!=="current") saveM("clients.active",Math.max(0,(metrics.clients.active||0)-1));
     if(type==="current"&&prev?.type!=="current") saveM("clients.active",(metrics.clients.active||0)+1);
   };
-
   const deleteClient = id=>{
     const c=clients.find(x=>x.id===id);
     saveClients(clients.filter(x=>x.id!==id));
@@ -2593,15 +2592,12 @@ function ClientsContent({ metrics, saveM, businessId, notesByTarget, onDropNote,
     saveM("clients.total",Math.max(0,(metrics.clients.total||0)-1));
   };
 
-  const filtered = clients.filter(c=>c.type===tab);
+  const rangedCount = filterDateRange(clients, rangeMode, cStart, cEnd).length;
+  const filtered    = clients.filter(c=>c.type===tab);
 
   return (
     <div>
-      <div style={{ display:"flex", gap:8, marginBottom:12 }}>
-        <MCell label="Current" value={metrics.clients.active} onChange={v=>saveM("clients.active",v)} />
-        <MCell label="Total" value={metrics.clients.total} onChange={v=>saveM("clients.total",v)} />
-        <MCell label="Potential" value={clients.filter(c=>c.type==="potential").length} onChange={()=>{}} />
-      </div>
+      <RangeDropdown mode={rangeMode} setMode={setRangeMode} cStart={cStart} setCStart={setCStart} cEnd={cEnd} setCEnd={setCEnd} count={rangedCount} />
       <div style={{ display:"flex", gap:4, marginBottom:10 }}>
         {TABS.map(t=>(
           <button key={t} onClick={()=>setTab(t)} style={{ flex:1, fontSize:11, padding:"5px 4px", borderRadius:10, border:`1px solid ${tab===t?TAB_CLR[t]:C.border}`, background:tab===t?TAB_CLR[t]+"18":"transparent", color:tab===t?TAB_CLR[t]:C.muted, cursor:"pointer", fontFamily:FB, fontWeight:tab===t?600:400 }}>
@@ -2616,7 +2612,7 @@ function ClientsContent({ metrics, saveM, businessId, notesByTarget, onDropNote,
               <span style={{ width:7, height:7, borderRadius:"50%", background:TAB_CLR[c.type], flexShrink:0 }} />
               <div style={{ flex:1, minWidth:0 }}>
                 <div style={{ fontSize:12, fontWeight:500, fontFamily:FB, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{c.name}</div>
-                {c.date&&<span style={{ fontSize:9, color:C.subtle, fontFamily:FB }}>{typeof c.date==="string"&&c.date.length>10?c.date.slice(0,10):c.date}</span>}
+                {c.date&&<span style={{ fontSize:9, color:C.subtle, fontFamily:FB }}>{normDate(c.date)}</span>}
               </div>
               <select value={c.type} onChange={e=>moveClient(c.id,e.target.value)} style={{ fontSize:10, padding:"2px 4px", border:`1px solid ${C.border}`, borderRadius:6, background:C.surface, color:C.text, fontFamily:FB }}>
                 {TABS.map(t=><option key={t} value={t}>{t}</option>)}
@@ -2644,13 +2640,44 @@ function ClientsContent({ metrics, saveM, businessId, notesByTarget, onDropNote,
   );
 }
 
-function RangePills({ range, setRange }) {
-  const opts=[["month","This Month"],["last","Last Month"],["total","All Time"]];
+const normDate = d=>(typeof d==="string"&&d.length>10?d.slice(0,10):d)||"";
+function filterDateRange(items, mode, cStart="", cEnd="") {
+  const t=new Date().toISOString().slice(0,10);
+  const y=new Date(Date.now()-86400000).toISOString().slice(0,10);
+  if(mode==="today") return items.filter(x=>normDate(x.date)===t);
+  if(mode==="yesterday") return items.filter(x=>normDate(x.date)===y);
+  if(mode==="month"){ const m=t.slice(0,7); return items.filter(x=>normDate(x.date).startsWith(m)); }
+  if(mode==="custom"&&cStart&&cEnd) return items.filter(x=>{const d=normDate(x.date);return d&&d>=cStart&&d<=cEnd;});
+  return items;
+}
+
+function RangeDropdown({ mode, setMode, cStart="", setCStart, cEnd="", setCEnd, count=0, prefix="" }) {
+  const label = mode==="today"?"Today"
+    : mode==="yesterday"?"Yesterday"
+    : mode==="month"?"This Month"
+    : (cStart&&cEnd)?`${cStart} – ${cEnd}`:"Custom Range";
   return (
-    <div style={{ display:"flex", gap:4, marginBottom:10, flexWrap:"wrap" }}>
-      {opts.map(([k,l])=>(
-        <button key={k} onClick={()=>setRange(k)} style={{ fontSize:10, padding:"2px 10px", borderRadius:20, border:`1px solid ${range===k?C.primary:C.border}`, background:range===k?C.primaryBg:"transparent", color:range===k?C.primary:C.muted, fontFamily:FB, fontWeight:600, cursor:"pointer" }}>{l}</button>
-      ))}
+    <div style={{ marginBottom:10 }}>
+      <div style={{ display:"flex", alignItems:"center", gap:10, marginBottom:mode==="custom"?6:0 }}>
+        <select value={mode} onChange={e=>setMode(e.target.value)}
+          style={{ fontSize:11, padding:"4px 8px", border:`1px solid ${C.border}`, borderRadius:8, background:C.surface, color:C.text, fontFamily:FB, fontWeight:600, cursor:"pointer", flexShrink:0 }}>
+          <option value="today">Today</option>
+          <option value="yesterday">Yesterday</option>
+          <option value="month">This Month</option>
+          <option value="custom">Custom Range</option>
+        </select>
+        <div>
+          <div style={{ fontFamily:FH, fontWeight:700, fontSize:28, color:C.text, lineHeight:1 }}>{prefix}{Number(count||0).toLocaleString()}</div>
+          <div style={{ fontSize:10, color:C.muted, fontFamily:FB }}>{label}</div>
+        </div>
+      </div>
+      {mode==="custom"&&(
+        <div style={{ display:"flex", gap:6, alignItems:"center" }}>
+          <input type="date" value={cStart} onChange={e=>setCStart(e.target.value)} style={{ ...inp(), flex:1, fontSize:11, padding:"4px 8px" }}/>
+          <span style={{ fontSize:10, color:C.muted, fontFamily:FB }}>–</span>
+          <input type="date" value={cEnd} onChange={e=>setCEnd(e.target.value)} style={{ ...inp(), flex:1, fontSize:11, padding:"4px 8px" }}/>
+        </div>
+      )}
     </div>
   );
 }
@@ -2711,83 +2738,56 @@ function SourceList({ items, onAdd, onRemove, prefix="$", notesByTarget, onDropN
   );
 }
 
-function RevenueContent({ metrics, saveM, range:globalR="month", cardId="revenue", notesByTarget, onDropNote, onUnstickNote }) {
-  const [localR, setLocalR] = useState(null);
-  const range = localR ?? globalR;
-  const val = range==="month" ? metrics.revenue?.this_month||0
-            : range==="last"  ? metrics.revenue?.last_month||0
-            :                   metrics.revenue?.total||0;
-  const rangeLabel = range==="month"?"This Month":range==="last"?"Last Month":"All Time";
+function RevenueContent({ metrics, saveM, cardId="revenue", notesByTarget, onDropNote, onUnstickNote }) {
+  const [rangeMode, setRangeMode] = useState("month");
+  const [cStart, setCStart] = useState("");
+  const [cEnd, setCEnd] = useState("");
   const sources = metrics.revenue?.sources || [];
-
-  const saveField = (field,v) => saveM(`revenue.${field}`,v);
+  const rangedAmt = filterDateRange(sources, rangeMode, cStart, cEnd).reduce((a,x)=>a+(x.amount||0),0);
   const addSource = s => {
     const next=[...sources,s];
-    const total=next.reduce((a,x)=>a+(x.amount||0),0);
     saveM("revenue.sources",next);
-    if(range==="month") saveM("revenue.this_month",total);
-    if(range==="total") saveM("revenue.total",total);
+    saveM("revenue.this_month",next.reduce((a,x)=>a+(x.amount||0),0));
   };
   const removeSource = id => {
     const next=sources.filter(s=>s.id!==id);
-    const total=next.reduce((a,x)=>a+(x.amount||0),0);
     saveM("revenue.sources",next);
-    if(range==="month") saveM("revenue.this_month",total);
-    if(range==="total") saveM("revenue.total",total);
+    saveM("revenue.this_month",next.reduce((a,x)=>a+(x.amount||0),0));
   };
-
   return (
     <div>
-      <RangePills range={range} setRange={setLocalR} />
-      <MCell label={rangeLabel} value={val} onChange={v=>saveField(range==="month"?"this_month":range==="last"?"last_month":"total",v)} prefix="$" />
+      <RangeDropdown mode={rangeMode} setMode={setRangeMode} cStart={cStart} setCStart={setCStart} cEnd={cEnd} setCEnd={setCEnd} count={rangedAmt} prefix="$" />
       <SourceList items={sources} onAdd={addSource} onRemove={removeSource} prefix="$"
         notesByTarget={notesByTarget} onDropNote={onDropNote} onUnstickNote={onUnstickNote} cardId={cardId} />
     </div>
   );
 }
 
-function CostsContent({ metrics, saveM, range:globalR="month", cardId="costs", notesByTarget, onDropNote, onUnstickNote }) {
-  const [localR, setLocalR] = useState(null);
-  const range = localR ?? globalR;
-  const invest = metrics.investments;
-  const investThisMonth = (invest?.total_ongoing||0);
-  const investTotal = (invest?.total_initial||0)+(invest?.total_ongoing||0);
-  const baseCost = range==="month" ? metrics.costs?.this_month||0
-                 : range==="last"  ? metrics.costs?.last_month||0
-                 :                   metrics.costs?.total||0;
-  const investAmt = range==="total" ? investTotal : investThisMonth;
-  const effectiveCost = baseCost + investAmt;
-  const rangeLabel = range==="month"?"This Month":range==="last"?"Last Month":"All Time";
+function CostsContent({ metrics, saveM, cardId="costs", notesByTarget, onDropNote, onUnstickNote }) {
+  const [rangeMode, setRangeMode] = useState("month");
+  const [cStart, setCStart] = useState("");
+  const [cEnd, setCEnd] = useState("");
   const causes = metrics.costs?.causes || [];
-
+  const invest = metrics.investments;
+  const investOngoing = invest?.total_ongoing||0;
+  const rangedCauses = filterDateRange(causes, rangeMode, cStart, cEnd);
+  const rangedAmt = rangedCauses.reduce((a,x)=>a+(x.amount||0),0) + investOngoing;
   const addCause = s => {
     const next=[...causes,s];
-    const total=next.reduce((a,x)=>a+(x.amount||0),0);
     saveM("costs.causes",next);
-    saveM("costs.this_month",total);
+    saveM("costs.this_month",next.reduce((a,x)=>a+(x.amount||0),0));
   };
   const removeCause = id => {
     const next=causes.filter(s=>s.id!==id);
-    const total=next.reduce((a,x)=>a+(x.amount||0),0);
     saveM("costs.causes",next);
-    saveM("costs.this_month",total);
+    saveM("costs.this_month",next.reduce((a,x)=>a+(x.amount||0),0));
   };
-
   return (
     <div>
-      <RangePills range={range} setRange={setLocalR} />
-      <div style={{ display:"flex", gap:8, marginBottom:6 }}>
-        <MCell label={`${rangeLabel} (manual)`} value={baseCost} onChange={v=>saveM(`costs.${range==="month"?"this_month":range==="last"?"last_month":"total"}`,v)} prefix="$" />
-        {investAmt>0&&(
-          <div style={{ flex:1, background:"#F5F3FF", borderRadius:10, padding:"10px 12px", border:`1px solid #DDD6FE` }}>
-            <div style={{ fontSize:9, color:"#7C3AED", fontWeight:700, textTransform:"uppercase", letterSpacing:"0.07em", fontFamily:FB, marginBottom:4 }}>+ Investments</div>
-            <div style={{ fontFamily:FH, fontWeight:700, fontSize:22, color:"#7C3AED" }}>${investAmt.toLocaleString()}</div>
-          </div>
-        )}
-      </div>
-      {investAmt>0&&(
-        <div style={{ background:C.surface, borderRadius:8, padding:"6px 10px", fontSize:11, color:C.muted, fontFamily:FB, marginBottom:6 }}>
-          Effective costs: <strong style={{ color:C.text }}>${effectiveCost.toLocaleString()}</strong> (manual + investments)
+      <RangeDropdown mode={rangeMode} setMode={setRangeMode} cStart={cStart} setCStart={setCStart} cEnd={cEnd} setCEnd={setCEnd} count={rangedAmt} prefix="$" />
+      {investOngoing>0&&(
+        <div style={{ background:"#F5F3FF", borderRadius:8, padding:"5px 10px", fontSize:11, color:"#7C3AED", fontFamily:FB, marginBottom:6 }}>
+          Includes ${investOngoing.toLocaleString()}/mo ongoing investments
         </div>
       )}
       <SourceList items={causes} onAdd={addCause} onRemove={removeCause} prefix="$" label="Causes"
@@ -2796,31 +2796,24 @@ function CostsContent({ metrics, saveM, range:globalR="month", cardId="costs", n
   );
 }
 
-function LossContent({ metrics, range:globalR="month" }) {
-  const [localR, setLocalR] = useState(null);
-  const range = localR ?? globalR;
-  const invest = metrics.investments;
-  const investAmt = range==="total"
-    ? (invest?.total_initial||0)+(invest?.total_ongoing||0)
-    : (invest?.total_ongoing||0);
-  const rev  = range==="month" ? metrics.revenue?.this_month||0
-             : range==="last"  ? metrics.revenue?.last_month||0
-             :                   metrics.revenue?.total||0;
-  const cost = range==="month" ? metrics.costs?.this_month||0
-             : range==="last"  ? metrics.costs?.last_month||0
-             :                   metrics.costs?.total||0;
-  const effectiveCost = cost + investAmt;
-  const loss = Math.max(0, effectiveCost - rev);
-  const label = range==="month"?"This Month":range==="last"?"Last Month":"All Time";
+function LossContent({ metrics }) {
+  const [rangeMode, setRangeMode] = useState("month");
+  const [cStart, setCStart] = useState("");
+  const [cEnd, setCEnd] = useState("");
+  const sources = metrics.revenue?.sources || [];
+  const causes  = metrics.costs?.causes   || [];
+  const investOngoing = metrics.investments?.total_ongoing||0;
+  const rev  = filterDateRange(sources, rangeMode, cStart, cEnd).reduce((a,x)=>a+(x.amount||0),0);
+  const cost = filterDateRange(causes, rangeMode, cStart, cEnd).reduce((a,x)=>a+(x.amount||0),0) + investOngoing;
+  const loss = Math.max(0, cost - rev);
+  const label = rangeMode==="today"?"Today":rangeMode==="yesterday"?"Yesterday":rangeMode==="month"?"This Month":(cStart&&cEnd)?`${cStart} – ${cEnd}`:"Custom";
   return (
     <div>
-      <RangePills range={range} setRange={setLocalR} />
-      <div style={{ background:loss>0?"#FFF1F2":C.surface, borderRadius:12, padding:"14px 16px", border:`1px solid ${loss>0?"#FECDD3":C.border}` }}>
-        <div style={{ fontSize:9, color:loss>0?"#EF4444":C.muted, fontWeight:700, textTransform:"uppercase", letterSpacing:"0.07em", fontFamily:FB, marginBottom:6 }}>Loss — {label}</div>
-        <div style={{ fontFamily:FH, fontWeight:700, fontSize:32, color:loss>0?"#EF4444":C.muted }}>
-          {loss>0?`-$${loss.toLocaleString()}`:"$0"}
-        </div>
-        {loss===0&&<div style={{ fontSize:11, color:"#22C55E", fontFamily:FB, marginTop:4 }}>No loss — you are profitable ✓</div>}
+      <RangeDropdown mode={rangeMode} setMode={setRangeMode} cStart={cStart} setCStart={setCStart} cEnd={cEnd} setCEnd={setCEnd} count={loss} prefix={loss>0?"-$":""} />
+      <div style={{ background:loss>0?"#FFF1F2":C.surface, borderRadius:12, padding:"12px 14px", border:`1px solid ${loss>0?"#FECDD3":C.border}` }}>
+        <div style={{ fontSize:9, color:loss>0?"#EF4444":C.muted, fontWeight:700, textTransform:"uppercase", letterSpacing:"0.07em", fontFamily:FB, marginBottom:4 }}>Loss — {label}</div>
+        <div style={{ fontFamily:FH, fontWeight:700, fontSize:28, color:loss>0?"#EF4444":C.muted }}>{loss>0?`-$${loss.toLocaleString()}`:"$0"}</div>
+        {loss===0&&<div style={{ fontSize:11, color:"#22C55E", fontFamily:FB, marginTop:4 }}>No loss — profitable ✓</div>}
       </div>
       <div style={{ display:"flex", gap:8, marginTop:8 }}>
         <div style={{ flex:1, background:C.surface, borderRadius:8, padding:"8px 10px" }}>
@@ -2829,37 +2822,30 @@ function LossContent({ metrics, range:globalR="month" }) {
         </div>
         <div style={{ flex:1, background:C.surface, borderRadius:8, padding:"8px 10px" }}>
           <div style={{ fontSize:9, color:C.muted, fontFamily:FB, fontWeight:700, textTransform:"uppercase", marginBottom:2 }}>Costs</div>
-          <div style={{ fontFamily:FH, fontWeight:700, fontSize:16, color:C.text }}>${effectiveCost.toLocaleString()}</div>
+          <div style={{ fontFamily:FH, fontWeight:700, fontSize:16, color:C.text }}>${cost.toLocaleString()}</div>
         </div>
       </div>
     </div>
   );
 }
 
-function ProfitContent({ metrics, range:globalR="month" }) {
-  const [localR, setLocalR] = useState(null);
-  const range = localR ?? globalR;
-  const invest = metrics.investments;
-  const investAmt = range==="total"
-    ? (invest?.total_initial||0)+(invest?.total_ongoing||0)
-    : (invest?.total_ongoing||0);
-  const rev  = range==="month" ? metrics.revenue?.this_month||0
-             : range==="last"  ? metrics.revenue?.last_month||0
-             :                   metrics.revenue?.total||0;
-  const cost = range==="month" ? metrics.costs?.this_month||0
-             : range==="last"  ? metrics.costs?.last_month||0
-             :                   metrics.costs?.total||0;
-  const effectiveCost = cost + investAmt;
-  const profit = Math.max(0, rev - effectiveCost);
-  const label = range==="month"?"This Month":range==="last"?"Last Month":"All Time";
+function ProfitContent({ metrics }) {
+  const [rangeMode, setRangeMode] = useState("month");
+  const [cStart, setCStart] = useState("");
+  const [cEnd, setCEnd] = useState("");
+  const sources = metrics.revenue?.sources || [];
+  const causes  = metrics.costs?.causes   || [];
+  const investOngoing = metrics.investments?.total_ongoing||0;
+  const rev    = filterDateRange(sources, rangeMode, cStart, cEnd).reduce((a,x)=>a+(x.amount||0),0);
+  const cost   = filterDateRange(causes, rangeMode, cStart, cEnd).reduce((a,x)=>a+(x.amount||0),0) + investOngoing;
+  const profit = Math.max(0, rev - cost);
+  const label  = rangeMode==="today"?"Today":rangeMode==="yesterday"?"Yesterday":rangeMode==="month"?"This Month":(cStart&&cEnd)?`${cStart} – ${cEnd}`:"Custom";
   return (
     <div>
-      <RangePills range={range} setRange={setLocalR} />
-      <div style={{ background:profit>0?"#F0FDF4":C.surface, borderRadius:12, padding:"14px 16px", border:`1px solid ${profit>0?"#BBF7D0":C.border}` }}>
-        <div style={{ fontSize:9, color:profit>0?"#16A34A":C.muted, fontWeight:700, textTransform:"uppercase", letterSpacing:"0.07em", fontFamily:FB, marginBottom:6 }}>Profit — {label}</div>
-        <div style={{ fontFamily:FH, fontWeight:700, fontSize:32, color:profit>0?"#16A34A":C.muted }}>
-          {profit>0?`+$${profit.toLocaleString()}`:"$0"}
-        </div>
+      <RangeDropdown mode={rangeMode} setMode={setRangeMode} cStart={cStart} setCStart={setCStart} cEnd={cEnd} setCEnd={setCEnd} count={profit} prefix={profit>0?"+$":""} />
+      <div style={{ background:profit>0?"#F0FDF4":C.surface, borderRadius:12, padding:"12px 14px", border:`1px solid ${profit>0?"#BBF7D0":C.border}` }}>
+        <div style={{ fontSize:9, color:profit>0?"#16A34A":C.muted, fontWeight:700, textTransform:"uppercase", letterSpacing:"0.07em", fontFamily:FB, marginBottom:4 }}>Profit — {label}</div>
+        <div style={{ fontFamily:FH, fontWeight:700, fontSize:28, color:profit>0?"#16A34A":C.muted }}>{profit>0?`+$${profit.toLocaleString()}`:"$0"}</div>
         {profit===0&&<div style={{ fontSize:11, color:"#EF4444", fontFamily:FB, marginTop:4 }}>At a loss or break-even</div>}
       </div>
       <div style={{ display:"flex", gap:8, marginTop:8 }}>
@@ -2869,22 +2855,24 @@ function ProfitContent({ metrics, range:globalR="month" }) {
         </div>
         <div style={{ flex:1, background:C.surface, borderRadius:8, padding:"8px 10px" }}>
           <div style={{ fontSize:9, color:C.muted, fontFamily:FB, fontWeight:700, textTransform:"uppercase", marginBottom:2 }}>Costs</div>
-          <div style={{ fontFamily:FH, fontWeight:700, fontSize:16, color:C.text }}>${effectiveCost.toLocaleString()}</div>
+          <div style={{ fontFamily:FH, fontWeight:700, fontSize:16, color:C.text }}>${cost.toLocaleString()}</div>
         </div>
       </div>
     </div>
   );
 }
 
-function InvestmentsContent({ metrics, saveM, range:globalR="month", cardId="investments", notesByTarget, onDropNote, onUnstickNote }) {
-  const [localR, setLocalR] = useState(null);
-  const range = localR ?? globalR;
+function InvestmentsContent({ metrics, saveM, cardId="investments", notesByTarget, onDropNote, onUnstickNote }) {
+  const [rangeMode, setRangeMode] = useState("month");
+  const [cStart, setCStart] = useState("");
+  const [cEnd, setCEnd] = useState("");
   const invest = metrics.investments || {};
   const initial = invest.initial || [];
   const ongoing = invest.ongoing || [];
-  const totalInitial  = initial.reduce((a,x)=>a+(x.amount||0),0);
-  const totalOngoing  = ongoing.reduce((a,x)=>a+(x.amount||0),0);
-  const totalAll = totalInitial+totalOngoing;
+  const totalInitial = initial.reduce((a,x)=>a+(x.amount||0),0);
+  const totalOngoing = ongoing.reduce((a,x)=>a+(x.amount||0),0);
+  const rangedInitial = filterDateRange(initial, rangeMode, cStart, cEnd).reduce((a,x)=>a+(x.amount||0),0);
+  const displayAmt = rangedInitial + totalOngoing;
 
   const saveInvestments = (next)=>{
     const ti=next.initial.reduce((a,x)=>a+(x.amount||0),0);
@@ -2894,7 +2882,6 @@ function InvestmentsContent({ metrics, saveM, range:globalR="month", cardId="inv
     saveM("investments.total_initial",ti);
     saveM("investments.total_ongoing",to);
   };
-
   const addInitial = s=>saveInvestments({ initial:[...initial,s], ongoing });
   const removeInitial = id=>saveInvestments({ initial:initial.filter(x=>x.id!==id), ongoing });
   const addOngoing = s=>saveInvestments({ initial, ongoing:[...ongoing,s] });
@@ -2903,16 +2890,8 @@ function InvestmentsContent({ metrics, saveM, range:globalR="month", cardId="inv
 
   return (
     <div>
-      <RangePills range={range} setRange={setLocalR} />
-      <div style={{ background:"#F5F3FF", borderRadius:12, padding:"12px 14px", marginBottom:10, border:"1px solid #DDD6FE" }}>
-        <div style={{ fontSize:9, color:"#7C3AED", fontWeight:700, textTransform:"uppercase", letterSpacing:"0.07em", fontFamily:FB, marginBottom:4 }}>
-          Total Investments {range==="total"?"(All Time)":"(Ongoing/Mo)"}
-        </div>
-        <div style={{ fontFamily:FH, fontWeight:700, fontSize:28, color:"#7C3AED" }}>
-          ${(range==="total"?totalAll:totalOngoing).toLocaleString()}
-        </div>
-        <div style={{ fontSize:10, color:"#7C3AED", fontFamily:FB, marginTop:2, opacity:0.7 }}>Counts toward Costs</div>
-      </div>
+      <RangeDropdown mode={rangeMode} setMode={setRangeMode} cStart={cStart} setCStart={setCStart} cEnd={cEnd} setCEnd={setCEnd} count={displayAmt} prefix="$" />
+      <div style={{ fontSize:10, color:"#7C3AED", fontFamily:FB, marginBottom:10 }}>Counts toward Costs · Ongoing: ${totalOngoing.toLocaleString()}/mo</div>
       <div style={{ marginBottom:12 }}>
         <div style={{ fontSize:11, color:C.text, fontFamily:FB, fontWeight:700, marginBottom:6 }}>Initial (One-Time) — ${totalInitial.toLocaleString()}</div>
         <SourceList items={initial} onAdd={addInitial} onRemove={removeInitial} prefix="$" label="Items"
@@ -3027,16 +3006,27 @@ function EmailContent({ integs, businessId }) {
   );
 }
 
-function DraggableCard({ id, pos, meta, notes=[], isDragging, onDragStart, onRemove, onDropNote, children }) {
+function DraggableCard({ id, pos, meta, notes=[], isDragging, onDragStart, onRemove, onDropNote, onDropWidget, embeddedWidgets=[], onRemoveEmbeddedWidget, onUpdateWidgetConfig, metrics, snapshots, saveM, children }) {
   const [dropHover, setDropHover] = useState(false);
+  const [widgetHover, setWidgetHover] = useState(false);
 
-  const handleDragOver = e => { e.preventDefault(); setDropHover(true); };
-  const handleDragLeave = e => { if(!e.currentTarget.contains(e.relatedTarget)) setDropHover(false); };
-  const handleDrop = e => {
-    const noteId = e.dataTransfer.getData("text/noteId");
-    if(noteId && onDropNote) { e.preventDefault(); onDropNote(noteId, id, meta?.label||id); }
-    setDropHover(false);
+  const handleDragOver = e => {
+    e.preventDefault();
+    const isWidget = e.dataTransfer.types.includes("text/widgettype");
+    if(isWidget) setWidgetHover(true); else setDropHover(true);
   };
+  const handleDragLeave = e => {
+    if(!e.currentTarget.contains(e.relatedTarget)) { setDropHover(false); setWidgetHover(false); }
+  };
+  const handleDrop = e => {
+    e.preventDefault();
+    const noteId     = e.dataTransfer.getData("text/noteId");
+    const widgetType = e.dataTransfer.getData("text/widgetType");
+    if(noteId && onDropNote)           onDropNote(noteId, id, meta?.label||id);
+    else if(widgetType && onDropWidget) onDropWidget(widgetType);
+    setDropHover(false); setWidgetHover(false);
+  };
+  const isHover = dropHover || widgetHover;
 
   return (
     <div
@@ -3044,7 +3034,7 @@ function DraggableCard({ id, pos, meta, notes=[], isDragging, onDragStart, onRem
       style={{
         position:"absolute", left:pos.x, top:pos.y, width:pos.w||340,
         background:C.bg, borderRadius:16,
-        border:`${dropHover?"2":"1"}px solid ${dropHover?C.primary:C.border}`,
+        border:`${isHover?"2":"1"}px solid ${widgetHover?"#7C3AED":isHover?C.primary:C.border}`,
         boxShadow: isDragging?"0 16px 48px rgba(0,0,0,0.18)":"0 4px 20px rgba(0,0,0,0.07)",
         overflow:"visible", userSelect:isDragging?"none":"auto",
         zIndex:isDragging?100:2, transition:isDragging?"none":"box-shadow 0.2s, border-color 0.15s",
@@ -3067,13 +3057,24 @@ function DraggableCard({ id, pos, meta, notes=[], isDragging, onDragStart, onRem
           <span style={{ fontFamily:FH, fontWeight:700, fontSize:14 }}>{meta?.label||id}</span>
         </div>
         <div style={{ display:"flex", gap:4, alignItems:"center" }} onMouseDown={e=>e.stopPropagation()}>
-          {dropHover && <span style={{ fontSize:10, color:C.primary, fontFamily:FB }}>Drop note ↓</span>}
+          {widgetHover && <span style={{ fontSize:10, color:"#7C3AED", fontFamily:FB }}>Drop visual ↓</span>}
+          {dropHover && !widgetHover && <span style={{ fontSize:10, color:C.primary, fontFamily:FB }}>Drop note ↓</span>}
           <button title="Remove card" onClick={onRemove} style={{ background:"none", border:"none", cursor:"pointer", color:C.muted, fontSize:16, padding:"2px 6px", lineHeight:1 }}>×</button>
         </div>
       </div>
       {/* Body */}
       <div style={{ padding:"14px 16px" }} onMouseDown={e=>e.stopPropagation()}>
         {children}
+        {embeddedWidgets.length>0&&(
+          <div style={{ marginTop:12, borderTop:`1px solid ${C.border}`, paddingTop:10 }}>
+            {embeddedWidgets.map(w=>(
+              <EmbeddedWidget key={w.id} widget={w}
+                onUpdateConfig={cfg=>onUpdateWidgetConfig?.(w.id,cfg)}
+                onRemove={()=>onRemoveEmbeddedWidget?.(w.id)}
+                metrics={metrics} snapshots={snapshots} saveM={saveM} />
+            ))}
+          </div>
+        )}
       </div>
     </div>
   );
@@ -3088,6 +3089,73 @@ const WIDGET_DEFS = {
   field: { label:"Custom Field", icon:"🔢", desc:"Equation of values" },
   eq:    { label:"Equation",     icon:"🔗", desc:"Link channel values" },
 };
+
+function EmbeddedWidget({ widget, onUpdateConfig, onRemove, metrics, snapshots, saveM }) {
+  const needsCfg = { graph:c=>!c.fieldId, pie:c=>!c.source, draw:()=>false, corr:c=>!c.fieldA||!c.fieldB, field:c=>!c.title, eq:c=>!c.source||!c.target };
+  const [editing, setEditing] = useState(()=>needsCfg[widget.type]?.(widget.config||{})||false);
+  const [cfg, setCfg] = useState(widget.config||{});
+  const fldOpts = LINK_FIELDS.map(f=><option key={f.id} value={f.id}>{f.label}</option>);
+  const s = { ...inp(), fontSize:11, marginBottom:5 };
+  const saveConfig = ()=>{ onUpdateConfig(cfg); setEditing(false); };
+  const def = WIDGET_DEFS[widget.type]||{};
+
+  const ConfigForm = ()=>{
+    if(widget.type==="graph") return(<div>
+      <select value={cfg.fieldId||""} onChange={e=>setCfg(p=>({...p,fieldId:e.target.value}))} style={s}><option value="">-- Metric --</option>{fldOpts}</select>
+      <div style={{ display:"flex", gap:4 }}><button onClick={saveConfig} disabled={!cfg.fieldId} style={{ ...btn(C.primary,"#fff",10), padding:"4px 10px" }}>Save</button><button onClick={onRemove} style={{ ...btnO(C.muted,10), padding:"4px 8px" }}>Remove</button></div>
+    </div>);
+    if(widget.type==="pie") return(<div>
+      <select value={cfg.source||""} onChange={e=>setCfg(p=>({...p,source:e.target.value}))} style={s}>
+        <option value="">-- Source --</option>
+        <option value="revenue">Revenue Sources</option>
+        <option value="costs">Cost Causes</option>
+        <option value="investments.initial">Initial Investments</option>
+        <option value="investments.ongoing">Ongoing Investments</option>
+      </select>
+      <div style={{ display:"flex", gap:4 }}><button onClick={saveConfig} disabled={!cfg.source} style={{ ...btn(C.primary,"#fff",10), padding:"4px 10px" }}>Save</button><button onClick={onRemove} style={{ ...btnO(C.muted,10), padding:"4px 8px" }}>Remove</button></div>
+    </div>);
+    if(widget.type==="corr") return(<div>
+      <select value={cfg.fieldA||""} onChange={e=>setCfg(p=>({...p,fieldA:e.target.value}))} style={s}><option value="">-- Field A --</option>{fldOpts}</select>
+      <select value={cfg.fieldB||""} onChange={e=>setCfg(p=>({...p,fieldB:e.target.value}))} style={s}><option value="">-- Field B --</option>{LINK_FIELDS.filter(f=>f.id!==cfg.fieldA).map(f=><option key={f.id} value={f.id}>{f.label}</option>)}</select>
+      <div style={{ display:"flex", gap:4 }}><button onClick={saveConfig} disabled={!cfg.fieldA||!cfg.fieldB} style={{ ...btn(C.primary,"#fff",10), padding:"4px 10px" }}>Save</button><button onClick={onRemove} style={{ ...btnO(C.muted,10), padding:"4px 8px" }}>Remove</button></div>
+    </div>);
+    if(widget.type==="field") return(<div>
+      <input value={cfg.title||""} onChange={e=>setCfg(p=>({...p,title:e.target.value}))} placeholder="Field name" style={s}/>
+      <select value={(cfg.formula||[])[0]?.value||""} onChange={e=>setCfg(p=>({...p,formula:[{type:"field",value:e.target.value},...(p.formula||[]).slice(1)]}))} style={s}><option value="">-- Field A --</option>{fldOpts}</select>
+      <select value={(cfg.formula||[null,{}])[1]?.value||""} onChange={e=>setCfg(p=>({...p,formula:[(p.formula||[{}])[0],{type:"op",value:e.target.value},(p.formula||[{},{},{}])[2]||{}]}))} style={s}><option value="">-- Operator --</option>{["+","-","×","÷"].map(op=><option key={op} value={op}>{op}</option>)}</select>
+      <select value={(cfg.formula||[null,null,{}])[2]?.value||""} onChange={e=>setCfg(p=>({...p,formula:[(p.formula||[{}])[0],(p.formula||[{},{}])[1],{type:"field",value:e.target.value}]}))} style={s}><option value="">-- Field B --</option>{LINK_FIELDS.filter(f=>f.id!==((cfg.formula||[])[0]?.value)).map(f=><option key={f.id} value={f.id}>{f.label}</option>)}</select>
+      <div style={{ display:"flex", gap:4 }}><button onClick={saveConfig} disabled={!cfg.title} style={{ ...btn(C.primary,"#fff",10), padding:"4px 10px" }}>Save</button><button onClick={onRemove} style={{ ...btnO(C.muted,10), padding:"4px 8px" }}>Remove</button></div>
+    </div>);
+    if(widget.type==="eq") return(<div>
+      <select value={cfg.source||""} onChange={e=>setCfg(p=>({...p,source:e.target.value}))} style={s}><option value="">-- Source --</option>{fldOpts}</select>
+      <select value={cfg.target||""} onChange={e=>setCfg(p=>({...p,target:e.target.value}))} style={s}><option value="">-- Target --</option>{LINK_FIELDS.filter(f=>f.id!==cfg.source).map(f=><option key={f.id} value={f.id}>{f.label}</option>)}</select>
+      <div style={{ display:"flex", gap:4 }}><button onClick={saveConfig} disabled={!cfg.source||!cfg.target} style={{ ...btn(C.primary,"#fff",10), padding:"4px 10px" }}>Save</button><button onClick={onRemove} style={{ ...btnO(C.muted,10), padding:"4px 8px" }}>Remove</button></div>
+    </div>);
+    return null;
+  };
+
+  return (
+    <div style={{ marginTop:8, paddingTop:8, borderTop:`1px solid ${C.border}` }}>
+      <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:6 }}>
+        <span style={{ fontSize:10, fontFamily:FB, fontWeight:700, color:C.muted }}>{def.icon} {widget.title||def.label}</span>
+        <div style={{ display:"flex", gap:4 }}>
+          {!editing&&widget.type!=="draw"&&<button onClick={()=>setEditing(true)} style={{ background:"none", border:`1px solid ${C.border}`, borderRadius:5, cursor:"pointer", color:C.muted, fontSize:11, padding:"1px 6px" }}>⚙</button>}
+          <button onClick={onRemove} style={{ background:"none", border:"none", cursor:"pointer", color:C.muted, fontSize:13, padding:0, lineHeight:1 }}>×</button>
+        </div>
+      </div>
+      {editing?<ConfigForm/>:(
+        <>
+          {widget.type==="graph"&&<GraphWidget config={cfg} snapshots={snapshots||[]}/>}
+          {widget.type==="pie"&&<PieWidget config={cfg} metrics={metrics}/>}
+          {widget.type==="draw"&&<DrawingWidget widgetId={widget.id}/>}
+          {widget.type==="corr"&&<IntraCorrelWidget config={cfg} snapshots={snapshots||[]} metrics={metrics}/>}
+          {widget.type==="field"&&<CustomFieldWidget config={cfg} metrics={metrics}/>}
+          {widget.type==="eq"&&<EquationWidget config={cfg} metrics={metrics} saveM={saveM}/>}
+        </>
+      )}
+    </div>
+  );
+}
 
 function GraphWidget({ config, snapshots }) {
   const field = LINK_FIELDS.find(f=>f.id===config.fieldId)||LINK_FIELDS[0];
@@ -3373,28 +3441,40 @@ function MgmtSidebar({ open, onToggle, hubNotes, setHubNotes, businessId, mgmtNo
             {/* Visuals */}
             {section==="visuals" && (<>
               {activeTool?configForm():(
-                <div style={{ display:"flex", flexDirection:"column", gap:6 }}>
-                  {["graph","pie","draw"].map(t=>{const d=WIDGET_DEFS[t];return(
-                    <button key={t} onClick={()=>startTool(t)} style={{ display:"flex", alignItems:"center", gap:10, padding:"10px 12px", background:C.surface, border:`1px solid ${C.border}`, borderRadius:10, cursor:"pointer", textAlign:"left" }}>
-                      <span style={{ fontSize:22 }}>{d.icon}</span>
-                      <div><div style={{ fontSize:12, fontFamily:FB, fontWeight:700, color:C.text }}>{d.label}</div><div style={{ fontSize:10, color:C.muted, fontFamily:FB }}>{d.desc}</div></div>
-                    </button>
-                  );})}
-                </div>
+                <>
+                  <div style={{ fontSize:10, color:C.muted, fontFamily:FB, marginBottom:6 }}>Drag onto a card — or click to add to canvas</div>
+                  <div style={{ display:"flex", flexDirection:"column", gap:6 }}>
+                    {["graph","pie","draw"].map(t=>{const d=WIDGET_DEFS[t];return(
+                      <div key={t} draggable onDragStart={e=>{e.dataTransfer.setData("text/widgetType",t);}}
+                        onClick={()=>startTool(t)}
+                        style={{ display:"flex", alignItems:"center", gap:10, padding:"10px 12px", background:C.surface, border:`1px solid ${C.border}`, borderRadius:10, cursor:"grab", userSelect:"none" }}>
+                        <span style={{ fontSize:22 }}>{d.icon}</span>
+                        <div style={{ flex:1 }}><div style={{ fontSize:12, fontFamily:FB, fontWeight:700, color:C.text }}>{d.label}</div><div style={{ fontSize:10, color:C.muted, fontFamily:FB }}>{d.desc}</div></div>
+                        <span style={{ fontSize:10, color:C.subtle, fontFamily:FB }}>⠿</span>
+                      </div>
+                    );})}
+                  </div>
+                </>
               )}
             </>)}
 
             {/* Analysis */}
             {section==="analysis" && (<>
               {activeTool?configForm():(
-                <div style={{ display:"flex", flexDirection:"column", gap:6 }}>
-                  {["corr","field","eq"].map(t=>{const d=WIDGET_DEFS[t];return(
-                    <button key={t} onClick={()=>startTool(t)} style={{ display:"flex", alignItems:"center", gap:10, padding:"10px 12px", background:C.surface, border:`1px solid ${C.border}`, borderRadius:10, cursor:"pointer", textAlign:"left" }}>
-                      <span style={{ fontSize:22 }}>{d.icon}</span>
-                      <div><div style={{ fontSize:12, fontFamily:FB, fontWeight:700, color:C.text }}>{d.label}</div><div style={{ fontSize:10, color:C.muted, fontFamily:FB }}>{d.desc}</div></div>
-                    </button>
-                  );})}
-                </div>
+                <>
+                  <div style={{ fontSize:10, color:C.muted, fontFamily:FB, marginBottom:6 }}>Drag onto a card — or click to add to canvas</div>
+                  <div style={{ display:"flex", flexDirection:"column", gap:6 }}>
+                    {["corr","field","eq"].map(t=>{const d=WIDGET_DEFS[t];return(
+                      <div key={t} draggable onDragStart={e=>{e.dataTransfer.setData("text/widgetType",t);}}
+                        onClick={()=>startTool(t)}
+                        style={{ display:"flex", alignItems:"center", gap:10, padding:"10px 12px", background:C.surface, border:`1px solid ${C.border}`, borderRadius:10, cursor:"grab", userSelect:"none" }}>
+                        <span style={{ fontSize:22 }}>{d.icon}</span>
+                        <div style={{ flex:1 }}><div style={{ fontSize:12, fontFamily:FB, fontWeight:700, color:C.text }}>{d.label}</div><div style={{ fontSize:10, color:C.muted, fontFamily:FB }}>{d.desc}</div></div>
+                        <span style={{ fontSize:10, color:C.subtle, fontFamily:FB }}>⠿</span>
+                      </div>
+                    );})}
+                  </div>
+                </>
               )}
             </>)}
           </div>
@@ -3465,6 +3545,8 @@ function ManagementCanvas({ businessId, metrics, saveM, integs, hubNotes, setHub
     }catch{ return ["leads","clients","revenue","costs","profit"]; }
   });
   const [widgets, setWidgets] = useState(()=>{ try{return JSON.parse(localStorage.getItem(WIDGETS_KEY)||"[]");}catch{return [];} });
+  const CARD_WIDGETS_KEY = `earnedlab_card_widgets_${businessId}`;
+  const [cardWidgets, setCardWidgets] = useState(()=>{ try{return JSON.parse(localStorage.getItem(CARD_WIDGETS_KEY)||"{}");}catch{return {};} });
   const [globalRange, setGlobalRange] = useState("month");
   const [toolbar, setToolbar] = useState(false);
   const [dragActive, setDragActive] = useState(null);
@@ -3522,6 +3604,17 @@ function ManagementCanvas({ businessId, metrics, saveM, integs, hubNotes, setHub
     setWidgets(p=>{ const n=p.filter(w=>w.id!==id); try{localStorage.setItem(WIDGETS_KEY,JSON.stringify(n));}catch{} return n; });
   };
 
+  const addCardWidget = (cardId, type) => {
+    const w = { id:`cw_${Date.now()}`, type, config:{}, title:WIDGET_DEFS[type]?.label||type };
+    setCardWidgets(prev=>{ const next={...prev,[cardId]:[...(prev[cardId]||[]),w]}; try{localStorage.setItem(CARD_WIDGETS_KEY,JSON.stringify(next));}catch{} return next; });
+  };
+  const updateCardWidgetConfig = (cardId, widgetId, config) => {
+    setCardWidgets(prev=>{ const next={...prev,[cardId]:(prev[cardId]||[]).map(w=>w.id===widgetId?{...w,config}:w)}; try{localStorage.setItem(CARD_WIDGETS_KEY,JSON.stringify(next));}catch{} return next; });
+  };
+  const removeCardWidget = (cardId, widgetId) => {
+    setCardWidgets(prev=>{ const next={...prev,[cardId]:(prev[cardId]||[]).filter(w=>w.id!==widgetId)}; try{localStorage.setItem(CARD_WIDGETS_KEY,JSON.stringify(next));}catch{} return next; });
+  };
+
   const getNotesForCard = (cardId) =>
     Object.entries(mgmtNoteAssignments)
       .filter(([,{targetId}])=>targetId===cardId)
@@ -3553,11 +3646,11 @@ function ManagementCanvas({ businessId, metrics, saveM, integs, hubNotes, setHub
     switch(id){
       case "leads":       return <LeadsContent       metrics={metrics} saveM={saveM} businessId={businessId} {...noteProps}/>;
       case "clients":     return <ClientsContent     metrics={metrics} saveM={saveM} businessId={businessId} {...noteProps}/>;
-      case "revenue":     return <RevenueContent     metrics={metrics} saveM={saveM} range={globalRange} cardId="revenue" {...noteProps}/>;
-      case "costs":       return <CostsContent       metrics={metrics} saveM={saveM} range={globalRange} cardId="costs"   {...noteProps}/>;
-      case "loss":        return <LossContent        metrics={metrics} range={globalRange}/>;
-      case "profit":      return <ProfitContent      metrics={metrics} range={globalRange}/>;
-      case "investments": return <InvestmentsContent metrics={metrics} saveM={saveM} range={globalRange} cardId="investments" {...noteProps}/>;
+      case "revenue":     return <RevenueContent     metrics={metrics} saveM={saveM} cardId="revenue" {...noteProps}/>;
+      case "costs":       return <CostsContent       metrics={metrics} saveM={saveM} cardId="costs"   {...noteProps}/>;
+      case "loss":        return <LossContent        metrics={metrics}/>;
+      case "profit":      return <ProfitContent      metrics={metrics}/>;
+      case "investments": return <InvestmentsContent metrics={metrics} saveM={saveM} cardId="investments" {...noteProps}/>;
       case "bookings":    return <BookingsContent    metrics={metrics} saveM={saveM} integs={integs}/>;
       case "google":      return <GoogleContent      metrics={metrics} saveM={saveM} integs={integs}/>;
       case "email":       return <EmailContent       integs={integs} businessId={businessId}/>;
@@ -3589,7 +3682,12 @@ function ManagementCanvas({ businessId, metrics, saveM, integs, hubNotes, setHub
           return (
             <DraggableCard key={id} id={id} pos={pos} meta={MGMT_META[id]} notes={notes}
               isDragging={dragActive===id} onDragStart={startDrag}
-              onRemove={()=>removeCard(id)} onDropNote={onDropNote}>
+              onRemove={()=>removeCard(id)} onDropNote={onDropNote}
+              onDropWidget={type=>addCardWidget(id,type)}
+              embeddedWidgets={cardWidgets[id]||[]}
+              onRemoveEmbeddedWidget={wid=>removeCardWidget(id,wid)}
+              onUpdateWidgetConfig={(wid,cfg)=>updateCardWidgetConfig(id,wid,cfg)}
+              metrics={metrics} snapshots={snapshots} saveM={saveM}>
               {cardContent(id)}
             </DraggableCard>
           );
@@ -3602,7 +3700,12 @@ function ManagementCanvas({ businessId, metrics, saveM, integs, hubNotes, setHub
           return (
             <DraggableCard key={w.id} id={w.id} pos={pos} meta={wmeta} notes={notes}
               isDragging={dragActive===w.id} onDragStart={startDrag}
-              onRemove={()=>removeWidget(w.id)} onDropNote={onDropNote}>
+              onRemove={()=>removeWidget(w.id)} onDropNote={onDropNote}
+              onDropWidget={type=>addCardWidget(w.id,type)}
+              embeddedWidgets={cardWidgets[w.id]||[]}
+              onRemoveEmbeddedWidget={wid=>removeCardWidget(w.id,wid)}
+              onUpdateWidgetConfig={(wid,cfg)=>updateCardWidgetConfig(w.id,wid,cfg)}
+              metrics={metrics} snapshots={snapshots} saveM={saveM}>
               {widgetContent(w)}
             </DraggableCard>
           );
