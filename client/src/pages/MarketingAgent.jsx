@@ -1380,12 +1380,11 @@ function SuggestedContentCard({ item, onAddToQueue }) {
 
 function SuggestedCampaignCard({ campaign:c, agentMode, businessId, businessName, onUpdate, onDelete }) {
   const [loading,       setLoading]       = useState(false);
-  const [result,        setResult]        = useState(null);
+  const [result,        setResult]        = useState(c.generatedContent || null);
   const [composedBlob,  setComposedBlob]  = useState(null);
   const [error,         setError]         = useState("");
   const [copied,        setCopied]        = useState(false);
   const [showRationale, setShowRationale] = useState(false);
-  const [markedPosted,  setMarkedPosted]  = useState(c.status==="monitoring");
 
   const TYPE_CLR = { post:"#3B82F6", update:"#10B981", article:"#8B5CF6", newsletter:"#F59E0B", schedule:"#EC4899" };
   const clr = TYPE_CLR[c.type] || C.primary;
@@ -1469,28 +1468,36 @@ function SuggestedCampaignCard({ campaign:c, agentMode, businessId, businessName
       )}
       {error && <p style={{ fontSize:11, color:C.err, fontFamily:FB, marginBottom:6 }}>{error}</p>}
       <div style={{ display:"flex", gap:6, flexWrap:"wrap", alignItems:"center" }}>
-        {!result ? (
+        {/* Queued: just start it */}
+        {c.status === "planned" && (
+          <button onClick={()=>onUpdate({...c,status:"active",startedAt:new Date().toISOString()})}
+            style={{ ...btn(C.warn,"#fff",11), padding:"5px 12px" }}>Start campaign</button>
+        )}
+        {/* Active: generate content */}
+        {c.status === "active" && !result && (
           <button onClick={generate} disabled={loading}
             style={{ ...btn(loading?"#9CA3AF":C.primary,"#fff",11), padding:"5px 12px", display:"flex", alignItems:"center", gap:5 }}>
             {loading && <span style={spin()}/>}
             {loading ? "Generating…" : "Generate"}
           </button>
-        ) : (
+        )}
+        {c.status === "active" && result && (
           <>
-            <button onClick={generate} disabled={loading}
-              style={{ ...btnO(C.muted,10), padding:"4px 10px" }}>
+            <button onClick={generate} disabled={loading} style={{ ...btnO(C.muted,10), padding:"4px 10px" }}>
               {loading ? "…" : "Regenerate"}
             </button>
             <button onClick={copy} style={{ ...btnO(C.primary,10), padding:"4px 10px" }}>{copied?"Copied!":"Copy"}</button>
             {composedBlob && <button onClick={downloadImage} style={{ ...btnO(C.muted,10), padding:"4px 10px" }}>Download</button>}
-            {agentMode==="guided" && !markedPosted && (
-              <button onClick={()=>{ setMarkedPosted(true); onUpdate({...c,status:"monitoring",completedAt:new Date().toISOString()}); }}
-                style={{ ...btn(C.ok,"#fff",10), padding:"4px 10px", marginLeft:"auto" }}>
-                ✓ Mark as posted
-              </button>
-            )}
-            {markedPosted && <span style={{ fontSize:11, color:C.ok, fontFamily:FB, marginLeft:"auto" }}>Posted ✓</span>}
+            <button onClick={()=>onUpdate({...c,status:"monitoring",completedAt:new Date().toISOString()})}
+              style={{ ...btn(C.ok,"#fff",10), padding:"4px 10px", marginLeft:"auto" }}>
+              ✓ Mark as posted
+            </button>
           </>
+        )}
+        {/* Run campaigns: mark goal achieved */}
+        {c.status === "monitoring" && (
+          <button onClick={()=>onUpdate({...c,status:"archived",archivedAt:new Date().toISOString()})}
+            style={{ ...btn(C.ok,"#fff",11), padding:"5px 12px" }}>Mark goal achieved</button>
         )}
       </div>
     </div>
@@ -2075,7 +2082,7 @@ function MarketInsightCard({ campaign:c, businessId, onUpdate, onDelete }) {
                 style={{ marginTop:2, accentColor:"#8B5CF6", flexShrink:0 }} />
               <span style={{ fontSize:12, color: t.done ? C.muted : C.text, fontFamily:FB, lineHeight:1.45,
                 textDecoration: t.done ? "line-through" : "none" }}>
-                {t.title || t.text || t}
+                {t.name || t.title || t.text || "Task"}
                 {t.description && <span style={{ display:"block", fontSize:11, color:C.muted, marginTop:1 }}>{t.description}</span>}
               </span>
             </label>
