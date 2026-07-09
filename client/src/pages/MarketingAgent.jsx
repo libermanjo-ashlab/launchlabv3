@@ -1014,9 +1014,49 @@ function CampaignCard({ campaign:c, onUpdate, onDelete, businessId, businessName
   );
 }
 
+// ── Manual Campaign Card (user-added, no AI task generation) ─────────────────
+
+function ManualCampaignCard({ campaign:c, onUpdate, onDelete }) {
+  const statusColor = STAT_CLR[c.status] || C.muted;
+  return (
+    <div style={{ ...card("12px 14px"), marginBottom:10, border:`1px solid ${statusColor}25` }}>
+      <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", marginBottom:6 }}>
+        <div style={{ flex:1, paddingRight:8 }}>
+          <div style={{ display:"flex", gap:5, marginBottom:4, flexWrap:"wrap", alignItems:"center" }}>
+            <span style={{ fontSize:9, fontWeight:700, fontFamily:FB, padding:"2px 7px", borderRadius:20, textTransform:"uppercase", letterSpacing:"0.05em", background:statusColor+"18", color:statusColor }}>{c.status}</span>
+            {c.channel && <span style={{ fontSize:9, fontWeight:600, fontFamily:FB, padding:"2px 7px", borderRadius:20, background:C.primaryBg, color:C.primary, textTransform:"uppercase" }}>{CH_LABELS[c.channel]||c.channel}</span>}
+            <span style={{ fontSize:9, fontWeight:600, fontFamily:FB, padding:"2px 7px", borderRadius:20, background:"#F4F4F5", color:C.muted, textTransform:"uppercase" }}>manual</span>
+          </div>
+          <div style={{ fontSize:13, fontWeight:600, fontFamily:FH, lineHeight:1.4 }}>{c.title}</div>
+        </div>
+        <button onClick={()=>onDelete(c.id)} style={{ background:"none", border:"none", cursor:"pointer", color:C.muted, fontSize:16, padding:0, flexShrink:0 }}>×</button>
+      </div>
+      {c.rationale && <p style={{ fontSize:12, color:C.muted, fontFamily:FB, lineHeight:1.5, marginBottom:6 }}>{c.rationale}</p>}
+      {c.expectedImpact && <div style={{ background:C.okBg, borderRadius:6, padding:"4px 8px", fontSize:11, color:C.ok, fontFamily:FB, marginBottom:6 }}>Goal: {c.expectedImpact}</div>}
+      {c.goal && <p style={{ fontSize:11, color:C.muted, fontFamily:FB, marginBottom:4 }}>Success metric: {c.goal}</p>}
+      {c.timeframe && <p style={{ fontSize:11, color:C.muted, fontFamily:FB, marginBottom:8 }}>Timeframe: {c.timeframe}</p>}
+      <div style={{ display:"flex", gap:6, flexWrap:"wrap" }}>
+        {c.status === "planned" && (
+          <button onClick={()=>onUpdate({...c,status:"active",startedAt:new Date().toISOString()})}
+            style={{ ...btn(C.warn,"#fff",11), padding:"5px 12px" }}>Start working on it</button>
+        )}
+        {c.status === "active" && (
+          <button onClick={()=>onUpdate({...c,status:"monitoring",completedAt:new Date().toISOString()})}
+            style={{ ...btn(C.ok,"#fff",11), padding:"5px 12px" }}>✓ Mark complete</button>
+        )}
+        {c.status === "monitoring" && (
+          <button onClick={()=>onUpdate({...c,status:"archived",archivedAt:new Date().toISOString()})}
+            style={{ ...btnO(C.ok,11), padding:"5px 12px" }}>Archive</button>
+        )}
+        <button onClick={()=>onDelete(c.id)} style={{ ...btnO(C.err,11), padding:"5px 10px", marginLeft:"auto" }}>Remove</button>
+      </div>
+    </div>
+  );
+}
+
 // ── Add Campaign Form ─────────────────────────────────────────────────────────
 
-function AddCampaignForm({ mode, onAdd }) {
+function AddCampaignForm({ onAdd }) {
   const [open,      setOpen]      = useState(false);
   const [title,     setTitle]     = useState("");
   const [channel,   setChannel]   = useState("general");
@@ -1024,14 +1064,13 @@ function AddCampaignForm({ mode, onAdd }) {
   const [target,    setTarget]    = useState("");
   const [goal,      setGoal]      = useState("");
   const [timeframe, setTimeframe] = useState("7 days");
-  const [campaignMode, setCampaignMode] = useState(mode || "guided");
 
   const add = () => {
     if (!title.trim()) return;
     onAdd({ id:Date.now().toString(), title:title.trim(), channel,
       rationale: action.trim() || undefined,
       expectedImpact:target.trim()||undefined,
-      goal:goal.trim(), timeframe, status:"planned", mode:campaignMode,
+      goal:goal.trim(), timeframe, status:"planned", mode:"manual", isManual:true,
       createdAt:new Date().toISOString() });
     setTitle(""); setAction(""); setTarget(""); setGoal(""); setOpen(false);
   };
@@ -1053,21 +1092,11 @@ function AddCampaignForm({ mode, onAdd }) {
           style={{ ...inp() }} />
       </div>
 
-      <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:8, marginBottom:8 }}>
-        <div>
-          <label style={lbl}>Channel</label>
-          <select value={channel} onChange={e=>setChannel(e.target.value)} style={{ ...inp({ fontSize:13 }), width:"100%" }}>
-            {CH_OPTIONS.map(c=><option key={c} value={c}>{CH_LABELS[c]||c}</option>)}
-          </select>
-        </div>
-        <div>
-          <label style={lbl}>Mode</label>
-          <select value={campaignMode} onChange={e=>setCampaignMode(e.target.value)} style={{ ...inp({ fontSize:13 }), width:"100%" }}>
-            <option value="auto">Auto</option>
-            <option value="guided">Guided</option>
-            <option value="manual">Manual</option>
-          </select>
-        </div>
+      <div style={{ marginBottom:8 }}>
+        <label style={lbl}>Channel</label>
+        <select value={channel} onChange={e=>setChannel(e.target.value)} style={{ ...inp({ fontSize:13 }), width:"100%" }}>
+          {CH_OPTIONS.map(c=><option key={c} value={c}>{CH_LABELS[c]||c}</option>)}
+        </select>
       </div>
 
       <div style={{ marginBottom:8 }}>
@@ -2847,9 +2876,11 @@ export default function AgentPanel({ businessId, businessName, metrics, planInfo
                 Queued — ready to start ({plannedCampaigns.length})
               </p>
               {plannedCampaigns.map(c=>(
-                c.topic && c.tone
-                  ? <SuggestedCampaignCard key={c.id} campaign={c} agentMode={agentMode} businessId={businessId} businessName={businessName} onUpdate={updateCampaign} onDelete={deleteCampaign} />
-                  : <CampaignCard key={c.id} campaign={c} onUpdate={updateCampaign} onDelete={deleteCampaign} businessId={businessId} businessName={businessName} setTab={setTab} activeCampaignCount={activeCampaigns.length} refreshTasks={refreshTasks} stickyNote={stickyAssignments?.[c.id] ? hubNotes?.find(n=>n.id===stickyAssignments[c.id]?.noteId) : null} onAssignSticky={onAssignSticky} onUnstickNote={onUnstickNote} />
+                c.isManual
+                  ? <ManualCampaignCard key={c.id} campaign={c} onUpdate={updateCampaign} onDelete={deleteCampaign} />
+                  : c.topic && c.tone
+                    ? <SuggestedCampaignCard key={c.id} campaign={c} agentMode={agentMode} businessId={businessId} businessName={businessName} onUpdate={updateCampaign} onDelete={deleteCampaign} />
+                    : <CampaignCard key={c.id} campaign={c} onUpdate={updateCampaign} onDelete={deleteCampaign} businessId={businessId} businessName={businessName} setTab={setTab} activeCampaignCount={activeCampaigns.length} refreshTasks={refreshTasks} stickyNote={stickyAssignments?.[c.id] ? hubNotes?.find(n=>n.id===stickyAssignments[c.id]?.noteId) : null} onAssignSticky={onAssignSticky} onUnstickNote={onUnstickNote} />
               ))}
             </div>
           )}
@@ -2861,9 +2892,11 @@ export default function AgentPanel({ businessId, businessName, metrics, planInfo
                 Active ({activeCampaigns.length})
               </p>
               {activeCampaigns.map(c=>(
-                c.topic && c.tone
-                  ? <SuggestedCampaignCard key={c.id} campaign={c} agentMode={agentMode} businessId={businessId} businessName={businessName} onUpdate={updateCampaign} onDelete={deleteCampaign} />
-                  : <CampaignCard key={c.id} campaign={c} onUpdate={updateCampaign} onDelete={deleteCampaign} businessId={businessId} businessName={businessName} setTab={setTab} activeCampaignCount={activeCampaigns.length} refreshTasks={refreshTasks} stickyNote={stickyAssignments?.[c.id] ? hubNotes?.find(n=>n.id===stickyAssignments[c.id]?.noteId) : null} onAssignSticky={onAssignSticky} onUnstickNote={onUnstickNote} />
+                c.isManual
+                  ? <ManualCampaignCard key={c.id} campaign={c} onUpdate={updateCampaign} onDelete={deleteCampaign} />
+                  : c.topic && c.tone
+                    ? <SuggestedCampaignCard key={c.id} campaign={c} agentMode={agentMode} businessId={businessId} businessName={businessName} onUpdate={updateCampaign} onDelete={deleteCampaign} />
+                    : <CampaignCard key={c.id} campaign={c} onUpdate={updateCampaign} onDelete={deleteCampaign} businessId={businessId} businessName={businessName} setTab={setTab} activeCampaignCount={activeCampaigns.length} refreshTasks={refreshTasks} stickyNote={stickyAssignments?.[c.id] ? hubNotes?.find(n=>n.id===stickyAssignments[c.id]?.noteId) : null} onAssignSticky={onAssignSticky} onUnstickNote={onUnstickNote} />
               ))}
             </div>
           )}
@@ -2883,9 +2916,11 @@ export default function AgentPanel({ businessId, businessName, metrics, planInfo
                 )}
               </div>
               {monitoringCampaigns.map(c=>(
-                c.topic && c.tone
-                  ? <SuggestedCampaignCard key={c.id} campaign={c} agentMode={agentMode} businessId={businessId} businessName={businessName} onUpdate={updateCampaign} onDelete={deleteCampaign} />
-                  : <CampaignCard key={c.id} campaign={c} onUpdate={updateCampaign} onDelete={deleteCampaign} businessId={businessId} businessName={businessName} setTab={setTab} activeCampaignCount={activeCampaigns.length} refreshTasks={refreshTasks} stickyNote={stickyAssignments?.[c.id] ? hubNotes?.find(n=>n.id===stickyAssignments[c.id]?.noteId) : null} onAssignSticky={onAssignSticky} onUnstickNote={onUnstickNote} />
+                c.isManual
+                  ? <ManualCampaignCard key={c.id} campaign={c} onUpdate={updateCampaign} onDelete={deleteCampaign} />
+                  : c.topic && c.tone
+                    ? <SuggestedCampaignCard key={c.id} campaign={c} agentMode={agentMode} businessId={businessId} businessName={businessName} onUpdate={updateCampaign} onDelete={deleteCampaign} />
+                    : <CampaignCard key={c.id} campaign={c} onUpdate={updateCampaign} onDelete={deleteCampaign} businessId={businessId} businessName={businessName} setTab={setTab} activeCampaignCount={activeCampaigns.length} refreshTasks={refreshTasks} stickyNote={stickyAssignments?.[c.id] ? hubNotes?.find(n=>n.id===stickyAssignments[c.id]?.noteId) : null} onAssignSticky={onAssignSticky} onUnstickNote={onUnstickNote} />
               ))}
             </div>
           )}
@@ -2903,7 +2938,7 @@ export default function AgentPanel({ businessId, businessName, metrics, planInfo
             </div>
           )}
 
-          <AddCampaignForm mode={agentMode} onAdd={c=>saveCampaigns(p=>[c,...p])} />
+          <AddCampaignForm onAdd={c=>saveCampaigns(p=>[c,...p])} />
 
           {/* Archived campaigns */}
           {archivedCampaigns.length>0 && (
@@ -2913,9 +2948,11 @@ export default function AgentPanel({ businessId, businessName, metrics, planInfo
                 {showArchived?"▲":"▼"} Archived Campaigns ({archivedCampaigns.length})
               </button>
               {showArchived && archivedCampaigns.map(c=>(
-                c.topic && c.tone
-                  ? <SuggestedCampaignCard key={c.id} campaign={c} agentMode={agentMode} businessId={businessId} businessName={businessName} onUpdate={updateCampaign} onDelete={deleteCampaign} />
-                  : <CampaignCard key={c.id} campaign={c} onUpdate={updateCampaign} onDelete={deleteCampaign} businessId={businessId} businessName={businessName} setTab={setTab} activeCampaignCount={activeCampaigns.length} refreshTasks={refreshTasks} stickyNote={stickyAssignments?.[c.id] ? hubNotes?.find(n=>n.id===stickyAssignments[c.id]?.noteId) : null} onAssignSticky={onAssignSticky} onUnstickNote={onUnstickNote} />
+                c.isManual
+                  ? <ManualCampaignCard key={c.id} campaign={c} onUpdate={updateCampaign} onDelete={deleteCampaign} />
+                  : c.topic && c.tone
+                    ? <SuggestedCampaignCard key={c.id} campaign={c} agentMode={agentMode} businessId={businessId} businessName={businessName} onUpdate={updateCampaign} onDelete={deleteCampaign} />
+                    : <CampaignCard key={c.id} campaign={c} onUpdate={updateCampaign} onDelete={deleteCampaign} businessId={businessId} businessName={businessName} setTab={setTab} activeCampaignCount={activeCampaigns.length} refreshTasks={refreshTasks} stickyNote={stickyAssignments?.[c.id] ? hubNotes?.find(n=>n.id===stickyAssignments[c.id]?.noteId) : null} onAssignSticky={onAssignSticky} onUnstickNote={onUnstickNote} />
               ))}
             </div>
           )}
