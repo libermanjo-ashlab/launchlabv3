@@ -2051,7 +2051,7 @@ function MarketInsightCard({ campaign:c, businessId, onUpdate, onDelete }) {
       });
       const newTasks = data.tasks || [];
       setTasks(newTasks);
-      onUpdate({ ...c, tasks: newTasks });
+      onUpdate({ ...c, tasks: newTasks, status: c.status === "planned" ? "active" : c.status });
     } catch(e) { setError(e.message); }
     setLoading(false);
   };
@@ -2062,13 +2062,15 @@ function MarketInsightCard({ campaign:c, businessId, onUpdate, onDelete }) {
     onUpdate({ ...c, tasks: updated });
   };
 
+  const statusBadgeClr = { planned:"#8B5CF6", active:C.warn, monitoring:C.ok, archived:C.muted }[c.status] || "#8B5CF6";
+
   return (
-    <div style={{ ...card("12px 14px"), marginBottom:10, border:"1px solid #8B5CF620", background:"#F5F3FF" }}>
+    <div style={{ ...card("12px 14px"), marginBottom:10, border:"1px solid #8B5CF620", background: c.status==="archived" ? "#F9F9F9" : "#F5F3FF" }}>
       <div style={{ display:"flex", gap:6, marginBottom:6, flexWrap:"wrap", alignItems:"center" }}>
         <span style={{ fontSize:9, fontWeight:700, background:"#8B5CF6", color:"#fff", padding:"2px 8px", borderRadius:20, textTransform:"uppercase", letterSpacing:"0.06em", fontFamily:FB }}>Market Insight</span>
         {c.channel&&<span style={{ background:C.primaryBg, color:C.primary, fontSize:9, fontWeight:600, padding:"2px 8px", borderRadius:20, fontFamily:FB }}>{CH_LABELS[c.channel]||c.channel}</span>}
-        <span style={{ fontSize:10, color:"#7C3AED", fontFamily:FB, marginLeft:"auto", fontStyle:"italic" }}>Manual action required</span>
-        <button onClick={()=>onDelete(c.id)} style={{ background:"none", border:"none", cursor:"pointer", color:C.muted, fontSize:18, padding:"0 2px", lineHeight:1, marginLeft:4 }}>×</button>
+        <span style={{ fontSize:9, fontWeight:700, padding:"2px 7px", borderRadius:20, background:statusBadgeClr+"18", color:statusBadgeClr, textTransform:"uppercase", fontFamily:FB }}>{c.status||"planned"}</span>
+        <button onClick={()=>onDelete(c.id)} style={{ background:"none", border:"none", cursor:"pointer", color:C.muted, fontSize:18, padding:"0 2px", lineHeight:1, marginLeft:"auto" }}>×</button>
       </div>
       <p style={{ fontSize:13, fontWeight:600, color:C.text, fontFamily:FH, marginBottom:4, lineHeight:1.4 }}>{c.title}</p>
       {c.rationale&&<p style={{ fontSize:12, color:C.muted, fontFamily:FB, lineHeight:1.55, marginBottom:6 }}>{c.rationale}</p>}
@@ -2090,11 +2092,24 @@ function MarketInsightCard({ campaign:c, businessId, onUpdate, onDelete }) {
         </div>
       )}
       {error && <p style={{ fontSize:11, color:C.err, fontFamily:FB, marginBottom:6 }}>{error}</p>}
-      <button onClick={getActionSteps} disabled={loading}
-        style={{ ...btn(loading?"#9CA3AF":"#8B5CF6","#fff",10), padding:"5px 12px", display:"flex", alignItems:"center", gap:5 }}>
-        {loading && <span style={spin()}/>}
-        {loading ? "Loading…" : tasks.length > 0 ? "Refresh action steps" : "Get action steps"}
-      </button>
+      {/* Status-aware actions */}
+      <div style={{ display:"flex", gap:6, flexWrap:"wrap" }}>
+        {c.status !== "archived" && c.status !== "monitoring" && (
+          <button onClick={getActionSteps} disabled={loading}
+            style={{ ...btn(loading?"#9CA3AF":"#8B5CF6","#fff",10), padding:"5px 12px", display:"flex", alignItems:"center", gap:5 }}>
+            {loading && <span style={spin()}/>}
+            {loading ? "Loading…" : tasks.length > 0 ? "Refresh steps" : "Get action steps"}
+          </button>
+        )}
+        {tasks.length > 0 && c.status !== "monitoring" && c.status !== "archived" && (
+          <button onClick={()=>onUpdate({...c,status:"monitoring",completedAt:new Date().toISOString()})}
+            style={{ ...btn(C.ok,"#fff",10), padding:"5px 12px" }}>✓ Mark done</button>
+        )}
+        {c.status === "monitoring" && (
+          <button onClick={()=>onUpdate({...c,status:"archived",archivedAt:new Date().toISOString()})}
+            style={{ ...btn(C.ok,"#fff",10), padding:"5px 12px" }}>Mark goal achieved</button>
+        )}
+      </div>
     </div>
   );
 }
