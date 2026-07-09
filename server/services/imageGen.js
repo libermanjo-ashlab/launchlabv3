@@ -111,6 +111,81 @@ function buildSvg(businessName, _bodyText, seed) {
 </svg>`;
 }
 
+// ── Server-side text composition ──────────────────────────────────────────────
+
+/**
+ * Composite caption text over an AI-generated image buffer using Sharp + SVG overlay.
+ * Returns a new PNG buffer with frosted card + headline text baked in.
+ * Falls back to raw buffer if composition fails.
+ */
+async function composeCaptionOverImage(aiImageBuf, captionText, businessName) {
+  const W = 1024, H = 1024;
+
+  const rawText = (captionText || "").split(/[.!?\n]/)[0]?.replace(/#\w+/g, "").trim() || "";
+  if (!rawText) return aiImageBuf;
+
+  const displayText = rawText.length > 160 ? rawText.slice(0, 157) + "…" : rawText;
+
+  // Character-based word wrap (no canvas.measureText server-side)
+  const MAX_CHARS = 26;
+  const words = displayText.split(" ");
+  const lines = [];
+  let line = "";
+  for (const word of words) {
+    const test = line ? `${line} ${word}` : word;
+    if (line && test.length > MAX_CHARS) {
+      lines.push(line);
+      line = word;
+      if (lines.length >= 4) break;
+    } else {
+      line = test;
+    }
+  }
+  if (line && lines.length < 4) lines.push(line);
+
+  const fs = 52;
+  const lh = 68;
+  const pv = 50;
+  const cardH = pv * 2 + lines.length * lh;
+  const cardY = Math.round((H - cardH) / 2) - 30;
+  const bizName = (businessName || "").slice(0, 32);
+
+  const esc = s => s
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+
+  const textEls = lines
+    .map((l, i) =>
+      `<text x="${W / 2}" y="${cardY + pv + fs + i * lh}" ` +
+      `font-family="DejaVu Sans,Liberation Sans,Helvetica,Arial,sans-serif" ` +
+      `font-size="${fs}" font-weight="bold" ` +
+      `fill="#ffffff" fill-opacity="0.95" text-anchor="middle">${esc(l)}</text>`
+    )
+    .join("\n  ");
+
+  const svg = `<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}">
+  <defs>
+    <radialGradient id="v" cx="50%" cy="50%" r="70%">
+      <stop offset="45%" stop-color="black" stop-opacity="0"/>
+      <stop offset="100%" stop-color="black" stop-opacity="0.3"/>
+    </radialGradient>
+  </defs>
+  <rect width="${W}" height="${H}" fill="url(#v)"/>
+  <rect x="80" y="${cardY}" width="864" height="${cardH}" rx="18" fill="black" fill-opacity="0.28"/>
+  ${textEls}
+  <text x="80" y="${H - 38}" font-family="DejaVu Sans,Liberation Sans,Helvetica,Arial,sans-serif" font-size="28" font-weight="600" fill="#ffffff" fill-opacity="0.5">${esc(bizName)}</text>
+</svg>`;
+
+  return await sharp(aiImageBuf)
+    .resize(W, H, { fit: "cover" })
+    .composite([{ input: Buffer.from(svg), blend: "over" }])
+    .png({ compressionLevel: 6 })
+    .toBuffer();
+}
+
 // ── Public API ────────────────────────────────────────────────────────────────
 
 /**
@@ -159,4 +234,4 @@ async function generatePostImage(businessName, captionBody) {
   }
 }
 
-module.exports = { generatePostImage, getImage, storeImage };
+module.exports = { generatePostImage, getImage, storeImage, composeCaptionOverImage };

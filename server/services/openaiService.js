@@ -219,11 +219,13 @@ function buildImagePrompt(businessName, captionBody, brandIdentity) {
 
   const concept = (captionBody || "").split(/[.!?\n]/)[0]?.replace(/#\w+/g, "").trim().slice(0, 80) || "";
 
-  return `Abstract background image for an Instagram post. Color palette: ${palette}. Style: ${visualStyle}, ${mood}. \
-Business type: ${bizType}.${concept ? ` Theme: ${concept}.` : ""} \
-1:1 square, 1024×1024. Abstract gradient, geometric shapes, or texture pattern. \
-NO text, NO words, NO typography. NO people, NO logos, NO stock photography. \
-Soft and uncluttered — designed as a background that will have text overlaid on top.`;
+  return `Square conceptual image for a ${bizType} brand.
+Use ${palette}, ${visualStyle}, ${mood}.
+Idea: "${concept}".
+Show a business-specific visual metaphor with relevant objects, settings, materials, or textures.
+Avoid generic gradients, geometric abstraction, and stock-photo style.
+Leave 35-45% clean negative space for text overlay.
+No text, letters, logos, UI, borders, or watermark.`;
 }
 
 /**

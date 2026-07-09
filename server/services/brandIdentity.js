@@ -110,6 +110,7 @@ function bootstrapFromIdea(business, idea, integrations, metrics) {
       : "Increase posting consistency and engagement across connected channels";
 
   return {
+    businessType,
     voice,
     tone: "confident, genuine, helpful",
     targetAudience: target || `People looking for ${businessType} services`,
