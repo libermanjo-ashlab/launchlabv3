@@ -207,7 +207,11 @@ async function runEnhancedMarketingAgent(business, metrics, intake, integrations
             `${stats.followers.toLocaleString()} followers, ${stats.mediaCount} posts, ${postAlert}, avg ${stats.avgLikes} likes/post`
           );
         } else {
-          channelLines.push(`INSTAGRAM (@${meta.handle || "account"}) [CONNECTED]: credentials set — could not fetch live stats`);
+          const reason = !meta.businessAccountId ? "Business Account ID not configured" : "API fetch failed";
+          channelLines.push(
+            `INSTAGRAM (@${meta.handle || "account"}) [CONNECTED — STATS UNAVAILABLE: ${reason}]: ` +
+            `Credentials present but live data could not be retrieved. DO NOT estimate or reference follower counts, post counts, or engagement numbers. Provide general content strategy only.`
+          );
         }
       } else {
         viewableLines.push(`INSTAGRAM (@${meta.handle?.replace("@","") || "handle"}) [VIEWABLE]: public profile set — general best-practice insights apply`);
@@ -222,7 +226,10 @@ async function runEnhancedMarketingAgent(business, metrics, intake, integrations
             `X / TWITTER (@${stats.username}) [CONNECTED]: ${stats.followers.toLocaleString()} followers, ${stats.tweetCount} tweets, ${alert}, avg ${stats.avgLikes} likes/tweet`
           );
         } else {
-          channelLines.push(`X / TWITTER (@${meta.handle?.replace("@","")}) [CONNECTED]: credentials set — could not fetch live stats`);
+          channelLines.push(
+            `X / TWITTER (@${meta.handle?.replace("@","") || "handle"}) [CONNECTED — STATS UNAVAILABLE]: ` +
+            `Credentials present but live data could not be retrieved. DO NOT estimate or reference specific numbers.`
+          );
         }
       } else {
         viewableLines.push(`X / TWITTER (@${meta.handle?.replace("@","") || "handle"}) [VIEWABLE]: handle set`);
@@ -236,7 +243,10 @@ async function runEnhancedMarketingAgent(business, metrics, intake, integrations
             `TIKTOK (@${stats.username}) [CONNECTED]: ${stats.followers.toLocaleString()} followers, ${stats.videoCount} videos, avg ${stats.avgViews} views/video`
           );
         } else {
-          channelLines.push(`TIKTOK (@${meta.handle?.replace("@","")}) [CONNECTED]: credentials set — could not fetch live stats`);
+          channelLines.push(
+            `TIKTOK (@${meta.handle?.replace("@","") || "handle"}) [CONNECTED — STATS UNAVAILABLE]: ` +
+            `Credentials present but live data could not be retrieved. DO NOT estimate or reference specific numbers.`
+          );
         }
       } else {
         viewableLines.push(`TIKTOK (@${meta.handle?.replace("@","") || "handle"}) [VIEWABLE]: handle set`);
@@ -303,13 +313,23 @@ async function runEnhancedMarketingAgent(business, metrics, intake, integrations
   ].filter(Boolean).join("\n");
 
   // ── Previous analysis for change comparison ─────────────────────────────────
-  const prevSection = previousAnalysis
-    ? `PREVIOUS ANALYSIS (${new Date(previousAnalysis.ranAt || 0).toLocaleDateString()}):
-${previousAnalysis.report?.marketAnalysis?.summary || ""}
-Key observations: ${(previousAnalysis.insights||[]).slice(0,3).map(i=>i.recommendation||i.title).join("; ") || "none"}
-
-Compare: no change since last run = action is needed. Negative trends = change strategy. Positive trends = maintain strategy.`
-    : "";
+  // Only pass previous channel STATS (not the AI-generated summary which may contain non-marketing noise)
+  const prevSection = (() => {
+    if (!previousAnalysis?.ranAt) return "";
+    const prevLive = previousAnalysis.liveStats || previousAnalysis.report?.liveStats || {};
+    const lines = Object.entries(prevLive).map(([ch, s]) => {
+      if (!s) return null;
+      if (ch === "instagram") return `Instagram: ${s.followers ?? "?"} followers, ${s.mediaCount ?? "?"} posts, avg ${s.avgLikes ?? "?"} likes`;
+      if (ch === "twitter")   return `X/Twitter: ${s.followers ?? "?"} followers, ${s.tweetCount ?? "?"} tweets`;
+      if (ch === "tiktok")    return `TikTok: ${s.followers ?? "?"} followers, ${s.videoCount ?? "?"} videos`;
+      if (ch === "email")     return `Email: ${s.subscribers ?? 0} subscribers, ${s.openRate ?? 0}% open rate`;
+      return null;
+    }).filter(Boolean);
+    if (!lines.length) return "";
+    return `PREVIOUS CHANNEL STATS (${new Date(previousAnalysis.ranAt).toLocaleDateString()}):
+${lines.join("\n")}
+Compare these stats to the current data above. Note improvements (+), regressions (-), or stagnation (=) per channel. Only reference channel metrics.`;
+  })();
 
   const audienceNote = prefs.audience === "local"
     ? `Local business serving ${business.location}`
@@ -329,7 +349,7 @@ Compare: no change since last run = action is needed. Negative trends = change s
 Today: ${today}
 ${audienceNote}
 ${stageNote}
-${prefs.goals ? `Owner goal: ${prefs.goals}` : ""}
+${prefs.goals ? `Business context (do NOT reference in channel analysis): ${prefs.goals}` : ""}
 
 MARKETING CHANNELS:
 ${channelSection}
@@ -339,13 +359,26 @@ ${brandSection || "(not yet configured — infer from business type)"}
 
 ${prevSection}
 
+STRICT RULES — VIOLATIONS ARE ERRORS:
+1. NEVER mention leads, revenue, clients, bookings, sales figures, or business pipeline in any section. This is marketing channel analysis ONLY.
+2. When a channel is marked STATS UNAVAILABLE, provide strategy advice only. NEVER invent or estimate follower counts, post counts, or engagement numbers. NEVER reference "0 followers" or "0 posts" unless confirmed by actual data above.
+3. Do not repeat content from previous analyses verbatim — assess whether the situation has changed.
+
 ANALYSIS RULES:
 - Focus ONLY on marketing channel performance and content strategy
-- For CONNECTED channels: cite actual numbers (followers, post dates, engagement rates)
-- For VIEWABLE channels: note public-facing signals (handle set, booking link live)
-- Compare to previous run if provided — call out changes (positive/negative/stagnant)
-- Stagnant = bad (action required). Negative = bad (change strategy). Positive = good (maintain + act more)
-- Always generate action items after analysis
+- For CONNECTED channels with live stats: cite the actual numbers provided above
+- For CONNECTED channels with STATS UNAVAILABLE: note credentials are set, recommend fixing the connection, give general strategy
+- For VIEWABLE channels: note public-facing signals (handle set, profile live, booking link active)
+- Compare to previous channel stats if provided — call out improvements, regressions, or stagnation per channel
+
+COMPETITOR ACTIVITY:
+For the competitorBehavior field, describe SPECIFICALLY:
+- What content formats competitors use (carousel, Reels, single image, Story, short video, long-form, etc.)
+- Visual aesthetic: colors, design style, filter/editing style
+- Caption approach: short punchy hooks, long storytelling, bullet lists, CTA-heavy, question-based, etc.
+- Estimated posting frequency based on niche norms
+- Type of engagement they typically drive (comments, saves, shares, follows)
+Name specific accounts from the brand identity if available. Be concrete and actionable.
 
 BRAND IDENTITY UPDATES:
 Analyze the connected/viewable channels and update brand identity fields where you can observe them:
@@ -356,10 +389,12 @@ Analyze the connected/viewable channels and update brand identity fields where y
 - postingRecommendation: optimal posting schedule based on what you see working
 
 SUGGESTED CONTENT:
-Generate exactly ${maxSuggestions} high-priority content suggestions. Each must be immediately actionable.
-Order by priority (high first). Include the specific channel, tone, and topic for each — these will pre-fill the content generator.
-Topic must be SPECIFIC: "Share before/after results from this week's client project" not "Post about your work".
-Map to types: post=Instagram/TikTok/Facebook visual, update=Twitter/Website/Google short text, article=LinkedIn long-form, newsletter=Email, schedule=content calendar.
+Generate exactly ${maxSuggestions} high-priority content suggestions based on the opportunities section.
+Order by priority (high first). Include: the specific channel, a tone descriptor, and a specific topic/context prompt.
+- tone: adjective phrase matching the brand voice (e.g. "bold, direct" or "educational, value-driven")
+- topic: SPECIFIC prompt that will go directly into the content generator: e.g. "Introduce EarnedLab with a single bold value-prop graphic and DM CTA" — not generic like "post about your business"
+- Only suggest channels that are CONNECTED or VIEWABLE (not not_connected)
+- Map to types: post=Instagram/TikTok/Facebook visual, update=Twitter/Website/Google short text, article=LinkedIn long-form, newsletter=Email, schedule=content calendar
 
 Return JSON matching the schema exactly.`;
 

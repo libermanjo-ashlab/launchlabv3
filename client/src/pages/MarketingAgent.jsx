@@ -230,8 +230,8 @@ function ChannelStatCard({ stat }) {
 
 // ── Market analysis section ───────────────────────────────────────────────────
 
-function MarketSubSection({ title, children }) {
-  const [open, setOpen] = useState(false);
+function MarketSubSection({ title, children, defaultOpen = false }) {
+  const [open, setOpen] = useState(defaultOpen);
   return (
     <div style={{ border:`1px solid ${C.border}`, borderRadius:8, marginBottom:6, overflow:"hidden" }}>
       <div onClick={()=>setOpen(o=>!o)} style={{ display:"flex", justifyContent:"space-between", alignItems:"center", padding:"8px 12px", cursor:"pointer", background:"#FAFAFA" }}>
@@ -248,7 +248,7 @@ function MarketAnalysisSection({ analysis }) {
   return (
     <div style={{ ...card("12px 14px"), border:`1px solid ${C.border}`, marginBottom:10 }}>
       <div style={{ fontFamily:FB, fontWeight:600, fontSize:13, marginBottom:10 }}>Market Analysis</div>
-      <MarketSubSection title="Overview">
+      <MarketSubSection title="Overview" defaultOpen={true}>
         <p style={{ fontSize:12, color:C.text, fontFamily:FB, lineHeight:1.6, margin:0 }}>{analysis.summary}</p>
       </MarketSubSection>
       <MarketSubSection title="Competitor Activity">
@@ -1200,13 +1200,10 @@ function ImplementResult({ result, businessId, businessName }) {
 // ── Brand Identity Q&A (manual mode prompts) ─────────────────────────────────
 
 const BRAND_QA = [
-  { key:"productDescription",    q:"What is your product/service?",          ph:"Describe your offering and what makes it unique" },
-  { key:"voice",                 q:"What is your brand voice?",              ph:"e.g. educational, direct, no-fluff" },
-  { key:"targetAudience",        q:"Who is your target customer?",           ph:"e.g. freelancers aged 25-35 who struggle with pricing" },
-  { key:"contentPillars",        q:"What topics do you post about?",         ph:"e.g. tips, client wins, behind the scenes", isArray:true },
-  { key:"uniqueAngle",           q:"What makes your content different?",     ph:"e.g. we show real revenue numbers, not vague results" },
-  { key:"competitorAccounts",    q:"Competitor accounts to watch?",          ph:"e.g. @competitor1, @competitor2" },
-  { key:"postingRecommendation", q:"Posting schedule/strategy?",             ph:"e.g. 3-4x/week: 50% tips, 30% social proof" },
+  { key:"voice",          q:"What is your brand voice?",              ph:"e.g. educational, direct, no-fluff" },
+  { key:"targetAudience", q:"Who is your target customer?",           ph:"e.g. freelancers aged 25-35 who struggle with pricing" },
+  { key:"contentPillars", q:"What topics do you post about?",         ph:"e.g. tips, client wins, behind the scenes", isArray:true },
+  { key:"uniqueAngle",    q:"What makes your content different?",     ph:"e.g. we show real revenue numbers, not vague results" },
 ];
 
 function BrandQAPanel({ businessId }) {
@@ -1289,17 +1286,36 @@ function ChannelStatusBar({ channelStatuses }) {
 
 // ── Suggested Content Card (from market analysis) ─────────────────────────────
 
-function SuggestedContentCard({ item, agentMode, businessId, onMoveToQueue }) {
-  const [generating, setGenerating] = useState(false);
-  const [result,     setResult]     = useState(null);
-  const [error,      setError]      = useState("");
-  const [copied,     setCopied]     = useState(false);
+function suggestedTitle(type, channel) {
+  const ch = CH_LABELS[channel] || channel || "";
+  switch (type) {
+    case "post":       return `Post on ${ch}`;
+    case "update":     return ch ? `Update ${ch}` : "Post Update";
+    case "article":    return ch ? `Publish Article on ${ch}` : "Publish Article";
+    case "newsletter": return "Send Newsletter";
+    case "schedule":   return "Content Schedule";
+    default:           return ch ? `${type} on ${ch}` : type;
+  }
+}
+
+function SuggestedContentCard({ item, agentMode, businessId, businessName, onAddToQueue }) {
+  const [loading,       setLoading]       = useState(false);
+  const [result,        setResult]        = useState(null);
+  const [composedBlob,  setComposedBlob]  = useState(null);
+  const [error,         setError]         = useState("");
+  const [copied,        setCopied]        = useState(false);
+  const [showRationale, setShowRationale] = useState(false);
+  const [added,         setAdded]         = useState(false);
 
   const TYPE_CLR = { post:"#3B82F6", update:"#10B981", article:"#8B5CF6", newsletter:"#F59E0B", schedule:"#EC4899" };
   const clr = TYPE_CLR[item.type] || C.primary;
+  const title = suggestedTitle(item.type, item.channel);
 
-  const generate = async () => {
-    setGenerating(true); setError(""); setResult(null);
+  const composedUrl = useMemo(()=>composedBlob?URL.createObjectURL(composedBlob):null,[composedBlob]);
+  useEffect(()=>()=>{ if (composedUrl) URL.revokeObjectURL(composedUrl); },[composedUrl]);
+
+  const handleAdd = async () => {
+    setLoading(true); setError(""); setResult(null); setComposedBlob(null);
     try {
       const data = await api.agents.contentLab(businessId, {
         channel: item.channel || "general",
@@ -1307,8 +1323,24 @@ function SuggestedContentCard({ item, agentMode, businessId, onMoveToQueue }) {
         tone: item.tone || "professional",
       });
       setResult(data);
+      if (data.imageUrl && businessName && !data.isVideo) {
+        try {
+          const blob = await generatePostImageBlob(businessName, data.body||data.caption, data.imageUrl);
+          setComposedBlob(blob);
+        } catch {}
+      }
+      onAddToQueue({
+        title,
+        channel: item.channel,
+        rationale: item.rationale,
+        contentPreview: data,
+        tone: item.tone,
+        topic: item.topic,
+        type: item.type,
+      });
+      setAdded(true);
     } catch(e) { setError(e.message); }
-    setGenerating(false);
+    setLoading(false);
   };
 
   const copy = async () => {
@@ -1318,34 +1350,71 @@ function SuggestedContentCard({ item, agentMode, businessId, onMoveToQueue }) {
     setCopied(true); setTimeout(()=>setCopied(false), 2000);
   };
 
+  const downloadImage = () => {
+    if (!composedBlob) return;
+    const url = URL.createObjectURL(composedBlob);
+    const a   = document.createElement("a"); a.href=url;
+    a.download = `${title.replace(/\s+/g,"-").toLowerCase()}.png`;
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  };
+
   return (
     <div style={{ ...card("10px 12px"), marginBottom:8, border:`1px solid ${clr}25` }}>
+      {/* Header badges */}
       <div style={{ display:"flex", gap:5, alignItems:"center", marginBottom:5, flexWrap:"wrap" }}>
         <span style={{ fontSize:9, fontWeight:700, padding:"2px 7px", borderRadius:20, background:`${clr}20`, color:clr, textTransform:"uppercase", fontFamily:FB }}>{item.type}</span>
         {item.channel && <span style={{ fontSize:9, fontWeight:600, padding:"2px 7px", borderRadius:20, background:C.primaryBg, color:C.primary, fontFamily:FB }}>{CH_LABELS[item.channel]||item.channel}</span>}
-        {item.tone && <span style={{ fontSize:9, color:C.muted, fontFamily:FB }}>{item.tone}</span>}
-        {item.priority && <span style={{ fontSize:9, color:PRI_CLR[item.priority]||C.muted, fontFamily:FB, marginLeft:"auto" }}>{item.priority} priority</span>}
+        {item.priority && <span style={{ fontSize:9, color:PRI_CLR[item.priority]||C.muted, fontFamily:FB, marginLeft:"auto" }}>{item.priority}</span>}
       </div>
-      <div style={{ fontSize:12, fontWeight:600, color:C.text, fontFamily:FH, marginBottom:3, lineHeight:1.4 }}>{item.topic}</div>
-      {item.rationale && <div style={{ fontSize:11, color:C.muted, fontFamily:FB, lineHeight:1.5, marginBottom:6 }}>{item.rationale}</div>}
+      {/* Simple title */}
+      <div style={{ fontSize:13, fontWeight:700, color:C.text, fontFamily:FH, marginBottom:3, lineHeight:1.3 }}>{title}</div>
+      {/* Tone + topic as gray prompt text */}
+      {(item.tone || item.topic) && (
+        <div style={{ fontSize:11, color:C.muted, fontFamily:FB, lineHeight:1.5, marginBottom:6 }}>
+          {item.tone && <span style={{ fontStyle:"italic" }}>{item.tone}</span>}
+          {item.tone && item.topic && " — "}
+          {item.topic}
+        </div>
+      )}
+      {/* Rationale dropdown */}
+      {item.rationale && (
+        <div style={{ marginBottom:6 }}>
+          <button onClick={()=>setShowRationale(o=>!o)}
+            style={{ background:"none", border:"none", cursor:"pointer", fontSize:10, color:C.muted, fontFamily:FB, padding:0, display:"flex", alignItems:"center", gap:4 }}>
+            <span>{showRationale?"▲":"▼"}</span> Why this?
+          </button>
+          {showRationale && (
+            <div style={{ fontSize:11, color:C.muted, fontFamily:FB, lineHeight:1.5, marginTop:4, paddingLeft:8, borderLeft:`2px solid ${C.border}` }}>
+              {item.rationale}
+            </div>
+          )}
+        </div>
+      )}
+      {/* Generated content */}
       {result && (
         <div style={{ background:C.primaryBg, borderRadius:8, padding:"8px 10px", marginBottom:8 }}>
+          {composedUrl && <img src={composedUrl} alt="Generated" style={{ width:"100%", borderRadius:6, marginBottom:8, display:"block" }} />}
           <p style={{ fontSize:12, color:C.text, fontFamily:FB, lineHeight:1.6, marginBottom:result.hashtags?4:0, whiteSpace:"pre-wrap" }}>{result.body||result.caption}</p>
           {result.hashtags && <p style={{ fontSize:11, color:C.primary, fontFamily:FB }}>{result.hashtags}</p>}
         </div>
       )}
       {error && <p style={{ fontSize:11, color:C.err, fontFamily:FB, marginBottom:6 }}>{error}</p>}
-      <div style={{ display:"flex", gap:6, flexWrap:"wrap" }}>
-        <button onClick={generate} disabled={generating}
-          style={{ ...btn(generating?"#9CA3AF":clr,"#fff",10), padding:"4px 10px", display:"flex", alignItems:"center", gap:5 }}>
-          {generating && <span style={spin()}/>}
-          {generating ? "Generating…" : result ? "Regenerate" : "Generate now"}
+      {/* Actions */}
+      {!result && (
+        <button onClick={handleAdd} disabled={loading}
+          style={{ ...btn(loading?"#9CA3AF":clr,"#fff",10), padding:"5px 12px", display:"flex", alignItems:"center", gap:5 }}>
+          {loading && <span style={spin()}/>}
+          {loading ? "Generating…" : agentMode==="guided" ? "Generate & add to campaigns" : "Generate content"}
         </button>
-        {result && <button onClick={copy} style={{ ...btnO(C.primary,10), padding:"4px 10px" }}>{copied?"Copied!":"Copy"}</button>}
-        {agentMode==="guided" && (
-          <button onClick={()=>onMoveToQueue(item)} style={{ ...btnO(C.muted,10), padding:"4px 10px" }}>Add to campaigns</button>
-        )}
-      </div>
+      )}
+      {result && (
+        <div style={{ display:"flex", gap:6, flexWrap:"wrap", alignItems:"center" }}>
+          <button onClick={copy} style={{ ...btnO(C.primary,10), padding:"4px 10px" }}>{copied?"Copied!":"Copy text"}</button>
+          {composedBlob && <button onClick={downloadImage} style={{ ...btnO(C.muted,10), padding:"4px 10px" }}>Download image</button>}
+          {added && <span style={{ fontSize:10, color:C.ok, fontFamily:FB }}>✓ Added to campaigns</span>}
+        </div>
+      )}
     </div>
   );
 }
@@ -2366,6 +2435,23 @@ export default function AgentPanel({ businessId, businessName, metrics, planInfo
     saveCampaigns(p=>[c,...p]);
   };
 
+  // Suggested content campaigns (NOT market insights — don't require manual planning)
+  const addSuggestedContent = ({ title, channel, rationale, contentPreview, tone, topic, type: ctype }) => {
+    const c = {
+      id: `sc_${Date.now()}${Math.random().toString(36).slice(2,6)}`,
+      title,
+      rationale,
+      channel,
+      contentPreview,
+      tone,
+      topic,
+      status: "planned",
+      mode: agentMode === "auto" ? "auto" : "guided",
+      createdAt: new Date().toISOString(),
+    };
+    saveCampaigns(p=>[c,...p]);
+  };
+
   const updateCampaign = (updated) => {
     if (typeof updated === "function") {
       // runTasksAuto passes a functional updater: fn(campaign) => campaign
@@ -2594,7 +2680,7 @@ export default function AgentPanel({ businessId, businessName, metrics, planInfo
                     Suggested content ({suggestedContent.length})
                   </p>
                   {suggestedContent.map((item,i)=>(
-                    <SuggestedContentCard key={i} item={item} agentMode={agentMode} businessId={businessId} onMoveToQueue={addToCampaigns} />
+                    <SuggestedContentCard key={i} item={item} agentMode={agentMode} businessId={businessId} businessName={businessName} onAddToQueue={addSuggestedContent} />
                   ))}
                 </div>
               )}
