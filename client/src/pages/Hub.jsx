@@ -2417,21 +2417,29 @@ function BusinessStrategySection({ businessId, metrics, snapshots }) {
 // ── MANAGEMENT CANVAS ──────────────────────────────────────────────────────────
 
 const MGMT_META = {
-  leads:    { label:"Leads",    icon:"🎯", hdrBg:"#EFF6FF" },
-  clients:  { label:"Clients",  icon:"👥", hdrBg:"#F0FDF4" },
-  revenue:  { label:"Revenue",  icon:"💰", hdrBg:"#FFFBEB" },
-  bookings: { label:"Bookings", icon:"📅", hdrBg:"#FFF7ED" },
-  google:   { label:"Google",   icon:"⭐", hdrBg:"#F5F3FF" },
-  email:    { label:"Email",    icon:"✉️",  hdrBg:"#FFF1F2" },
+  leads:       { label:"Leads",       icon:"🎯", hdrBg:"#EFF6FF" },
+  clients:     { label:"Clients",     icon:"👥", hdrBg:"#F0FDF4" },
+  revenue:     { label:"Revenue",     icon:"💰", hdrBg:"#FFFBEB" },
+  costs:       { label:"Costs",       icon:"📉", hdrBg:"#FFF1F2" },
+  loss:        { label:"Loss",        icon:"🔻", hdrBg:"#FFF1F2" },
+  profit:      { label:"Profit",      icon:"📈", hdrBg:"#F0FDF4" },
+  investments: { label:"Investments", icon:"🏗️",  hdrBg:"#F5F3FF" },
+  bookings:    { label:"Bookings",    icon:"📅", hdrBg:"#FFF7ED" },
+  google:      { label:"Google",      icon:"⭐", hdrBg:"#F5F3FF" },
+  email:       { label:"Email",       icon:"✉️",  hdrBg:"#FFF1F2" },
 };
 
 const MGMT_DEFAULTS = {
-  leads:    { x:0,   y:0,   w:340 },
-  clients:  { x:360, y:0,   w:340 },
-  revenue:  { x:0,   y:360, w:700 },
-  bookings: { x:0,   y:670, w:340 },
-  google:   { x:360, y:360, w:340 },
-  email:    { x:360, y:670, w:340 },
+  leads:       { x:0,   y:0,   w:340 },
+  clients:     { x:360, y:0,   w:340 },
+  revenue:     { x:0,   y:360, w:340 },
+  costs:       { x:360, y:360, w:340 },
+  profit:      { x:720, y:360, w:340 },
+  loss:        { x:720, y:670, w:340 },
+  investments: { x:0,   y:670, w:340 },
+  bookings:    { x:360, y:670, w:340 },
+  google:      { x:0,   y:980, w:340 },
+  email:       { x:360, y:980, w:340 },
 };
 
 function MCell({ label, value, onChange, prefix="" }) {
@@ -2609,45 +2617,243 @@ function ClientsContent({ metrics, saveM, businessId }) {
   );
 }
 
-function RevenueContent({ metrics, saveM, wide }) {
-  const rev  = metrics.revenue?.this_month||0;
-  const cost = metrics.revenue?.cost||0;
-  const profit = metrics.revenue?.profit!=null ? metrics.revenue.profit : rev - cost;
-  const isLoss = profit < 0;
-  const mom = metrics.revenue?.last_month > 0
-    ? ((rev - metrics.revenue.last_month) / metrics.revenue.last_month * 100).toFixed(0)
-    : null;
+function RangePills({ range, setRange }) {
+  const opts=[["month","This Month"],["last","Last Month"],["total","All Time"]];
+  return (
+    <div style={{ display:"flex", gap:4, marginBottom:10, flexWrap:"wrap" }}>
+      {opts.map(([k,l])=>(
+        <button key={k} onClick={()=>setRange(k)} style={{ fontSize:10, padding:"2px 10px", borderRadius:20, border:`1px solid ${range===k?C.primary:C.border}`, background:range===k?C.primaryBg:"transparent", color:range===k?C.primary:C.muted, fontFamily:FB, fontWeight:600, cursor:"pointer" }}>{l}</button>
+      ))}
+    </div>
+  );
+}
 
-  const handleCostChange = v => {
-    saveM("revenue.cost", v);
-    if (metrics.revenue?.profit == null) saveM("revenue.profit", rev - v);
+function SourceList({ items, onAdd, onRemove, prefix="$" }) {
+  const [name,setName]=useState(""); const [amt,setAmt]=useState("");
+  const add=()=>{ if(!name.trim()) return; onAdd({ id:Date.now().toString(), name:name.trim(), amount:Number(amt)||0 }); setName(""); setAmt(""); };
+  return (
+    <div style={{ marginTop:10 }}>
+      <div style={{ fontSize:9, color:C.muted, fontWeight:700, textTransform:"uppercase", letterSpacing:"0.07em", fontFamily:FB, marginBottom:6 }}>Sources</div>
+      {items.map(s=>(
+        <div key={s.id} style={{ display:"flex", justifyContent:"space-between", alignItems:"center", padding:"4px 8px", borderRadius:6, background:C.surface, marginBottom:4 }}>
+          <span style={{ fontSize:12, fontFamily:FB, color:C.text }}>{s.name}</span>
+          <div style={{ display:"flex", alignItems:"center", gap:6 }}>
+            <span style={{ fontSize:12, fontFamily:FH, fontWeight:700, color:C.text }}>{prefix}{Number(s.amount||0).toLocaleString()}</span>
+            <button onClick={()=>onRemove(s.id)} style={{ background:"none", border:"none", cursor:"pointer", color:C.muted, fontSize:13, lineHeight:1, padding:"0 2px" }}>×</button>
+          </div>
+        </div>
+      ))}
+      <div style={{ display:"flex", gap:4, marginTop:6 }}>
+        <input value={name} onChange={e=>setName(e.target.value)} placeholder="Name" style={{ flex:2, fontSize:11, padding:"4px 8px", border:`1px solid ${C.border}`, borderRadius:6, fontFamily:FB, outline:"none", background:C.bg, color:C.text }} />
+        <input value={amt} onChange={e=>setAmt(e.target.value)} placeholder="Amount" type="number" style={{ flex:1, fontSize:11, padding:"4px 8px", border:`1px solid ${C.border}`, borderRadius:6, fontFamily:FB, outline:"none", background:C.bg, color:C.text }} />
+        <button onClick={add} style={{ ...btn(C.primary,"#fff",11), padding:"4px 10px" }}>+</button>
+      </div>
+    </div>
+  );
+}
+
+function RevenueContent({ metrics, saveM }) {
+  const [range, setRange] = useState("month");
+  const val = range==="month" ? metrics.revenue?.this_month||0
+            : range==="last"  ? metrics.revenue?.last_month||0
+            :                   metrics.revenue?.total||0;
+  const label = range==="month"?"This Month":range==="last"?"Last Month":"All Time";
+  const sources = metrics.revenue?.sources || [];
+
+  const saveField = (field,v) => saveM(`revenue.${field}`,v);
+  const addSource = s => {
+    const next=[...sources,s];
+    const total=next.reduce((a,x)=>a+(x.amount||0),0);
+    saveM("revenue.sources",next);
+    if(range==="month") saveM("revenue.this_month",total);
+    if(range==="total") saveM("revenue.total",total);
+  };
+  const removeSource = id => {
+    const next=sources.filter(s=>s.id!==id);
+    const total=next.reduce((a,x)=>a+(x.amount||0),0);
+    saveM("revenue.sources",next);
+    if(range==="month") saveM("revenue.this_month",total);
+    if(range==="total") saveM("revenue.total",total);
   };
 
   return (
     <div>
-      <div style={{ display:"flex", gap:10, marginBottom:10, flexWrap:"wrap" }}>
-        <MCell label="Revenue (month)" value={rev}  onChange={v=>saveM("revenue.this_month",v)} prefix="$" />
-        <MCell label="Last month"  value={metrics.revenue?.last_month||0}  onChange={v=>saveM("revenue.last_month",v)}  prefix="$" />
-        <MCell label="All time"    value={metrics.revenue?.total||0}       onChange={v=>saveM("revenue.total",v)}        prefix="$" />
-      </div>
-      <div style={{ display:"flex", gap:10, flexWrap:"wrap" }}>
-        <MCell label="Costs (month)" value={cost} onChange={handleCostChange} prefix="$" />
-        <div style={{ flex:1, background:isLoss?"#FFF1F2":profit>0?"#F0FDF4":C.surface, borderRadius:10, padding:"10px 12px", minWidth:0, border:`1px solid ${isLoss?"#FECDD3":profit>0?"#BBF7D0":C.border}` }}>
-          <div style={{ fontSize:9, color:isLoss?"#EF4444":profit>0?"#16A34A":C.muted, fontWeight:700, textTransform:"uppercase", letterSpacing:"0.07em", fontFamily:FB, marginBottom:4 }}>
-            {isLoss?"Loss":"Profit"} (auto)
+      <RangePills range={range} setRange={setRange} />
+      <MCell label={label} value={val} onChange={v=>saveField(range==="month"?"this_month":range==="last"?"last_month":"total",v)} prefix="$" />
+      <SourceList items={sources} onAdd={addSource} onRemove={removeSource} prefix="$" />
+    </div>
+  );
+}
+
+function CostsContent({ metrics, saveM }) {
+  const [range, setRange] = useState("month");
+  const invest = metrics.investments;
+  const investThisMonth = (invest?.total_ongoing||0);
+  const investTotal = (invest?.total_initial||0)+(invest?.total_ongoing||0);
+  const baseCost = range==="month" ? metrics.costs?.this_month||0
+                 : range==="last"  ? metrics.costs?.last_month||0
+                 :                   metrics.costs?.total||0;
+  const investAmt = range==="total" ? investTotal : investThisMonth;
+  const effectiveCost = baseCost + investAmt;
+  const label = range==="month"?"This Month":range==="last"?"Last Month":"All Time";
+  const causes = metrics.costs?.causes || [];
+
+  const addCause = s => {
+    const next=[...causes,s];
+    const total=next.reduce((a,x)=>a+(x.amount||0),0);
+    saveM("costs.causes",next);
+    saveM("costs.this_month",total);
+  };
+  const removeCause = id => {
+    const next=causes.filter(s=>s.id!==id);
+    const total=next.reduce((a,x)=>a+(x.amount||0),0);
+    saveM("costs.causes",next);
+    saveM("costs.this_month",total);
+  };
+
+  return (
+    <div>
+      <RangePills range={range} setRange={setRange} />
+      <div style={{ display:"flex", gap:8, marginBottom:6 }}>
+        <MCell label={`${label} (manual)`} value={baseCost} onChange={v=>saveM(`costs.${range==="month"?"this_month":range==="last"?"last_month":"total"}`,v)} prefix="$" />
+        {investAmt>0&&(
+          <div style={{ flex:1, background:"#F5F3FF", borderRadius:10, padding:"10px 12px", border:`1px solid #DDD6FE` }}>
+            <div style={{ fontSize:9, color:"#7C3AED", fontWeight:700, textTransform:"uppercase", letterSpacing:"0.07em", fontFamily:FB, marginBottom:4 }}>+ Investments</div>
+            <div style={{ fontFamily:FH, fontWeight:700, fontSize:22, color:"#7C3AED" }}>${investAmt.toLocaleString()}</div>
           </div>
-          <div style={{ fontFamily:FH, fontWeight:700, fontSize:22, color:isLoss?"#EF4444":profit>0?"#16A34A":C.text }}>
-            {isLoss?"-$":"+$"}{Math.abs(profit).toLocaleString()}
-          </div>
-          <div style={{ fontSize:9, color:C.muted, fontFamily:FB, marginTop:2 }}>Revenue − Costs</div>
-        </div>
-        <MCell label="Profit (override)" value={metrics.revenue?.profit!=null?metrics.revenue.profit:""} onChange={v=>saveM("revenue.profit",v)} prefix="$" />
+        )}
       </div>
-      {mom !== null && (
-        <div style={{ background:C.surface, borderRadius:10, padding:"8px 12px", fontSize:11, color:Number(mom)>=0?"#22C55E":"#EF4444", fontFamily:FB, fontWeight:600, marginTop:10 }}>
-          {Number(mom)>=0?"▲":"▼"} {Math.abs(Number(mom))}% revenue vs last month
+      {investAmt>0&&(
+        <div style={{ background:C.surface, borderRadius:8, padding:"6px 10px", fontSize:11, color:C.muted, fontFamily:FB, marginBottom:6 }}>
+          Effective costs: <strong style={{ color:C.text }}>${effectiveCost.toLocaleString()}</strong> (manual + investments)
         </div>
       )}
+      <SourceList items={causes} onAdd={addCause} onRemove={removeCause} prefix="$" />
+    </div>
+  );
+}
+
+function LossContent({ metrics }) {
+  const [range, setRange] = useState("month");
+  const invest = metrics.investments;
+  const investAmt = range==="total"
+    ? (invest?.total_initial||0)+(invest?.total_ongoing||0)
+    : (invest?.total_ongoing||0);
+  const rev  = range==="month" ? metrics.revenue?.this_month||0
+             : range==="last"  ? metrics.revenue?.last_month||0
+             :                   metrics.revenue?.total||0;
+  const cost = range==="month" ? metrics.costs?.this_month||0
+             : range==="last"  ? metrics.costs?.last_month||0
+             :                   metrics.costs?.total||0;
+  const effectiveCost = cost + investAmt;
+  const loss = Math.max(0, effectiveCost - rev);
+  const label = range==="month"?"This Month":range==="last"?"Last Month":"All Time";
+  return (
+    <div>
+      <RangePills range={range} setRange={setRange} />
+      <div style={{ background:loss>0?"#FFF1F2":C.surface, borderRadius:12, padding:"14px 16px", border:`1px solid ${loss>0?"#FECDD3":C.border}` }}>
+        <div style={{ fontSize:9, color:loss>0?"#EF4444":C.muted, fontWeight:700, textTransform:"uppercase", letterSpacing:"0.07em", fontFamily:FB, marginBottom:6 }}>Loss — {label}</div>
+        <div style={{ fontFamily:FH, fontWeight:700, fontSize:32, color:loss>0?"#EF4444":C.muted }}>
+          {loss>0?`-$${loss.toLocaleString()}`:"$0"}
+        </div>
+        {loss===0&&<div style={{ fontSize:11, color:"#22C55E", fontFamily:FB, marginTop:4 }}>No loss — you are profitable ✓</div>}
+      </div>
+      <div style={{ display:"flex", gap:8, marginTop:8 }}>
+        <div style={{ flex:1, background:C.surface, borderRadius:8, padding:"8px 10px" }}>
+          <div style={{ fontSize:9, color:C.muted, fontFamily:FB, fontWeight:700, textTransform:"uppercase", marginBottom:2 }}>Revenue</div>
+          <div style={{ fontFamily:FH, fontWeight:700, fontSize:16, color:C.text }}>${rev.toLocaleString()}</div>
+        </div>
+        <div style={{ flex:1, background:C.surface, borderRadius:8, padding:"8px 10px" }}>
+          <div style={{ fontSize:9, color:C.muted, fontFamily:FB, fontWeight:700, textTransform:"uppercase", marginBottom:2 }}>Costs</div>
+          <div style={{ fontFamily:FH, fontWeight:700, fontSize:16, color:C.text }}>${effectiveCost.toLocaleString()}</div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function ProfitContent({ metrics }) {
+  const [range, setRange] = useState("month");
+  const invest = metrics.investments;
+  const investAmt = range==="total"
+    ? (invest?.total_initial||0)+(invest?.total_ongoing||0)
+    : (invest?.total_ongoing||0);
+  const rev  = range==="month" ? metrics.revenue?.this_month||0
+             : range==="last"  ? metrics.revenue?.last_month||0
+             :                   metrics.revenue?.total||0;
+  const cost = range==="month" ? metrics.costs?.this_month||0
+             : range==="last"  ? metrics.costs?.last_month||0
+             :                   metrics.costs?.total||0;
+  const effectiveCost = cost + investAmt;
+  const profit = Math.max(0, rev - effectiveCost);
+  const label = range==="month"?"This Month":range==="last"?"Last Month":"All Time";
+  return (
+    <div>
+      <RangePills range={range} setRange={setRange} />
+      <div style={{ background:profit>0?"#F0FDF4":C.surface, borderRadius:12, padding:"14px 16px", border:`1px solid ${profit>0?"#BBF7D0":C.border}` }}>
+        <div style={{ fontSize:9, color:profit>0?"#16A34A":C.muted, fontWeight:700, textTransform:"uppercase", letterSpacing:"0.07em", fontFamily:FB, marginBottom:6 }}>Profit — {label}</div>
+        <div style={{ fontFamily:FH, fontWeight:700, fontSize:32, color:profit>0?"#16A34A":C.muted }}>
+          {profit>0?`+$${profit.toLocaleString()}`:"$0"}
+        </div>
+        {profit===0&&<div style={{ fontSize:11, color:"#EF4444", fontFamily:FB, marginTop:4 }}>At a loss or break-even</div>}
+      </div>
+      <div style={{ display:"flex", gap:8, marginTop:8 }}>
+        <div style={{ flex:1, background:C.surface, borderRadius:8, padding:"8px 10px" }}>
+          <div style={{ fontSize:9, color:C.muted, fontFamily:FB, fontWeight:700, textTransform:"uppercase", marginBottom:2 }}>Revenue</div>
+          <div style={{ fontFamily:FH, fontWeight:700, fontSize:16, color:C.text }}>${rev.toLocaleString()}</div>
+        </div>
+        <div style={{ flex:1, background:C.surface, borderRadius:8, padding:"8px 10px" }}>
+          <div style={{ fontSize:9, color:C.muted, fontFamily:FB, fontWeight:700, textTransform:"uppercase", marginBottom:2 }}>Costs</div>
+          <div style={{ fontFamily:FH, fontWeight:700, fontSize:16, color:C.text }}>${effectiveCost.toLocaleString()}</div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function InvestmentsContent({ metrics, saveM }) {
+  const [range, setRange] = useState("month");
+  const invest = metrics.investments || {};
+  const initial = invest.initial || [];
+  const ongoing = invest.ongoing || [];
+  const totalInitial  = initial.reduce((a,x)=>a+(x.amount||0),0);
+  const totalOngoing  = ongoing.reduce((a,x)=>a+(x.amount||0),0);
+  const totalAll = totalInitial+totalOngoing;
+
+  const saveInvestments = (next)=>{
+    const ti=next.initial.reduce((a,x)=>a+(x.amount||0),0);
+    const to=next.ongoing.reduce((a,x)=>a+(x.amount||0),0);
+    saveM("investments.initial",next.initial);
+    saveM("investments.ongoing",next.ongoing);
+    saveM("investments.total_initial",ti);
+    saveM("investments.total_ongoing",to);
+  };
+
+  const addInitial = s=>saveInvestments({ initial:[...initial,s], ongoing });
+  const removeInitial = id=>saveInvestments({ initial:initial.filter(x=>x.id!==id), ongoing });
+  const addOngoing = s=>saveInvestments({ initial, ongoing:[...ongoing,s] });
+  const removeOngoing = id=>saveInvestments({ initial, ongoing:ongoing.filter(x=>x.id!==id) });
+
+  return (
+    <div>
+      <RangePills range={range} setRange={setRange} />
+      <div style={{ background:"#F5F3FF", borderRadius:12, padding:"12px 14px", marginBottom:10, border:"1px solid #DDD6FE" }}>
+        <div style={{ fontSize:9, color:"#7C3AED", fontWeight:700, textTransform:"uppercase", letterSpacing:"0.07em", fontFamily:FB, marginBottom:4 }}>
+          Total Investments {range==="total"?"(All Time)":"(Ongoing/Mo)"}
+        </div>
+        <div style={{ fontFamily:FH, fontWeight:700, fontSize:28, color:"#7C3AED" }}>
+          ${(range==="total"?totalAll:totalOngoing).toLocaleString()}
+        </div>
+        <div style={{ fontSize:10, color:"#7C3AED", fontFamily:FB, marginTop:2, opacity:0.7 }}>Counts toward Costs</div>
+      </div>
+      <div style={{ marginBottom:12 }}>
+        <div style={{ fontSize:11, color:C.text, fontFamily:FB, fontWeight:700, marginBottom:6 }}>Initial (One-Time) — ${totalInitial.toLocaleString()}</div>
+        <SourceList items={initial} onAdd={addInitial} onRemove={removeInitial} prefix="$" />
+      </div>
+      <div>
+        <div style={{ fontSize:11, color:C.text, fontFamily:FB, fontWeight:700, marginBottom:6 }}>Ongoing (Recurring/Mo) — ${totalOngoing.toLocaleString()}</div>
+        <SourceList items={ongoing} onAdd={addOngoing} onRemove={removeOngoing} prefix="$" />
+      </div>
     </div>
   );
 }
@@ -2710,8 +2916,10 @@ function GoogleContent({ metrics, saveM, integs }) {
 
 function EmailContent({ integs, businessId }) {
   const KEY = `earnedlab_email_${businessId}`;
-  const meta = (()=>{ try{const i=integs.find(x=>x.provider==="email");return i?.metadata?JSON.parse(i.metadata):{};}catch{return {};} })();
-  const hasEmail = !!meta.address;
+  const emailInteg = integs.find(x=>x.provider==="email");
+  const meta = (()=>{ try{return emailInteg?.metadata?JSON.parse(emailInteg.metadata):{};}catch{return {};} })();
+  const isConnected = emailInteg?.status==="connected";
+  const isViewable  = !!meta.address;
   const [counts, setCounts] = useState(()=>{ try{return JSON.parse(localStorage.getItem(KEY)||"null")||{ inbox:0,starred:0,saved:0,archive:0 };}catch{return { inbox:0,starred:0,saved:0,archive:0 };} });
   const updateCount = (field,val)=>{
     const next={ ...counts,[field]:Number(val)||0 };
@@ -2723,16 +2931,20 @@ function EmailContent({ integs, businessId }) {
     { label:"Saved",   field:"saved",   icon:"🔖" },
     { label:"Archive", field:"archive", icon:"📦" },
   ];
-  if(!hasEmail) return (
+  if(!isViewable) return (
     <div style={{ textAlign:"center", padding:"12px 0" }}>
-      <div style={{ fontSize:12, color:C.muted, fontFamily:FB }}>Connect your email in Hub → Integrations to track inbox stats here.</div>
+      <div style={{ fontSize:12, color:C.muted, fontFamily:FB }}>Add your email address in Hub → Integrations to track inbox stats here.</div>
     </div>
   );
+  const statusLabel = isConnected?"Connected":"Viewable";
+  const statusClr   = isConnected?"#22C55E":"#3B82F6";
+  const statusBg    = isConnected?"#F0FDF4":"#EFF6FF";
   return (
     <div>
       <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:12 }}>
-        <span style={{ fontSize:10, padding:"2px 8px", borderRadius:12, background:"#EFF6FF", color:"#3B82F6", fontFamily:FB, fontWeight:600 }}>Connected</span>
+        <span style={{ fontSize:10, padding:"2px 8px", borderRadius:12, background:statusBg, color:statusClr, fontFamily:FB, fontWeight:600 }}>{statusLabel}</span>
         <span style={{ fontSize:11, color:C.muted, fontFamily:FB }}>{meta.address}</span>
+        {!isConnected&&<span style={{ fontSize:10, color:C.muted, fontFamily:FB }}>(Connect API key for full access)</span>}
       </div>
       <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:8 }}>
         {SECTIONS.map(s=>(
@@ -2839,7 +3051,18 @@ function ManagementCanvas({ businessId, metrics, saveM, integs, hubNotes, setHub
     try{ const s=localStorage.getItem(POS_KEY); return s?JSON.parse(s):{...MGMT_DEFAULTS}; }catch{ return {...MGMT_DEFAULTS}; }
   });
   const [visible, setVisible] = useState(()=>{
-    try{ const s=localStorage.getItem(CARDS_KEY); return s?JSON.parse(s):["leads","clients","revenue"]; }catch{ return ["leads","clients","revenue"]; }
+    try{
+      const s=localStorage.getItem(CARDS_KEY);
+      if(s){
+        const v=JSON.parse(s);
+        // migrate: replace old "revenue" with split cards if user hasn't seen new ones yet
+        if(v.includes("revenue")&&!v.some(x=>["costs","profit","loss","investments"].includes(x))){
+          return [...v,"costs","profit"];
+        }
+        return v;
+      }
+      return ["leads","clients","revenue","costs","profit"];
+    }catch{ return ["leads","clients","revenue","costs","profit"]; }
   });
   const [toolbar, setToolbar] = useState(false);
   const [dragActive, setDragActive] = useState(null);
@@ -2884,7 +3107,7 @@ function ManagementCanvas({ businessId, metrics, saveM, integs, hubNotes, setHub
     setToolbar(false);
   };
   const removeCard = id=>saveVisible(visible.filter(c=>c!==id));
-  const resetLayout = ()=>{ savePos({...MGMT_DEFAULTS}); saveVisible(["leads","clients","revenue"]); };
+  const resetLayout = ()=>{ savePos({...MGMT_DEFAULTS}); saveVisible(["leads","clients","revenue","costs","profit"]); };
 
   const createAndPin = async(cardId,cardLabel,text)=>{
     try{
@@ -2904,18 +3127,22 @@ function ManagementCanvas({ businessId, metrics, saveM, integs, hubNotes, setHub
     return p.y+460;
   }));
 
-  const ALL=["leads","clients","revenue","bookings","google","email"];
+  const ALL=["leads","clients","revenue","costs","profit","loss","investments","bookings","google","email"];
   const addable=ALL.filter(id=>!visible.includes(id));
 
   const cardContent = id=>{
     switch(id){
-      case "leads":    return <LeadsContent   metrics={metrics} saveM={saveM} businessId={businessId}/>;
-      case "clients":  return <ClientsContent metrics={metrics} saveM={saveM} businessId={businessId}/>;
-      case "revenue":  return <RevenueContent metrics={metrics} saveM={saveM} wide={(positions[id]||MGMT_DEFAULTS[id]||{}).w>500}/>;
-      case "bookings": return <BookingsContent metrics={metrics} saveM={saveM} integs={integs}/>;
-      case "google":   return <GoogleContent  metrics={metrics} saveM={saveM} integs={integs}/>;
-      case "email":    return <EmailContent   integs={integs} businessId={businessId}/>;
-      default:         return null;
+      case "leads":       return <LeadsContent       metrics={metrics} saveM={saveM} businessId={businessId}/>;
+      case "clients":     return <ClientsContent     metrics={metrics} saveM={saveM} businessId={businessId}/>;
+      case "revenue":     return <RevenueContent     metrics={metrics} saveM={saveM}/>;
+      case "costs":       return <CostsContent       metrics={metrics} saveM={saveM}/>;
+      case "loss":        return <LossContent        metrics={metrics}/>;
+      case "profit":      return <ProfitContent      metrics={metrics}/>;
+      case "investments": return <InvestmentsContent metrics={metrics} saveM={saveM}/>;
+      case "bookings":    return <BookingsContent    metrics={metrics} saveM={saveM} integs={integs}/>;
+      case "google":      return <GoogleContent      metrics={metrics} saveM={saveM} integs={integs}/>;
+      case "email":       return <EmailContent       integs={integs} businessId={businessId}/>;
+      default:            return null;
     }
   };
 
@@ -2970,7 +3197,7 @@ export default function Hub() {
   const [outputs,    setOutputs]    = useState([]);
   const [integs,     setIntegs]     = useState([]);
   const [tasks,      setTasks]      = useState([]);
-  const [metrics,    setMetrics]    = useState({ revenue:{this_month:0,last_month:0,total:0}, clients:{active:0,total:0}, leads:{this_month:0,total:0}, social:{instagram:0,tiktok:0,facebook:0,google_reviews:0,google_rating:0}, bookings:{this_week:0,this_month:0} });
+  const [metrics,    setMetrics]    = useState({ revenue:{this_month:0,last_month:0,total:0,sources:[]}, costs:{this_month:0,last_month:0,total:0,causes:[]}, investments:{total_initial:0,total_ongoing:0,initial:[],ongoing:[]}, clients:{active:0,total:0}, leads:{this_month:0,total:0}, social:{instagram:0,tiktok:0,facebook:0,google_reviews:0,google_rating:0}, bookings:{this_week:0,this_month:0} });
   const [loading,    setLoading]    = useState(true);
   const [searchParams] = useSearchParams();
   const [tab,        setTab]        = useState(searchParams.get("tab") || "overview");
@@ -3109,7 +3336,8 @@ export default function Hub() {
 
   const saveM = async(path,v)=>{
     const parts=path.split("."); const u=JSON.parse(JSON.stringify(metrics)); let o=u;
-    for(let i=0;i<parts.length-1;i++) o=o[parts[i]]; o[parts[parts.length-1]]=v;
+    for(let i=0;i<parts.length-1;i++){ if(o[parts[i]]==null) o[parts[i]]={}; o=o[parts[i]]; }
+    o[parts[parts.length-1]]=v;
     setMetrics(u); await api.metrics.save(businessId,u).catch(()=>{});
   };
 

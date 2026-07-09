@@ -13,12 +13,14 @@ const prisma = new PrismaClient();
 const ai     = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
 const DEFAULT_METRICS = {
-  revenue:   { this_month:0, last_month:0, total:0 },
-  clients:   { active:0, total:0, lost_this_month:0 },
-  leads:     { this_month:0, total:0, converted:0 },
-  social:    { instagram:0, tiktok:0, facebook:0, google_reviews:0, google_rating:0 },
-  bookings:  { this_week:0, this_month:0, cancelled:0 },
-  activity:  [],
+  revenue:     { this_month:0, last_month:0, total:0, sources:[] },
+  costs:       { this_month:0, last_month:0, total:0, causes:[] },
+  investments: { total_initial:0, total_ongoing:0, initial:[], ongoing:[] },
+  clients:     { active:0, total:0, lost_this_month:0 },
+  leads:       { this_month:0, total:0, converted:0 },
+  social:      { instagram:0, tiktok:0, facebook:0, google_reviews:0, google_rating:0 },
+  bookings:    { this_week:0, this_month:0, cancelled:0 },
+  activity:    [],
   lastUpdated: null,
 };
 
@@ -27,7 +29,20 @@ async function getMetrics(businessId) {
     where: { businessId, type:"user_metrics" },
   });
   if (!out) return { ...DEFAULT_METRICS };
-  try { return JSON.parse(out.content); } catch { return { ...DEFAULT_METRICS }; }
+  try {
+    const stored = JSON.parse(out.content);
+    return {
+      ...DEFAULT_METRICS,
+      ...stored,
+      revenue:     { ...DEFAULT_METRICS.revenue,     ...stored.revenue },
+      clients:     { ...DEFAULT_METRICS.clients,     ...stored.clients },
+      leads:       { ...DEFAULT_METRICS.leads,       ...stored.leads },
+      social:      { ...DEFAULT_METRICS.social,      ...stored.social },
+      bookings:    { ...DEFAULT_METRICS.bookings,    ...stored.bookings },
+      costs:       { ...DEFAULT_METRICS.costs,       ...stored.costs },
+      investments: { ...DEFAULT_METRICS.investments, ...stored.investments },
+    };
+  } catch { return { ...DEFAULT_METRICS }; }
 }
 
 router.get("/:businessId", requireAuth, async (req, res, next) => {
