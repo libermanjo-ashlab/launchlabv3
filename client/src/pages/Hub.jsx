@@ -547,157 +547,24 @@ function NotesGrid({ notes, onDelete }) {
   );
 }
 
-// ── Campaign task card (mirrors CampaignTaskRow logic from MarketingAgent) ────
-function CampaignTaskCard({ task, businessId, businessName, onUpdate, onDelete }) {
-  const [running,     setRunning]     = useState(false);
-  const [content,     setContent]     = useState(
-    (task.outputData?.caption || task.outputData?.body || task.outputData?.fields) ? task.outputData : null
-  );
-  const [showContent, setShowContent] = useState(false);
-  const [error,       setError]       = useState("");
-  const [posting,     setPosting]     = useState(false);
-  const [postMsg,     setPostMsg]     = useState("");
-
-  const mode    = task.mode || "guided";
-  const channel = task.steps?.[0]?.channel || "general";
-  const isVideoTask      = task.steps?.[0]?.isVideoTask || false;
-  const isEngagementTask = task.steps?.[0]?.isEngagementTask || false;
-  const isManualTask = isVideoTask || isEngagementTask || mode === "manual";
+// ── Campaign task — read-only status view (actions only available in Marketing Agent) ──
+function CampaignTaskCard({ task }) {
   const isDone    = task.status === "done" || task.status === "completed";
   const isSkipped = task.status === "skipped";
-  const isFailed  = task.status === "failed";
-
-  const markDone = async () => {
-    await api.tasks.update(task.id, { status:"done" }).catch(()=>{});
-    onUpdate({ ...task, status:"done" });
-  };
-
-  const runTask = async () => {
-    setRunning(true); setError("");
-    try {
-      const result = await api.tasks.run(task.id);
-      const output = result.task?.outputData;
-      if (output) setContent(output);
-      setShowContent(true);
-      onUpdate({ ...task, status:"done", outputData:output });
-    } catch(e) { setError(e.message); }
-    setRunning(false);
-  };
-
-  const getContent = async () => {
-    if (content) { setShowContent(s=>!s); return; }
-    setRunning(true);
-    try {
-      const res = await api.agents.taskContent(businessId, task, channel, mode);
-      let c = res.content;
-      if (c?.imageUrl && c?.imageSource?.startsWith("gpt-image") && businessName) {
-        try {
-          const blob = await generatePostImageBlob(businessName, c.body||c.caption, c.imageUrl);
-          c = { ...c, imageUrl:URL.createObjectURL(blob), imageSource:"canvas" };
-        } catch {}
-      }
-      setContent(c);
-      setShowContent(true);
-    } catch(e) { setError(e.message); }
-    setRunning(false);
-  };
-
-  const statusColor = isFailed ? "#EF4444" : isDone||isSkipped ? C.ok : C.muted;
-
+  const dotColor  = isDone ? C.ok : isSkipped ? "#F59E0B" : C.border;
   return (
-    <div style={{ ...card("12px 14px"), marginBottom:8 }}>
-      <div style={{ display:"flex", gap:8, alignItems:"flex-start" }}>
-        <div style={{ width:14, height:14, borderRadius:"50%", border:`2px solid ${statusColor}`, background:isDone?"#10B981":"transparent", flexShrink:0, marginTop:2, display:"flex", alignItems:"center", justifyContent:"center" }}>
-          {isDone && <span style={{ color:"#fff", fontSize:9, fontWeight:700 }}>✓</span>}
-          {isFailed && <span style={{ color:statusColor, fontSize:9, fontWeight:700 }}>✗</span>}
-        </div>
-        <div style={{ flex:1, minWidth:0 }}>
-          <div style={{ display:"flex", gap:6, alignItems:"center", flexWrap:"wrap", marginBottom:task.description&&!isDone?3:0 }}>
-            <span style={{ fontSize:12, fontFamily:FB, fontWeight:600, color:isDone?C.muted:C.text, textDecoration:isDone?"line-through":"none" }}>{task.name}</span>
-            <span style={{ fontSize:9, padding:"2px 6px", borderRadius:12, background:statusColor+"18", color:statusColor, fontFamily:FB, fontWeight:700, textTransform:"uppercase" }}>
-              {isDone?"done":isSkipped?"skipped":isFailed?"failed":isManualTask?"manual":mode}
-            </span>
-            {task.estimatedTime && !isDone && <span style={{ fontSize:10, color:C.muted, fontFamily:FB }}>{task.estimatedTime}</span>}
-          </div>
-          {task.description && !isDone && <p style={{ fontSize:11, color:C.muted, fontFamily:FB, lineHeight:1.5, marginBottom:6 }}>{task.description}</p>}
-          {error && <p style={{ fontSize:11, color:"#EF4444", fontFamily:FB, marginBottom:4 }}>{error}</p>}
-
-          {/* Content preview */}
-          {showContent && content && (
-            <div style={{ background:C.primaryBg, borderRadius:8, padding:"8px 10px", marginBottom:8 }}>
-              {content.imageUrl && <img src={content.imageUrl} alt="" style={{ width:"100%", borderRadius:6, marginBottom:6, display:"block", maxHeight:200, objectFit:"cover" }} />}
-              {(content.caption||content.body) && <p style={{ fontSize:12, color:C.text, fontFamily:FB, lineHeight:1.6, marginBottom:content.hashtags?4:0, whiteSpace:"pre-wrap" }}>{content.body||content.caption}</p>}
-              {content.hashtags && <p style={{ fontSize:11, color:C.primary, fontFamily:FB }}>{content.hashtags}</p>}
-              {content.type==="fields" && (content.fields||[]).map((f,i)=>(
-                <div key={i} style={{ display:"flex", gap:6, fontSize:12, fontFamily:FB, marginBottom:3 }}>
-                  <span style={{ color:C.muted, flexShrink:0, minWidth:80 }}>{f.label}:</span>
-                  <span style={{ color:C.text }}>{f.value}</span>
-                </div>
-              ))}
-            </div>
-          )}
-
-          {/* Actions */}
-          {!isDone && !isSkipped && (
-            <div style={{ display:"flex", gap:6, flexWrap:"wrap" }}>
-              {isManualTask ? (
-                <>
-                  <span style={{ fontSize:10, color:"#D97706", fontFamily:FB, alignSelf:"center" }}>Do manually</span>
-                  <button onClick={markDone} style={{ ...btn(C.ok,"#fff",10), padding:"3px 8px" }}>Mark done</button>
-                </>
-              ) : (
-                <>
-                  {mode==="auto" && (
-                    <button onClick={runTask} disabled={running}
-                      style={{ ...btn(running?"#9CA3AF":C.primary,"#fff",10), padding:"3px 8px", display:"flex", alignItems:"center", gap:4 }}>
-                      {running && <span style={{ width:9,height:9,borderRadius:"50%",border:"1.5px solid rgba(255,255,255,0.4)",borderTopColor:"#fff",animation:"spin 0.7s linear infinite" }}/>}
-                      {running?"Running…":"Run"}
-                    </button>
-                  )}
-                  {mode==="guided" && (
-                    <button onClick={getContent} disabled={running}
-                      style={{ ...btnO(C.primary,10), padding:"3px 8px" }}>
-                      {running?"…":content?"Content":"Get content"}
-                    </button>
-                  )}
-                  {mode==="manual" && (
-                    <>
-                      <button onClick={getContent} disabled={running}
-                        style={{ ...btnO(C.muted,10), padding:"3px 8px" }}>
-                        {running?"…":showContent?"Hide tips":"Show tips"}
-                      </button>
-                      <button onClick={markDone} style={{ ...btn(C.ok,"#fff",10), padding:"3px 8px" }}>Done</button>
-                    </>
-                  )}
-                  <button onClick={async()=>{ await api.tasks.update(task.id,{status:"done"}).catch(()=>{}); onUpdate({...task,status:"done"}); }}
-                    style={{ ...btnO("#9CA3AF",10), padding:"3px 6px" }}>Skip</button>
-                </>
-              )}
-              {/* Instagram post */}
-              {mode==="guided" && channel==="instagram" && content && (content.caption||content.body) && content.imageUrl && !content.published && (
-                <button onClick={async()=>{
-                  setPosting(true); setPostMsg("");
-                  try {
-                    const res = await api.instagram.createPost(businessId, content.imageUrl, content.caption||content.body);
-                    if (res.success) { setPostMsg("✓ Posted!"); setContent(p=>({...p,published:true})); markDone(); }
-                    else setPostMsg("Post failed");
-                  } catch(e) { setPostMsg(e.message); }
-                  setPosting(false);
-                }} disabled={posting}
-                  style={{ ...btn(posting?"#9CA3AF":C.primary,"#fff",10), padding:"3px 8px" }}>
-                  {posting?"Posting…":"Post to Instagram"}
-                </button>
-              )}
-              {postMsg && <span style={{ fontSize:10, fontFamily:FB, color:postMsg.startsWith("✓")?C.ok:"#EF4444" }}>{postMsg}</span>}
-              <button onClick={()=>onDelete(task.id)} style={{ ...btnO("#EF4444",10), padding:"3px 6px" }}>Remove</button>
-            </div>
-          )}
-          {isDone && (
-            <button onClick={async()=>{ await api.tasks.update(task.id,{status:"pending"}).catch(()=>{}); onUpdate({...task,status:"pending",outputData:undefined}); }}
-              style={{ ...btnO(C.muted,10), padding:"3px 8px" }}>Reopen</button>
-          )}
-        </div>
+    <div style={{ display:"flex", gap:8, alignItems:"flex-start", padding:"8px 0", borderBottom:`1px solid ${C.border}` }}>
+      <div style={{ width:14, height:14, borderRadius:"50%", border:`2px solid ${dotColor}`, background:isDone?C.ok:"transparent", flexShrink:0, marginTop:2, display:"flex", alignItems:"center", justifyContent:"center" }}>
+        {isDone && <span style={{ color:"#fff", fontSize:9, fontWeight:700 }}>✓</span>}
       </div>
+      <div style={{ flex:1, minWidth:0 }}>
+        <span style={{ fontSize:12, fontFamily:FB, fontWeight:600, color:isDone||isSkipped?C.muted:C.text, textDecoration:isDone||isSkipped?"line-through":"none" }}>{task.name}</span>
+        {task.estimatedTime && !isDone && <span style={{ fontSize:10, color:C.muted, fontFamily:FB, marginLeft:8 }}>{task.estimatedTime}</span>}
+        {task.description && !isDone && <p style={{ fontSize:11, color:C.muted, fontFamily:FB, lineHeight:1.5, marginTop:2, marginBottom:0 }}>{task.description}</p>}
+      </div>
+      <span style={{ fontSize:9, fontFamily:FB, fontWeight:700, color:C.muted, textTransform:"uppercase", flexShrink:0, marginTop:2 }}>
+        {isDone?"done":isSkipped?"skipped":task.mode||"guided"}
+      </span>
     </div>
   );
 }
@@ -766,7 +633,7 @@ function TaskRowWrapper({ task, businessId, businessName, outputs, onUpdate, onD
             </div>
           </div>
         ) : task.category === "campaign" ? (
-          <CampaignTaskCard task={task} businessId={businessId} businessName={businessName} onUpdate={onUpdate} onDelete={onDelete} />
+          <CampaignTaskCard task={task} />
         ) : (
           <div style={{ position:"relative" }}>
             <TaskCard task={task} businessId={businessId} outputs={outputs} onUpdate={onUpdate} onDelete={onDelete} />
@@ -876,8 +743,8 @@ function TasksPanel({ businessId, businessName, businessOutputs, hubNotes, stick
   const regularTasks = tasks.filter(t => t.category !== "notes");
   const noteTasks    = tasks.filter(t => t.category === "notes");
 
-  // Campaign tasks: group by campaign title (steps[0].label)
-  const campaignTasks = regularTasks.filter(t => t.category === "campaign");
+  // Campaign tasks: only show pending/active ones — done/skipped/deleted ones disappear (managed in Marketing Agent)
+  const campaignTasks    = regularTasks.filter(t => t.category === "campaign" && t.status !== "done" && t.status !== "completed" && t.status !== "skipped");
   const nonCampaignTasks = regularTasks.filter(t => t.category !== "campaign");
 
   // Build category list (excluding "campaign" — those are grouped separately)
