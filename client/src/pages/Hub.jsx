@@ -2151,7 +2151,7 @@ function CorrelationPair({ link, metrics, snapshots, applied, onApplyToStrategy,
   );
 }
 
-function BusinessStrategySection({ businessId, metrics, snapshots }) {
+function BusinessStrategySection({ businessId, metrics, snapshots, globalRange, setGlobalRange }) {
   const LINKS_KEY = `earnedlab_links_${businessId}`;
   const STRAT_KEY = `earnedlab_strat_${businessId}`;
 
@@ -2407,6 +2407,17 @@ function BusinessStrategySection({ businessId, metrics, snapshots }) {
                 </div>
               </div>
             )}
+
+            {/* Global canvas time range — applies to all revenue channel cards */}
+            <div style={{ borderTop:`1px solid ${C.border}`, padding:"14px 22px", display:"flex", alignItems:"center", gap:10, flexWrap:"wrap" }}>
+              <span style={{ fontSize:11, color:C.muted, fontFamily:FB, fontWeight:600 }}>Apply time range to all channels:</span>
+              <div style={{ display:"flex", gap:4 }}>
+                {[["month","This Month"],["last","Last Month"],["total","All Time"]].map(([v,l])=>(
+                  <button key={v} onClick={()=>setGlobalRange(v)} style={{ fontSize:10, padding:"3px 10px", borderRadius:20, border:`1px solid ${globalRange===v?C.primary:C.border}`, background:globalRange===v?C.primaryBg:"transparent", color:globalRange===v?C.primary:C.muted, fontFamily:FB, fontWeight:600, cursor:"pointer" }}>{l}</button>
+                ))}
+              </div>
+              {globalRange!=="month"&&<span style={{ fontSize:10, color:C.primary, fontFamily:FB }}>← Applied to all cards</span>}
+            </div>
           </div>
         </div>
       )}
@@ -2465,12 +2476,13 @@ function MCell({ label, value, onChange, prefix="" }) {
   );
 }
 
-function LeadsContent({ metrics, saveM, businessId }) {
+function LeadsContent({ metrics, saveM, businessId, notesByTarget, onDropNote, onUnstickNote }) {
   const KEY = `earnedlab_leads_${businessId}`;
   const [leads, setLeads] = useState(()=>{ try{return JSON.parse(localStorage.getItem(KEY)||"[]");}catch{return [];} });
   const [adding, setAdding] = useState(false);
   const [newName, setNewName] = useState("");
   const [newSource, setNewSource] = useState("");
+  const [newDate, setNewDate] = useState(()=>new Date().toISOString().slice(0,10));
   const [filter, setFilter] = useState("all");
   const STATUS = ["new","contacted","qualified","proposal","won","lost"];
   const STATUS_CLR = { new:"#3B82F6", contacted:"#8B5CF6", qualified:"#10B981", proposal:"#F59E0B", won:"#22C55E", lost:"#9CA3AF" };
@@ -2479,11 +2491,12 @@ function LeadsContent({ metrics, saveM, businessId }) {
 
   const addLead = ()=>{
     if(!newName.trim()) return;
-    const l={ id:Date.now().toString(), name:newName.trim(), source:newSource.trim(), status:"new", date:new Date().toISOString() };
+    const today = new Date().toISOString().slice(0,10);
+    const l={ id:Date.now().toString(), name:newName.trim(), source:newSource.trim(), status:"new", date:newDate||today };
     saveLeads([l,...leads]);
     saveM("leads.this_month",(metrics.leads.this_month||0)+1);
     saveM("leads.total",(metrics.leads.total||0)+1);
-    setNewName(""); setNewSource(""); setAdding(false);
+    setNewName(""); setNewSource(""); setNewDate(today); setAdding(false);
   };
 
   const updateStatus = (id,status)=>saveLeads(leads.map(l=>l.id===id?{...l,status}:l));
@@ -2509,24 +2522,30 @@ function LeadsContent({ metrics, saveM, businessId }) {
       </div>
       <div style={{ maxHeight:180, overflowY:"auto" }}>
         {filtered.map(l=>(
-          <div key={l.id} style={{ display:"flex", alignItems:"center", gap:8, padding:"6px 0", borderBottom:`1px solid ${C.border}` }}>
-            <span style={{ width:7, height:7, borderRadius:"50%", background:STATUS_CLR[l.status]||C.muted, flexShrink:0 }} />
-            <div style={{ flex:1, minWidth:0 }}>
-              <div style={{ fontSize:12, fontWeight:500, fontFamily:FB, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{l.name}</div>
-              {l.source&&<div style={{ fontSize:10, color:C.muted, fontFamily:FB }}>{l.source}</div>}
+          <NoteDropItem key={l.id} targetId={`leads:item:${l.id}`} notesByTarget={notesByTarget} onDropNote={onDropNote} onUnstickNote={onUnstickNote} style={{ marginBottom:2 }}>
+            <div style={{ display:"flex", alignItems:"center", gap:8, padding:"5px 4px", borderBottom:`1px solid ${C.border}` }}>
+              <span style={{ width:7, height:7, borderRadius:"50%", background:STATUS_CLR[l.status]||C.muted, flexShrink:0 }} />
+              <div style={{ flex:1, minWidth:0 }}>
+                <div style={{ fontSize:12, fontWeight:500, fontFamily:FB, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{l.name}</div>
+                <div style={{ display:"flex", gap:6 }}>
+                  {l.source&&<span style={{ fontSize:10, color:C.muted, fontFamily:FB }}>{l.source}</span>}
+                  {l.date&&<span style={{ fontSize:9, color:C.subtle, fontFamily:FB }}>{typeof l.date==="string"&&l.date.length>10?l.date.slice(0,10):l.date}</span>}
+                </div>
+              </div>
+              <select value={l.status} onChange={e=>updateStatus(l.id,e.target.value)} style={{ fontSize:10, padding:"2px 4px", border:`1px solid ${C.border}`, borderRadius:6, background:C.surface, color:C.text, fontFamily:FB }}>
+                {STATUS.map(s=><option key={s} value={s}>{s}</option>)}
+              </select>
+              <button onClick={()=>deleteLead(l.id)} style={{ background:"none", border:"none", color:C.muted, cursor:"pointer", fontSize:13, padding:0, flexShrink:0 }}>×</button>
             </div>
-            <select value={l.status} onChange={e=>updateStatus(l.id,e.target.value)} style={{ fontSize:10, padding:"2px 4px", border:`1px solid ${C.border}`, borderRadius:6, background:C.surface, color:C.text, fontFamily:FB }}>
-              {STATUS.map(s=><option key={s} value={s}>{s}</option>)}
-            </select>
-            <button onClick={()=>deleteLead(l.id)} style={{ background:"none", border:"none", color:C.muted, cursor:"pointer", fontSize:13, padding:0, flexShrink:0 }}>×</button>
-          </div>
+          </NoteDropItem>
         ))}
         {filtered.length===0&&<div style={{ fontSize:12, color:C.muted, textAlign:"center", padding:"12px 0", fontFamily:FB }}>No leads{filter!=="all"?` — status: ${filter}`:""}</div>}
       </div>
       {adding ? (
         <div style={{ marginTop:10, display:"flex", gap:6, flexWrap:"wrap" }}>
-          <input value={newName} onChange={e=>setNewName(e.target.value)} placeholder="Lead name" onKeyDown={e=>e.key==="Enter"&&addLead()} autoFocus style={{ ...inp(), flex:1, minWidth:120, fontSize:12, padding:"6px 10px" }} />
-          <input value={newSource} onChange={e=>setNewSource(e.target.value)} placeholder="Source (optional)" style={{ ...inp(), flex:1, minWidth:100, fontSize:12, padding:"6px 10px" }} />
+          <input value={newName} onChange={e=>setNewName(e.target.value)} placeholder="Lead name" onKeyDown={e=>e.key==="Enter"&&addLead()} autoFocus style={{ ...inp(), flex:"2 1 120px", fontSize:12, padding:"6px 10px" }} />
+          <input value={newSource} onChange={e=>setNewSource(e.target.value)} placeholder="Source (optional)" style={{ ...inp(), flex:"1 1 90px", fontSize:12, padding:"6px 10px" }} />
+          <input type="date" value={newDate} onChange={e=>setNewDate(e.target.value)} style={{ ...inp(), flex:"1 1 120px", fontSize:12, padding:"6px 10px" }} />
           <button onClick={addLead} style={{ ...btn(C.primary,"#fff",12), padding:"6px 12px" }}>Add</button>
           <button onClick={()=>setAdding(false)} style={{ ...btnO(C.muted,12), padding:"6px 10px" }}>Cancel</button>
         </div>
@@ -2537,12 +2556,13 @@ function LeadsContent({ metrics, saveM, businessId }) {
   );
 }
 
-function ClientsContent({ metrics, saveM, businessId }) {
+function ClientsContent({ metrics, saveM, businessId, notesByTarget, onDropNote, onUnstickNote }) {
   const KEY = `earnedlab_clients_${businessId}`;
   const [clients, setClients] = useState(()=>{ try{return JSON.parse(localStorage.getItem(KEY)||"[]");}catch{return [];} });
   const [adding, setAdding] = useState(false);
   const [newName, setNewName] = useState("");
   const [newType, setNewType] = useState("current");
+  const [newDate, setNewDate] = useState(()=>new Date().toISOString().slice(0,10));
   const [tab, setTab] = useState("current");
   const TABS = ["current","past","potential"];
   const TAB_CLR = { current:"#22C55E", past:"#9CA3AF", potential:"#3B82F6" };
@@ -2551,11 +2571,12 @@ function ClientsContent({ metrics, saveM, businessId }) {
 
   const addClient = ()=>{
     if(!newName.trim()) return;
-    const c={ id:Date.now().toString(), name:newName.trim(), type:newType, date:new Date().toISOString() };
+    const today = new Date().toISOString().slice(0,10);
+    const c={ id:Date.now().toString(), name:newName.trim(), type:newType, date:newDate||today };
     saveClients([c,...clients]);
     if(newType==="current") saveM("clients.active",(metrics.clients.active||0)+1);
     saveM("clients.total",(metrics.clients.total||0)+1);
-    setNewName(""); setAdding(false);
+    setNewName(""); setNewDate(today); setAdding(false);
   };
 
   const moveClient = (id,type)=>{
@@ -2590,23 +2611,29 @@ function ClientsContent({ metrics, saveM, businessId }) {
       </div>
       <div style={{ maxHeight:160, overflowY:"auto" }}>
         {filtered.map(c=>(
-          <div key={c.id} style={{ display:"flex", alignItems:"center", gap:8, padding:"6px 0", borderBottom:`1px solid ${C.border}` }}>
-            <span style={{ width:7, height:7, borderRadius:"50%", background:TAB_CLR[c.type], flexShrink:0 }} />
-            <div style={{ flex:1, fontSize:12, fontWeight:500, fontFamily:FB, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{c.name}</div>
-            <select value={c.type} onChange={e=>moveClient(c.id,e.target.value)} style={{ fontSize:10, padding:"2px 4px", border:`1px solid ${C.border}`, borderRadius:6, background:C.surface, color:C.text, fontFamily:FB }}>
-              {TABS.map(t=><option key={t} value={t}>{t}</option>)}
-            </select>
-            <button onClick={()=>deleteClient(c.id)} style={{ background:"none", border:"none", color:C.muted, cursor:"pointer", fontSize:13, padding:0, flexShrink:0 }}>×</button>
-          </div>
+          <NoteDropItem key={c.id} targetId={`clients:item:${c.id}`} notesByTarget={notesByTarget} onDropNote={onDropNote} onUnstickNote={onUnstickNote} style={{ marginBottom:2 }}>
+            <div style={{ display:"flex", alignItems:"center", gap:8, padding:"5px 4px", borderBottom:`1px solid ${C.border}` }}>
+              <span style={{ width:7, height:7, borderRadius:"50%", background:TAB_CLR[c.type], flexShrink:0 }} />
+              <div style={{ flex:1, minWidth:0 }}>
+                <div style={{ fontSize:12, fontWeight:500, fontFamily:FB, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{c.name}</div>
+                {c.date&&<span style={{ fontSize:9, color:C.subtle, fontFamily:FB }}>{typeof c.date==="string"&&c.date.length>10?c.date.slice(0,10):c.date}</span>}
+              </div>
+              <select value={c.type} onChange={e=>moveClient(c.id,e.target.value)} style={{ fontSize:10, padding:"2px 4px", border:`1px solid ${C.border}`, borderRadius:6, background:C.surface, color:C.text, fontFamily:FB }}>
+                {TABS.map(t=><option key={t} value={t}>{t}</option>)}
+              </select>
+              <button onClick={()=>deleteClient(c.id)} style={{ background:"none", border:"none", color:C.muted, cursor:"pointer", fontSize:13, padding:0, flexShrink:0 }}>×</button>
+            </div>
+          </NoteDropItem>
         ))}
         {filtered.length===0&&<div style={{ fontSize:12, color:C.muted, textAlign:"center", padding:"12px 0", fontFamily:FB }}>No {tab} clients</div>}
       </div>
       {adding ? (
         <div style={{ marginTop:10, display:"flex", gap:6, flexWrap:"wrap" }}>
-          <input value={newName} onChange={e=>setNewName(e.target.value)} placeholder="Client name" onKeyDown={e=>e.key==="Enter"&&addClient()} autoFocus style={{ ...inp(), flex:1, minWidth:120, fontSize:12, padding:"6px 10px" }} />
-          <select value={newType} onChange={e=>setNewType(e.target.value)} style={{ ...inp(), fontSize:12, padding:"6px 8px" }}>
+          <input value={newName} onChange={e=>setNewName(e.target.value)} placeholder="Client name" onKeyDown={e=>e.key==="Enter"&&addClient()} autoFocus style={{ ...inp(), flex:"2 1 120px", fontSize:12, padding:"6px 10px" }} />
+          <select value={newType} onChange={e=>setNewType(e.target.value)} style={{ ...inp(), flex:"1 1 90px", fontSize:12, padding:"6px 8px" }}>
             {TABS.map(t=><option key={t} value={t}>{t}</option>)}
           </select>
+          <input type="date" value={newDate} onChange={e=>setNewDate(e.target.value)} style={{ ...inp(), flex:"1 1 120px", fontSize:12, padding:"6px 10px" }} />
           <button onClick={addClient} style={{ ...btn(C.primary,"#fff",12), padding:"6px 12px" }}>Add</button>
           <button onClick={()=>setAdding(false)} style={{ ...btnO(C.muted,12), padding:"6px 10px" }}>Cancel</button>
         </div>
@@ -2628,35 +2655,69 @@ function RangePills({ range, setRange }) {
   );
 }
 
-function SourceList({ items, onAdd, onRemove, prefix="$" }) {
-  const [name,setName]=useState(""); const [amt,setAmt]=useState("");
-  const add=()=>{ if(!name.trim()) return; onAdd({ id:Date.now().toString(), name:name.trim(), amount:Number(amt)||0 }); setName(""); setAmt(""); };
+function NoteDropItem({ targetId, notesByTarget, onDropNote, onUnstickNote, children, style={} }) {
+  const [hover, setHover] = useState(false);
+  const note = notesByTarget?.[targetId];
+  const handleDragOver = e=>{ e.preventDefault(); e.stopPropagation(); setHover(true); };
+  const handleDragLeave = e=>{ if(!e.currentTarget.contains(e.relatedTarget)) setHover(false); };
+  const handleDrop = e=>{ e.preventDefault(); e.stopPropagation(); const id=e.dataTransfer.getData("text/noteId"); if(id&&onDropNote) onDropNote(id,targetId,""); setHover(false); };
+  return (
+    <div style={{ position:"relative", ...style }}>
+      <div onDragOver={handleDragOver} onDragLeave={handleDragLeave} onDrop={handleDrop}
+        style={{ borderRadius:6, border:`1px solid ${hover?C.primary:"transparent"}`, transition:"border-color 0.12s", background:hover?C.primaryBg+"44":"transparent" }}>
+        {children}
+      </div>
+      {note&&(
+        <div style={{ display:"flex", alignItems:"center", gap:4, marginTop:2, marginLeft:4 }}>
+          <span style={{ fontSize:9, background:note.color||"#FEF3C7", borderRadius:6, padding:"1px 6px", color:"#374151", fontFamily:FB }}>📌 {note.text}</span>
+          <button onClick={()=>onUnstickNote?.(note.id)} style={{ background:"none", border:"none", cursor:"pointer", color:C.muted, fontSize:10, padding:0, lineHeight:1 }}>×</button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function SourceList({ items, onAdd, onRemove, prefix="$", notesByTarget, onDropNote, onUnstickNote, cardId="", label="Sources" }) {
+  const today = new Date().toISOString().slice(0,10);
+  const [name,setName]=useState(""); const [amt,setAmt]=useState(""); const [date,setDate]=useState(today);
+  const add=()=>{ if(!name.trim()) return; onAdd({ id:Date.now().toString(), name:name.trim(), amount:Number(amt)||0, date:date||today }); setName(""); setAmt(""); setDate(today); };
   return (
     <div style={{ marginTop:10 }}>
-      <div style={{ fontSize:9, color:C.muted, fontWeight:700, textTransform:"uppercase", letterSpacing:"0.07em", fontFamily:FB, marginBottom:6 }}>Sources</div>
-      {items.map(s=>(
-        <div key={s.id} style={{ display:"flex", justifyContent:"space-between", alignItems:"center", padding:"4px 8px", borderRadius:6, background:C.surface, marginBottom:4 }}>
-          <span style={{ fontSize:12, fontFamily:FB, color:C.text }}>{s.name}</span>
-          <div style={{ display:"flex", alignItems:"center", gap:6 }}>
-            <span style={{ fontSize:12, fontFamily:FH, fontWeight:700, color:C.text }}>{prefix}{Number(s.amount||0).toLocaleString()}</span>
-            <button onClick={()=>onRemove(s.id)} style={{ background:"none", border:"none", cursor:"pointer", color:C.muted, fontSize:13, lineHeight:1, padding:"0 2px" }}>×</button>
-          </div>
-        </div>
-      ))}
-      <div style={{ display:"flex", gap:4, marginTop:6 }}>
-        <input value={name} onChange={e=>setName(e.target.value)} placeholder="Name" style={{ flex:2, fontSize:11, padding:"4px 8px", border:`1px solid ${C.border}`, borderRadius:6, fontFamily:FB, outline:"none", background:C.bg, color:C.text }} />
-        <input value={amt} onChange={e=>setAmt(e.target.value)} placeholder="Amount" type="number" style={{ flex:1, fontSize:11, padding:"4px 8px", border:`1px solid ${C.border}`, borderRadius:6, fontFamily:FB, outline:"none", background:C.bg, color:C.text }} />
-        <button onClick={add} style={{ ...btn(C.primary,"#fff",11), padding:"4px 10px" }}>+</button>
+      <div style={{ fontSize:9, color:C.muted, fontWeight:700, textTransform:"uppercase", letterSpacing:"0.07em", fontFamily:FB, marginBottom:6 }}>{label}</div>
+      {items.map(s=>{
+        const tid=`${cardId}:src:${s.id}`;
+        return (
+          <NoteDropItem key={s.id} targetId={tid} notesByTarget={notesByTarget} onDropNote={onDropNote} onUnstickNote={onUnstickNote} style={{ marginBottom:4 }}>
+            <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", padding:"4px 8px", borderRadius:6, background:C.surface }}>
+              <div style={{ minWidth:0 }}>
+                <span style={{ fontSize:12, fontFamily:FB, color:C.text }}>{s.name}</span>
+                {s.date&&<span style={{ fontSize:9, color:C.muted, fontFamily:FB, marginLeft:6 }}>{s.date}</span>}
+              </div>
+              <div style={{ display:"flex", alignItems:"center", gap:6, flexShrink:0 }}>
+                <span style={{ fontSize:12, fontFamily:FH, fontWeight:700, color:C.text }}>{prefix}{Number(s.amount||0).toLocaleString()}</span>
+                <button onClick={()=>onRemove(s.id)} style={{ background:"none", border:"none", cursor:"pointer", color:C.muted, fontSize:13, lineHeight:1, padding:"0 2px" }}>×</button>
+              </div>
+            </div>
+          </NoteDropItem>
+        );
+      })}
+      <div style={{ display:"flex", gap:4, marginTop:6, flexWrap:"wrap" }}>
+        <input value={name} onChange={e=>setName(e.target.value)} placeholder="Name" style={{ flex:"2 1 80px", fontSize:11, padding:"4px 8px", border:`1px solid ${C.border}`, borderRadius:6, fontFamily:FB, outline:"none", background:C.bg, color:C.text }} />
+        <input value={amt} onChange={e=>setAmt(e.target.value)} placeholder="Amount" type="number" style={{ flex:"1 1 60px", fontSize:11, padding:"4px 8px", border:`1px solid ${C.border}`, borderRadius:6, fontFamily:FB, outline:"none", background:C.bg, color:C.text }} />
+        <input value={date} onChange={e=>setDate(e.target.value)} type="date" style={{ flex:"1 1 100px", fontSize:11, padding:"4px 6px", border:`1px solid ${C.border}`, borderRadius:6, fontFamily:FB, outline:"none", background:C.bg, color:C.text }} />
+        <button onClick={add} style={{ ...btn(C.primary,"#fff",11), padding:"4px 10px", flexShrink:0 }}>+</button>
       </div>
     </div>
   );
 }
 
-function RevenueContent({ metrics, saveM, range="month" }) {
+function RevenueContent({ metrics, saveM, range:globalR="month", cardId="revenue", notesByTarget, onDropNote, onUnstickNote }) {
+  const [localR, setLocalR] = useState(null);
+  const range = localR ?? globalR;
   const val = range==="month" ? metrics.revenue?.this_month||0
             : range==="last"  ? metrics.revenue?.last_month||0
             :                   metrics.revenue?.total||0;
-  const label = range==="month"?"This Month":range==="last"?"Last Month":"All Time";
+  const rangeLabel = range==="month"?"This Month":range==="last"?"Last Month":"All Time";
   const sources = metrics.revenue?.sources || [];
 
   const saveField = (field,v) => saveM(`revenue.${field}`,v);
@@ -2677,13 +2738,17 @@ function RevenueContent({ metrics, saveM, range="month" }) {
 
   return (
     <div>
-      <MCell label={label} value={val} onChange={v=>saveField(range==="month"?"this_month":range==="last"?"last_month":"total",v)} prefix="$" />
-      <SourceList items={sources} onAdd={addSource} onRemove={removeSource} prefix="$" />
+      <RangePills range={range} setRange={setLocalR} />
+      <MCell label={rangeLabel} value={val} onChange={v=>saveField(range==="month"?"this_month":range==="last"?"last_month":"total",v)} prefix="$" />
+      <SourceList items={sources} onAdd={addSource} onRemove={removeSource} prefix="$"
+        notesByTarget={notesByTarget} onDropNote={onDropNote} onUnstickNote={onUnstickNote} cardId={cardId} />
     </div>
   );
 }
 
-function CostsContent({ metrics, saveM, range="month" }) {
+function CostsContent({ metrics, saveM, range:globalR="month", cardId="costs", notesByTarget, onDropNote, onUnstickNote }) {
+  const [localR, setLocalR] = useState(null);
+  const range = localR ?? globalR;
   const invest = metrics.investments;
   const investThisMonth = (invest?.total_ongoing||0);
   const investTotal = (invest?.total_initial||0)+(invest?.total_ongoing||0);
@@ -2692,7 +2757,7 @@ function CostsContent({ metrics, saveM, range="month" }) {
                  :                   metrics.costs?.total||0;
   const investAmt = range==="total" ? investTotal : investThisMonth;
   const effectiveCost = baseCost + investAmt;
-  const label = range==="month"?"This Month":range==="last"?"Last Month":"All Time";
+  const rangeLabel = range==="month"?"This Month":range==="last"?"Last Month":"All Time";
   const causes = metrics.costs?.causes || [];
 
   const addCause = s => {
@@ -2710,8 +2775,9 @@ function CostsContent({ metrics, saveM, range="month" }) {
 
   return (
     <div>
+      <RangePills range={range} setRange={setLocalR} />
       <div style={{ display:"flex", gap:8, marginBottom:6 }}>
-        <MCell label={`${label} (manual)`} value={baseCost} onChange={v=>saveM(`costs.${range==="month"?"this_month":range==="last"?"last_month":"total"}`,v)} prefix="$" />
+        <MCell label={`${rangeLabel} (manual)`} value={baseCost} onChange={v=>saveM(`costs.${range==="month"?"this_month":range==="last"?"last_month":"total"}`,v)} prefix="$" />
         {investAmt>0&&(
           <div style={{ flex:1, background:"#F5F3FF", borderRadius:10, padding:"10px 12px", border:`1px solid #DDD6FE` }}>
             <div style={{ fontSize:9, color:"#7C3AED", fontWeight:700, textTransform:"uppercase", letterSpacing:"0.07em", fontFamily:FB, marginBottom:4 }}>+ Investments</div>
@@ -2724,12 +2790,15 @@ function CostsContent({ metrics, saveM, range="month" }) {
           Effective costs: <strong style={{ color:C.text }}>${effectiveCost.toLocaleString()}</strong> (manual + investments)
         </div>
       )}
-      <SourceList items={causes} onAdd={addCause} onRemove={removeCause} prefix="$" />
+      <SourceList items={causes} onAdd={addCause} onRemove={removeCause} prefix="$" label="Causes"
+        notesByTarget={notesByTarget} onDropNote={onDropNote} onUnstickNote={onUnstickNote} cardId={cardId} />
     </div>
   );
 }
 
-function LossContent({ metrics, range="month" }) {
+function LossContent({ metrics, range:globalR="month" }) {
+  const [localR, setLocalR] = useState(null);
+  const range = localR ?? globalR;
   const invest = metrics.investments;
   const investAmt = range==="total"
     ? (invest?.total_initial||0)+(invest?.total_ongoing||0)
@@ -2745,6 +2814,7 @@ function LossContent({ metrics, range="month" }) {
   const label = range==="month"?"This Month":range==="last"?"Last Month":"All Time";
   return (
     <div>
+      <RangePills range={range} setRange={setLocalR} />
       <div style={{ background:loss>0?"#FFF1F2":C.surface, borderRadius:12, padding:"14px 16px", border:`1px solid ${loss>0?"#FECDD3":C.border}` }}>
         <div style={{ fontSize:9, color:loss>0?"#EF4444":C.muted, fontWeight:700, textTransform:"uppercase", letterSpacing:"0.07em", fontFamily:FB, marginBottom:6 }}>Loss — {label}</div>
         <div style={{ fontFamily:FH, fontWeight:700, fontSize:32, color:loss>0?"#EF4444":C.muted }}>
@@ -2766,7 +2836,9 @@ function LossContent({ metrics, range="month" }) {
   );
 }
 
-function ProfitContent({ metrics, range="month" }) {
+function ProfitContent({ metrics, range:globalR="month" }) {
+  const [localR, setLocalR] = useState(null);
+  const range = localR ?? globalR;
   const invest = metrics.investments;
   const investAmt = range==="total"
     ? (invest?.total_initial||0)+(invest?.total_ongoing||0)
@@ -2782,6 +2854,7 @@ function ProfitContent({ metrics, range="month" }) {
   const label = range==="month"?"This Month":range==="last"?"Last Month":"All Time";
   return (
     <div>
+      <RangePills range={range} setRange={setLocalR} />
       <div style={{ background:profit>0?"#F0FDF4":C.surface, borderRadius:12, padding:"14px 16px", border:`1px solid ${profit>0?"#BBF7D0":C.border}` }}>
         <div style={{ fontSize:9, color:profit>0?"#16A34A":C.muted, fontWeight:700, textTransform:"uppercase", letterSpacing:"0.07em", fontFamily:FB, marginBottom:6 }}>Profit — {label}</div>
         <div style={{ fontFamily:FH, fontWeight:700, fontSize:32, color:profit>0?"#16A34A":C.muted }}>
@@ -2803,7 +2876,9 @@ function ProfitContent({ metrics, range="month" }) {
   );
 }
 
-function InvestmentsContent({ metrics, saveM, range="month" }) {
+function InvestmentsContent({ metrics, saveM, range:globalR="month", cardId="investments", notesByTarget, onDropNote, onUnstickNote }) {
+  const [localR, setLocalR] = useState(null);
+  const range = localR ?? globalR;
   const invest = metrics.investments || {};
   const initial = invest.initial || [];
   const ongoing = invest.ongoing || [];
@@ -2824,9 +2899,11 @@ function InvestmentsContent({ metrics, saveM, range="month" }) {
   const removeInitial = id=>saveInvestments({ initial:initial.filter(x=>x.id!==id), ongoing });
   const addOngoing = s=>saveInvestments({ initial, ongoing:[...ongoing,s] });
   const removeOngoing = id=>saveInvestments({ initial, ongoing:ongoing.filter(x=>x.id!==id) });
+  const noteProps = { notesByTarget, onDropNote, onUnstickNote };
 
   return (
     <div>
+      <RangePills range={range} setRange={setLocalR} />
       <div style={{ background:"#F5F3FF", borderRadius:12, padding:"12px 14px", marginBottom:10, border:"1px solid #DDD6FE" }}>
         <div style={{ fontSize:9, color:"#7C3AED", fontWeight:700, textTransform:"uppercase", letterSpacing:"0.07em", fontFamily:FB, marginBottom:4 }}>
           Total Investments {range==="total"?"(All Time)":"(Ongoing/Mo)"}
@@ -2838,11 +2915,13 @@ function InvestmentsContent({ metrics, saveM, range="month" }) {
       </div>
       <div style={{ marginBottom:12 }}>
         <div style={{ fontSize:11, color:C.text, fontFamily:FB, fontWeight:700, marginBottom:6 }}>Initial (One-Time) — ${totalInitial.toLocaleString()}</div>
-        <SourceList items={initial} onAdd={addInitial} onRemove={removeInitial} prefix="$" />
+        <SourceList items={initial} onAdd={addInitial} onRemove={removeInitial} prefix="$" label="Items"
+          cardId={`${cardId}:initial`} {...noteProps} />
       </div>
       <div>
         <div style={{ fontSize:11, color:C.text, fontFamily:FB, fontWeight:700, marginBottom:6 }}>Ongoing (Recurring/Mo) — ${totalOngoing.toLocaleString()}</div>
-        <SourceList items={ongoing} onAdd={addOngoing} onRemove={removeOngoing} prefix="$" />
+        <SourceList items={ongoing} onAdd={addOngoing} onRemove={removeOngoing} prefix="$" label="Items"
+          cardId={`${cardId}:ongoing`} {...noteProps} />
       </div>
     </div>
   );
@@ -3463,15 +3542,22 @@ function ManagementCanvas({ businessId, metrics, saveM, integs, hubNotes, setHub
   const ALL=["leads","clients","revenue","costs","profit","loss","investments","bookings","google","email"];
   const addable=ALL.filter(id=>!visible.includes(id));
 
+  const notesByTargetMap = Object.fromEntries(
+    Object.entries(mgmtNoteAssignments)
+      .map(([nid,{targetId}])=>[targetId, hubNotes.find(n=>n.id===nid)])
+      .filter(([,note])=>!!note)
+  );
+  const noteProps = { notesByTarget:notesByTargetMap, onDropNote, onUnstickNote:mgmtUnstickNote };
+
   const cardContent = id=>{
     switch(id){
-      case "leads":       return <LeadsContent       metrics={metrics} saveM={saveM} businessId={businessId}/>;
-      case "clients":     return <ClientsContent     metrics={metrics} saveM={saveM} businessId={businessId}/>;
-      case "revenue":     return <RevenueContent     metrics={metrics} saveM={saveM} range={globalRange}/>;
-      case "costs":       return <CostsContent       metrics={metrics} saveM={saveM} range={globalRange}/>;
+      case "leads":       return <LeadsContent       metrics={metrics} saveM={saveM} businessId={businessId} {...noteProps}/>;
+      case "clients":     return <ClientsContent     metrics={metrics} saveM={saveM} businessId={businessId} {...noteProps}/>;
+      case "revenue":     return <RevenueContent     metrics={metrics} saveM={saveM} range={globalRange} cardId="revenue" {...noteProps}/>;
+      case "costs":       return <CostsContent       metrics={metrics} saveM={saveM} range={globalRange} cardId="costs"   {...noteProps}/>;
       case "loss":        return <LossContent        metrics={metrics} range={globalRange}/>;
       case "profit":      return <ProfitContent      metrics={metrics} range={globalRange}/>;
-      case "investments": return <InvestmentsContent metrics={metrics} saveM={saveM} range={globalRange}/>;
+      case "investments": return <InvestmentsContent metrics={metrics} saveM={saveM} range={globalRange} cardId="investments" {...noteProps}/>;
       case "bookings":    return <BookingsContent    metrics={metrics} saveM={saveM} integs={integs}/>;
       case "google":      return <GoogleContent      metrics={metrics} saveM={saveM} integs={integs}/>;
       case "email":       return <EmailContent       integs={integs} businessId={businessId}/>;
@@ -3493,19 +3579,7 @@ function ManagementCanvas({ businessId, metrics, saveM, integs, hubNotes, setHub
 
   return (
     <div style={{ paddingRight: sidebarOpen?300:0, transition:"padding-right 0.25s ease" }}>
-      {/* Global range selector */}
-      <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:12, flexWrap:"wrap", gap:8 }}>
-        <div style={{ display:"flex", alignItems:"center", gap:8 }}>
-          <span style={{ fontSize:11, color:C.muted, fontFamily:FB }}>Time range:</span>
-          <div style={{ display:"flex", gap:4 }}>
-            {[["month","This Month"],["last","Last Month"],["total","All Time"]].map(([v,l])=>(
-              <button key={v} onClick={()=>setGlobalRange(v)} style={{ fontSize:10, padding:"3px 10px", borderRadius:20, border:`1px solid ${globalRange===v?C.primary:C.border}`, background:globalRange===v?C.primaryBg:"transparent", color:globalRange===v?C.primary:C.muted, fontFamily:FB, fontWeight:600, cursor:"pointer" }}>{l}</button>
-            ))}
-          </div>
-        </div>
-      </div>
-
-      <BusinessStrategySection businessId={businessId} metrics={metrics} snapshots={snapshots} />
+      <BusinessStrategySection businessId={businessId} metrics={metrics} snapshots={snapshots} globalRange={globalRange} setGlobalRange={setGlobalRange} />
 
       <div style={{ position:"relative", minHeight:canvasH, marginBottom:64 }}>
         {/* Regular channel cards */}
