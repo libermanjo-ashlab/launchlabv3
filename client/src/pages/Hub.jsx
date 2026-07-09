@@ -2061,6 +2061,505 @@ function AutopilotCard({ businessId, planInfo, navigate }) {
   );
 }
 
+// ── MANAGEMENT CANVAS ──────────────────────────────────────────────────────────
+
+const MGMT_META = {
+  leads:    { label:"Leads",    icon:"🎯", hdrBg:"#EFF6FF" },
+  clients:  { label:"Clients",  icon:"👥", hdrBg:"#F0FDF4" },
+  revenue:  { label:"Revenue",  icon:"💰", hdrBg:"#FFFBEB" },
+  bookings: { label:"Bookings", icon:"📅", hdrBg:"#FFF7ED" },
+  google:   { label:"Google",   icon:"⭐", hdrBg:"#F5F3FF" },
+  email:    { label:"Email",    icon:"✉️",  hdrBg:"#FFF1F2" },
+};
+
+const MGMT_DEFAULTS = {
+  leads:    { x:0,   y:0,   w:340 },
+  clients:  { x:360, y:0,   w:340 },
+  revenue:  { x:0,   y:360, w:700 },
+  bookings: { x:0,   y:670, w:340 },
+  google:   { x:360, y:360, w:340 },
+  email:    { x:360, y:670, w:340 },
+};
+
+function MCell({ label, value, onChange, prefix="" }) {
+  const [ed, setEd] = useState(false);
+  const [v,  setV]  = useState(String(value||0));
+  useEffect(()=>{ if(!ed) setV(String(value||0)); },[value,ed]);
+  const save = ()=>{ onChange(Number(v)||0); setEd(false); };
+  return (
+    <div style={{ flex:1, background:C.surface, borderRadius:10, padding:"10px 12px", minWidth:0 }}>
+      <div style={{ fontSize:9, color:C.muted, fontWeight:700, textTransform:"uppercase", letterSpacing:"0.07em", fontFamily:FB, marginBottom:4 }}>{label}</div>
+      {ed ? (
+        <div style={{ display:"flex", gap:4 }}>
+          <input value={v} onChange={e=>setV(e.target.value)} onKeyDown={e=>e.key==="Enter"&&save()} autoFocus style={{ flex:1, fontSize:16, padding:"3px 8px", border:`1px solid ${C.border}`, borderRadius:6, fontFamily:FH, outline:"none", color:C.text, background:C.bg }} />
+          <button onClick={save} style={{ ...btn(C.primary,"#fff",11), padding:"4px 8px" }}>✓</button>
+        </div>
+      ) : (
+        <div onClick={()=>setEd(true)} style={{ cursor:"pointer", display:"flex", alignItems:"baseline", gap:4 }}>
+          <span style={{ fontFamily:FH, fontWeight:700, fontSize:22, color:C.text }}>{prefix}{Number(value||0).toLocaleString()}</span>
+          <span style={{ fontSize:9, color:C.muted, fontFamily:FB }}>edit</span>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function LeadsContent({ metrics, saveM, businessId }) {
+  const KEY = `earnedlab_leads_${businessId}`;
+  const [leads, setLeads] = useState(()=>{ try{return JSON.parse(localStorage.getItem(KEY)||"[]");}catch{return [];} });
+  const [adding, setAdding] = useState(false);
+  const [newName, setNewName] = useState("");
+  const [newSource, setNewSource] = useState("");
+  const [filter, setFilter] = useState("all");
+  const STATUS = ["new","contacted","qualified","proposal","won","lost"];
+  const STATUS_CLR = { new:"#3B82F6", contacted:"#8B5CF6", qualified:"#10B981", proposal:"#F59E0B", won:"#22C55E", lost:"#9CA3AF" };
+
+  const saveLeads = l=>{ setLeads(l); try{localStorage.setItem(KEY,JSON.stringify(l));}catch{} };
+
+  const addLead = ()=>{
+    if(!newName.trim()) return;
+    const l={ id:Date.now().toString(), name:newName.trim(), source:newSource.trim(), status:"new", date:new Date().toISOString() };
+    saveLeads([l,...leads]);
+    saveM("leads.this_month",(metrics.leads.this_month||0)+1);
+    saveM("leads.total",(metrics.leads.total||0)+1);
+    setNewName(""); setNewSource(""); setAdding(false);
+  };
+
+  const updateStatus = (id,status)=>saveLeads(leads.map(l=>l.id===id?{...l,status}:l));
+  const deleteLead   = id=>saveLeads(leads.filter(l=>l.id!==id));
+  const filtered     = filter==="all"?leads:leads.filter(l=>l.status===filter);
+
+  return (
+    <div>
+      <div style={{ display:"flex", gap:8, marginBottom:12 }}>
+        <MCell label="This month" value={metrics.leads.this_month} onChange={v=>saveM("leads.this_month",v)} />
+        <MCell label="Total" value={metrics.leads.total} onChange={v=>saveM("leads.total",v)} />
+        <MCell label="Pipeline" value={leads.filter(l=>!["won","lost"].includes(l.status)).length} onChange={()=>{}} />
+      </div>
+      <div style={{ display:"flex", gap:5, marginBottom:10, flexWrap:"wrap" }}>
+        {["all",...STATUS].map(s=>{
+          const cnt = s!=="all"?leads.filter(l=>l.status===s).length:0;
+          return (
+            <button key={s} onClick={()=>setFilter(s)} style={{ fontSize:10, padding:"3px 8px", borderRadius:12, border:`1px solid ${filter===s?C.primary:C.border}`, background:filter===s?C.primaryBg:"transparent", color:filter===s?C.primary:C.muted, cursor:"pointer", fontFamily:FB }}>
+              {s.charAt(0).toUpperCase()+s.slice(1)}{cnt>0?` (${cnt})`:""}
+            </button>
+          );
+        })}
+      </div>
+      <div style={{ maxHeight:180, overflowY:"auto" }}>
+        {filtered.map(l=>(
+          <div key={l.id} style={{ display:"flex", alignItems:"center", gap:8, padding:"6px 0", borderBottom:`1px solid ${C.border}` }}>
+            <span style={{ width:7, height:7, borderRadius:"50%", background:STATUS_CLR[l.status]||C.muted, flexShrink:0 }} />
+            <div style={{ flex:1, minWidth:0 }}>
+              <div style={{ fontSize:12, fontWeight:500, fontFamily:FB, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{l.name}</div>
+              {l.source&&<div style={{ fontSize:10, color:C.muted, fontFamily:FB }}>{l.source}</div>}
+            </div>
+            <select value={l.status} onChange={e=>updateStatus(l.id,e.target.value)} style={{ fontSize:10, padding:"2px 4px", border:`1px solid ${C.border}`, borderRadius:6, background:C.surface, color:C.text, fontFamily:FB }}>
+              {STATUS.map(s=><option key={s} value={s}>{s}</option>)}
+            </select>
+            <button onClick={()=>deleteLead(l.id)} style={{ background:"none", border:"none", color:C.muted, cursor:"pointer", fontSize:13, padding:0, flexShrink:0 }}>×</button>
+          </div>
+        ))}
+        {filtered.length===0&&<div style={{ fontSize:12, color:C.muted, textAlign:"center", padding:"12px 0", fontFamily:FB }}>No leads{filter!=="all"?` — status: ${filter}`:""}</div>}
+      </div>
+      {adding ? (
+        <div style={{ marginTop:10, display:"flex", gap:6, flexWrap:"wrap" }}>
+          <input value={newName} onChange={e=>setNewName(e.target.value)} placeholder="Lead name" onKeyDown={e=>e.key==="Enter"&&addLead()} autoFocus style={{ ...inp(), flex:1, minWidth:120, fontSize:12, padding:"6px 10px" }} />
+          <input value={newSource} onChange={e=>setNewSource(e.target.value)} placeholder="Source (optional)" style={{ ...inp(), flex:1, minWidth:100, fontSize:12, padding:"6px 10px" }} />
+          <button onClick={addLead} style={{ ...btn(C.primary,"#fff",12), padding:"6px 12px" }}>Add</button>
+          <button onClick={()=>setAdding(false)} style={{ ...btnO(C.muted,12), padding:"6px 10px" }}>Cancel</button>
+        </div>
+      ) : (
+        <button onClick={()=>setAdding(true)} style={{ ...btnO(C.primary,11), marginTop:10, width:"100%", textAlign:"center" }}>+ Add lead</button>
+      )}
+    </div>
+  );
+}
+
+function ClientsContent({ metrics, saveM, businessId }) {
+  const KEY = `earnedlab_clients_${businessId}`;
+  const [clients, setClients] = useState(()=>{ try{return JSON.parse(localStorage.getItem(KEY)||"[]");}catch{return [];} });
+  const [adding, setAdding] = useState(false);
+  const [newName, setNewName] = useState("");
+  const [newType, setNewType] = useState("current");
+  const [tab, setTab] = useState("current");
+  const TABS = ["current","past","potential"];
+  const TAB_CLR = { current:"#22C55E", past:"#9CA3AF", potential:"#3B82F6" };
+
+  const saveClients = c=>{ setClients(c); try{localStorage.setItem(KEY,JSON.stringify(c));}catch{} };
+
+  const addClient = ()=>{
+    if(!newName.trim()) return;
+    const c={ id:Date.now().toString(), name:newName.trim(), type:newType, date:new Date().toISOString() };
+    saveClients([c,...clients]);
+    if(newType==="current") saveM("clients.active",(metrics.clients.active||0)+1);
+    saveM("clients.total",(metrics.clients.total||0)+1);
+    setNewName(""); setAdding(false);
+  };
+
+  const moveClient = (id,type)=>{
+    const prev=clients.find(c=>c.id===id);
+    saveClients(clients.map(c=>c.id===id?{...c,type}:c));
+    if(prev?.type==="current"&&type!=="current") saveM("clients.active",Math.max(0,(metrics.clients.active||0)-1));
+    if(type==="current"&&prev?.type!=="current") saveM("clients.active",(metrics.clients.active||0)+1);
+  };
+
+  const deleteClient = id=>{
+    const c=clients.find(x=>x.id===id);
+    saveClients(clients.filter(x=>x.id!==id));
+    if(c?.type==="current") saveM("clients.active",Math.max(0,(metrics.clients.active||0)-1));
+    saveM("clients.total",Math.max(0,(metrics.clients.total||0)-1));
+  };
+
+  const filtered = clients.filter(c=>c.type===tab);
+
+  return (
+    <div>
+      <div style={{ display:"flex", gap:8, marginBottom:12 }}>
+        <MCell label="Current" value={metrics.clients.active} onChange={v=>saveM("clients.active",v)} />
+        <MCell label="Total" value={metrics.clients.total} onChange={v=>saveM("clients.total",v)} />
+        <MCell label="Potential" value={clients.filter(c=>c.type==="potential").length} onChange={()=>{}} />
+      </div>
+      <div style={{ display:"flex", gap:4, marginBottom:10 }}>
+        {TABS.map(t=>(
+          <button key={t} onClick={()=>setTab(t)} style={{ flex:1, fontSize:11, padding:"5px 4px", borderRadius:10, border:`1px solid ${tab===t?TAB_CLR[t]:C.border}`, background:tab===t?TAB_CLR[t]+"18":"transparent", color:tab===t?TAB_CLR[t]:C.muted, cursor:"pointer", fontFamily:FB, fontWeight:tab===t?600:400 }}>
+            {t.charAt(0).toUpperCase()+t.slice(1)} ({clients.filter(c=>c.type===t).length})
+          </button>
+        ))}
+      </div>
+      <div style={{ maxHeight:160, overflowY:"auto" }}>
+        {filtered.map(c=>(
+          <div key={c.id} style={{ display:"flex", alignItems:"center", gap:8, padding:"6px 0", borderBottom:`1px solid ${C.border}` }}>
+            <span style={{ width:7, height:7, borderRadius:"50%", background:TAB_CLR[c.type], flexShrink:0 }} />
+            <div style={{ flex:1, fontSize:12, fontWeight:500, fontFamily:FB, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{c.name}</div>
+            <select value={c.type} onChange={e=>moveClient(c.id,e.target.value)} style={{ fontSize:10, padding:"2px 4px", border:`1px solid ${C.border}`, borderRadius:6, background:C.surface, color:C.text, fontFamily:FB }}>
+              {TABS.map(t=><option key={t} value={t}>{t}</option>)}
+            </select>
+            <button onClick={()=>deleteClient(c.id)} style={{ background:"none", border:"none", color:C.muted, cursor:"pointer", fontSize:13, padding:0, flexShrink:0 }}>×</button>
+          </div>
+        ))}
+        {filtered.length===0&&<div style={{ fontSize:12, color:C.muted, textAlign:"center", padding:"12px 0", fontFamily:FB }}>No {tab} clients</div>}
+      </div>
+      {adding ? (
+        <div style={{ marginTop:10, display:"flex", gap:6, flexWrap:"wrap" }}>
+          <input value={newName} onChange={e=>setNewName(e.target.value)} placeholder="Client name" onKeyDown={e=>e.key==="Enter"&&addClient()} autoFocus style={{ ...inp(), flex:1, minWidth:120, fontSize:12, padding:"6px 10px" }} />
+          <select value={newType} onChange={e=>setNewType(e.target.value)} style={{ ...inp(), fontSize:12, padding:"6px 8px" }}>
+            {TABS.map(t=><option key={t} value={t}>{t}</option>)}
+          </select>
+          <button onClick={addClient} style={{ ...btn(C.primary,"#fff",12), padding:"6px 12px" }}>Add</button>
+          <button onClick={()=>setAdding(false)} style={{ ...btnO(C.muted,12), padding:"6px 10px" }}>Cancel</button>
+        </div>
+      ) : (
+        <button onClick={()=>setAdding(true)} style={{ ...btnO(C.primary,11), marginTop:10, width:"100%", textAlign:"center" }}>+ Add client</button>
+      )}
+    </div>
+  );
+}
+
+function RevenueContent({ metrics, saveM, wide }) {
+  const mom = metrics.revenue.last_month > 0
+    ? ((metrics.revenue.this_month - metrics.revenue.last_month) / metrics.revenue.last_month * 100).toFixed(0)
+    : null;
+  return (
+    <div>
+      <div style={{ display:"flex", gap:10, marginBottom:wide&&mom!==null?10:0 }}>
+        <MCell label="This month"  value={metrics.revenue.this_month}  onChange={v=>saveM("revenue.this_month",v)}  prefix="$" />
+        <MCell label="Last month"  value={metrics.revenue.last_month}  onChange={v=>saveM("revenue.last_month",v)}  prefix="$" />
+        <MCell label="All time"    value={metrics.revenue.total}       onChange={v=>saveM("revenue.total",v)}        prefix="$" />
+      </div>
+      {wide && mom !== null && (
+        <div style={{ background:C.surface, borderRadius:10, padding:"8px 12px", fontSize:11, color:Number(mom)>=0?"#22C55E":"#EF4444", fontFamily:FB, fontWeight:600 }}>
+          {Number(mom)>=0?"▲":"▼"} {Math.abs(Number(mom))}% vs last month
+        </div>
+      )}
+    </div>
+  );
+}
+
+function BookingsContent({ metrics, saveM, integs }) {
+  const meta = (()=>{ try{const i=integs.find(x=>x.provider==="calendly");return i?.metadata?JSON.parse(i.metadata):{};}catch{return {};} })();
+  const hasLink = !!meta.bookingUrl;
+  return (
+    <div>
+      {hasLink ? (
+        <div style={{ background:C.surface, borderRadius:10, padding:"8px 12px", marginBottom:12, display:"flex", justifyContent:"space-between", alignItems:"center" }}>
+          <span style={{ fontSize:11, color:C.muted, fontFamily:FB }}>📅 Calendly linked</span>
+          <a href={`https://${(meta.bookingUrl||"").replace(/^https?:\/\//,"")}`} target="_blank" rel="noopener noreferrer" style={{ fontSize:11, color:C.primary, fontFamily:FB, textDecoration:"none" }}>View page →</a>
+        </div>
+      ) : (
+        <div style={{ background:"#FFFBEB", borderRadius:10, padding:"8px 12px", marginBottom:12, fontSize:11, color:"#92400E", fontFamily:FB }}>
+          Connect Calendly in Hub → Integrations for auto-sync, or log counts below.
+        </div>
+      )}
+      <div style={{ display:"flex", gap:8 }}>
+        <MCell label="This week"  value={metrics.bookings.this_week}  onChange={v=>saveM("bookings.this_week",v)} />
+        <MCell label="This month" value={metrics.bookings.this_month} onChange={v=>saveM("bookings.this_month",v)} />
+      </div>
+    </div>
+  );
+}
+
+function GoogleContent({ metrics, saveM, integs }) {
+  const meta = (()=>{ try{const i=integs.find(x=>x.provider==="google");return i?.metadata?JSON.parse(i.metadata):{};}catch{return {};} })();
+  const isConn = integs.find(i=>i.provider==="google")?.status==="connected";
+  const viewable = meta._viewableStatus==="viewable";
+  const statusLabel = isConn?"Connected":viewable?"Viewable":"Not connected";
+  const statusClr   = isConn?"#22C55E":viewable?"#3B82F6":C.muted;
+  const rating = metrics.social.google_rating||0;
+  const stars  = Math.round(rating);
+  return (
+    <div>
+      <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:10 }}>
+        <span style={{ fontSize:10, padding:"2px 8px", borderRadius:12, background:statusClr+"18", color:statusClr, fontFamily:FB, fontWeight:600 }}>{statusLabel}</span>
+        {(isConn||viewable)&&meta.profileUrl&&(
+          <a href={meta.profileUrl} target="_blank" rel="noopener noreferrer" style={{ fontSize:11, color:C.primary, fontFamily:FB, textDecoration:"none" }}>View listing →</a>
+        )}
+      </div>
+      <div style={{ display:"flex", gap:8, marginBottom:stars>0?10:0 }}>
+        <MCell label="Reviews" value={metrics.social.google_reviews} onChange={v=>saveM("social.google_reviews",v)} />
+        <MCell label="Rating"  value={metrics.social.google_rating}  onChange={v=>saveM("social.google_rating",v)} />
+      </div>
+      {stars>0&&(
+        <div style={{ display:"flex", gap:2, alignItems:"center" }}>
+          {[1,2,3,4,5].map(s=><span key={s} style={{ fontSize:18, color:s<=stars?"#F59E0B":"#D1D5DB" }}>★</span>)}
+          <span style={{ fontSize:11, color:C.muted, marginLeft:6, fontFamily:FB }}>{rating}/5</span>
+        </div>
+      )}
+      {!isConn&&!viewable&&(
+        <div style={{ fontSize:11, color:C.muted, fontFamily:FB, marginTop:8 }}>Log review count and rating above, or connect Google in Hub → Integrations.</div>
+      )}
+    </div>
+  );
+}
+
+function EmailContent({ integs, businessId }) {
+  const KEY = `earnedlab_email_${businessId}`;
+  const meta = (()=>{ try{const i=integs.find(x=>x.provider==="email");return i?.metadata?JSON.parse(i.metadata):{};}catch{return {};} })();
+  const hasEmail = !!meta.address;
+  const [counts, setCounts] = useState(()=>{ try{return JSON.parse(localStorage.getItem(KEY)||"null")||{ inbox:0,starred:0,saved:0,archive:0 };}catch{return { inbox:0,starred:0,saved:0,archive:0 };} });
+  const updateCount = (field,val)=>{
+    const next={ ...counts,[field]:Number(val)||0 };
+    setCounts(next); try{localStorage.setItem(KEY,JSON.stringify(next));}catch{}
+  };
+  const SECTIONS=[
+    { label:"Inbox",   field:"inbox",   icon:"📥" },
+    { label:"Starred", field:"starred", icon:"⭐" },
+    { label:"Saved",   field:"saved",   icon:"🔖" },
+    { label:"Archive", field:"archive", icon:"📦" },
+  ];
+  if(!hasEmail) return (
+    <div style={{ textAlign:"center", padding:"12px 0" }}>
+      <div style={{ fontSize:12, color:C.muted, fontFamily:FB }}>Connect your email in Hub → Integrations to track inbox stats here.</div>
+    </div>
+  );
+  return (
+    <div>
+      <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:12 }}>
+        <span style={{ fontSize:10, padding:"2px 8px", borderRadius:12, background:"#EFF6FF", color:"#3B82F6", fontFamily:FB, fontWeight:600 }}>Connected</span>
+        <span style={{ fontSize:11, color:C.muted, fontFamily:FB }}>{meta.address}</span>
+      </div>
+      <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:8 }}>
+        {SECTIONS.map(s=>(
+          <div key={s.field} style={{ background:C.surface, borderRadius:10, padding:"8px 10px" }}>
+            <div style={{ fontSize:11, color:C.muted, fontFamily:FB, marginBottom:4 }}>{s.icon} {s.label}</div>
+            <input type="number" value={counts[s.field]||0} onChange={e=>updateCount(s.field,e.target.value)} style={{ width:"100%", fontSize:20, fontFamily:FH, fontWeight:700, padding:"2px 4px", border:"none", background:"transparent", color:C.text, outline:"none" }} />
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function DraggableCard({ id, pos, meta, note, isDragging, onDragStart, onRemove, onCreateAndPin, onUnstickNote, children }) {
+  const [showPin, setShowPin] = useState(false);
+  const [pinText, setPinText] = useState("");
+  const pinInputRef = useRef(null);
+
+  useEffect(()=>{ if(showPin) pinInputRef.current?.focus(); },[showPin]);
+
+  return (
+    <div style={{
+      position:"absolute", left:pos.x, top:pos.y, width:pos.w||340,
+      background:C.bg, borderRadius:16, border:`1px solid ${C.border}`,
+      boxShadow: isDragging?"0 16px 48px rgba(0,0,0,0.18)":"0 4px 20px rgba(0,0,0,0.07)",
+      overflow:"visible",
+      userSelect: isDragging?"none":"auto",
+      zIndex: isDragging?100:2,
+      transition: isDragging?"none":"box-shadow 0.2s",
+    }}>
+      {/* Pinned note badge */}
+      {note&&(
+        <div style={{ position:"absolute", top:-13, right:14, background:note.color||"#FEF3C7", borderRadius:8, padding:"3px 10px", fontSize:11, color:"#374151", fontFamily:FB, boxShadow:"0 2px 8px rgba(0,0,0,0.12)", display:"flex", alignItems:"center", gap:5, zIndex:10, maxWidth:200 }}>
+          <span>📌</span>
+          <span style={{ overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{note.text}</span>
+          <button onClick={onUnstickNote} style={{ background:"none", border:"none", cursor:"pointer", color:"#9CA3AF", fontSize:11, padding:0, lineHeight:1, flexShrink:0 }}>×</button>
+        </div>
+      )}
+
+      {/* Drag handle */}
+      <div
+        onMouseDown={e=>{ e.preventDefault(); onDragStart(e,id); }}
+        style={{ background:meta.hdrBg||C.surface, padding:"10px 14px", display:"flex", justifyContent:"space-between", alignItems:"center", cursor:isDragging?"grabbing":"grab", borderRadius:"16px 16px 0 0", borderBottom:`1px solid ${C.border}` }}
+      >
+        <div style={{ display:"flex", alignItems:"center", gap:8 }}>
+          <span style={{ color:C.muted, fontSize:12, letterSpacing:3 }}>⠿⠿</span>
+          <span style={{ fontSize:15 }}>{meta.icon}</span>
+          <span style={{ fontFamily:FH, fontWeight:700, fontSize:14 }}>{meta.label}</span>
+        </div>
+        <div style={{ display:"flex", gap:2 }} onMouseDown={e=>e.stopPropagation()}>
+          <button title="Pin note" onClick={()=>setShowPin(p=>!p)} style={{ background:showPin?C.primaryBg:"none", border:showPin?`1px solid ${C.primary}30`:"none", borderRadius:6, cursor:"pointer", color:showPin?C.primary:C.muted, fontSize:13, padding:"2px 6px", lineHeight:1 }}>📌</button>
+          <button title="Remove card" onClick={onRemove} style={{ background:"none", border:"none", cursor:"pointer", color:C.muted, fontSize:16, padding:"2px 6px", lineHeight:1 }}>×</button>
+        </div>
+      </div>
+
+      {/* Pin note inline */}
+      {showPin&&(
+        <div style={{ padding:"8px 12px", borderBottom:`1px solid ${C.border}`, background:"#FFFBEB" }} onMouseDown={e=>e.stopPropagation()}>
+          <div style={{ display:"flex", gap:6 }}>
+            <input ref={pinInputRef} value={pinText} onChange={e=>setPinText(e.target.value)} placeholder="Note to pin to this card…"
+              onKeyDown={e=>{ if(e.key==="Enter"&&pinText.trim()){ onCreateAndPin(pinText.trim()); setPinText(""); setShowPin(false); } }}
+              style={{ flex:1, fontSize:12, padding:"5px 8px", border:`1px solid ${C.border}`, borderRadius:6, fontFamily:FB, outline:"none", background:C.bg, color:C.text }} />
+            <button onClick={()=>{ if(pinText.trim()){ onCreateAndPin(pinText.trim()); setPinText(""); setShowPin(false); }}} style={{ ...btn(C.primary,"#fff",11), padding:"5px 10px" }}>Pin</button>
+          </div>
+        </div>
+      )}
+
+      {/* Card body */}
+      <div style={{ padding:"14px 16px" }} onMouseDown={e=>e.stopPropagation()}>
+        {children}
+      </div>
+    </div>
+  );
+}
+
+function ManagementCanvas({ businessId, metrics, saveM, integs, hubNotes, setHubNotes, stickyAssignments, assignSticky, unstickNote }) {
+  const POS_KEY   = `earnedlab_mgmt_pos_${businessId}`;
+  const CARDS_KEY = `earnedlab_mgmt_cards_${businessId}`;
+
+  const [positions, setPositions] = useState(()=>{
+    try{ const s=localStorage.getItem(POS_KEY); return s?JSON.parse(s):{...MGMT_DEFAULTS}; }catch{ return {...MGMT_DEFAULTS}; }
+  });
+  const [visible, setVisible] = useState(()=>{
+    try{ const s=localStorage.getItem(CARDS_KEY); return s?JSON.parse(s):["leads","clients","revenue"]; }catch{ return ["leads","clients","revenue"]; }
+  });
+  const [toolbar, setToolbar] = useState(false);
+  const [dragActive, setDragActive] = useState(null);
+  const dragging = useRef(null);
+
+  const savePos     = p=>{ setPositions(p); try{localStorage.setItem(POS_KEY,JSON.stringify(p));}catch{} };
+  const saveVisible = v=>{ setVisible(v);   try{localStorage.setItem(CARDS_KEY,JSON.stringify(v));}catch{} };
+
+  const startDrag = (e,cardId)=>{
+    const pos=positions[cardId]||MGMT_DEFAULTS[cardId]||{x:0,y:0};
+    dragging.current={ cardId, mx0:e.clientX, my0:e.clientY, cx0:pos.x, cy0:pos.y, _pos:null };
+    setDragActive(cardId);
+  };
+
+  useEffect(()=>{
+    const posKey = POS_KEY;
+    const onMove = e=>{
+      if(!dragging.current) return;
+      const{cardId,mx0,my0,cx0,cy0}=dragging.current;
+      const nx=Math.max(0,cx0+e.clientX-mx0);
+      const ny=Math.max(0,cy0+e.clientY-my0);
+      setPositions(p=>{
+        const up={...p,[cardId]:{...p[cardId],x:nx,y:ny}};
+        dragging.current._pos=up;
+        return up;
+      });
+    };
+    const onUp = ()=>{
+      if(!dragging.current) return;
+      if(dragging.current._pos){ try{localStorage.setItem(posKey,JSON.stringify(dragging.current._pos));}catch{} }
+      dragging.current=null; setDragActive(null);
+    };
+    document.addEventListener("mousemove",onMove);
+    document.addEventListener("mouseup",onUp);
+    return()=>{ document.removeEventListener("mousemove",onMove); document.removeEventListener("mouseup",onUp); };
+  },[POS_KEY]);
+
+  const addCard = id=>{
+    const pos=MGMT_DEFAULTS[id]||{x:20,y:20,w:340};
+    savePos({...positions,[id]:positions[id]||pos});
+    saveVisible([...visible,id]);
+    setToolbar(false);
+  };
+  const removeCard = id=>saveVisible(visible.filter(c=>c!==id));
+  const resetLayout = ()=>{ savePos({...MGMT_DEFAULTS}); saveVisible(["leads","clients","revenue"]); };
+
+  const createAndPin = async(cardId,cardLabel,text)=>{
+    try{
+      const{note}=await api.agents.addNote(businessId,text,"#FEF3C7");
+      setHubNotes(p=>[note,...p]);
+      assignSticky(note.id,cardId,cardLabel);
+    }catch{}
+  };
+
+  const getNote = id=>{
+    const a=stickyAssignments[id]; if(!a) return null;
+    return hubNotes.find(n=>n.id===a.noteId)||null;
+  };
+
+  const canvasH=Math.max(700,...visible.map(id=>{
+    const p=positions[id]||MGMT_DEFAULTS[id]||{y:0,w:340};
+    return p.y+460;
+  }));
+
+  const ALL=["leads","clients","revenue","bookings","google","email"];
+  const addable=ALL.filter(id=>!visible.includes(id));
+
+  const cardContent = id=>{
+    switch(id){
+      case "leads":    return <LeadsContent   metrics={metrics} saveM={saveM} businessId={businessId}/>;
+      case "clients":  return <ClientsContent metrics={metrics} saveM={saveM} businessId={businessId}/>;
+      case "revenue":  return <RevenueContent metrics={metrics} saveM={saveM} wide={(positions[id]||MGMT_DEFAULTS[id]||{}).w>500}/>;
+      case "bookings": return <BookingsContent metrics={metrics} saveM={saveM} integs={integs}/>;
+      case "google":   return <GoogleContent  metrics={metrics} saveM={saveM} integs={integs}/>;
+      case "email":    return <EmailContent   integs={integs} businessId={businessId}/>;
+      default:         return null;
+    }
+  };
+
+  return (
+    <div>
+      <div style={{ position:"relative", minHeight:canvasH, marginBottom:64 }}>
+        {visible.map(id=>{
+          const pos=positions[id]||MGMT_DEFAULTS[id]||{x:0,y:0,w:340};
+          return (
+            <DraggableCard key={id} id={id} pos={pos} meta={MGMT_META[id]} note={getNote(id)}
+              isDragging={dragActive===id}
+              onDragStart={startDrag}
+              onRemove={()=>removeCard(id)}
+              onCreateAndPin={text=>createAndPin(id,MGMT_META[id].label,text)}
+              onUnstickNote={()=>unstickNote(id)}
+            >
+              {cardContent(id)}
+            </DraggableCard>
+          );
+        })}
+      </div>
+      <div style={{ display:"flex", justifyContent:"center" }}>
+        {toolbar ? (
+          <div style={{ background:C.bg, border:`1px solid ${C.border}`, borderRadius:16, padding:"10px 14px", boxShadow:"0 8px 32px rgba(0,0,0,0.10)", display:"flex", gap:8, alignItems:"center", flexWrap:"wrap" }}>
+            {addable.map(id=>(
+              <button key={id} onClick={()=>addCard(id)} style={{ ...btnO(C.primary,12), display:"flex", alignItems:"center", gap:5 }}>
+                <span>{MGMT_META[id].icon}</span> Add {MGMT_META[id].label}
+              </button>
+            ))}
+            {addable.length===0&&<span style={{ fontSize:12, color:C.muted, fontFamily:FB }}>All cards on canvas</span>}
+            <button onClick={resetLayout} style={{ ...btnO(C.muted,11) }}>Reset layout</button>
+            <button onClick={()=>setToolbar(false)} style={{ background:"none", border:"none", color:C.muted, cursor:"pointer", fontSize:16, padding:"0 4px" }}>×</button>
+          </div>
+        ) : (
+          <button onClick={()=>setToolbar(true)} style={{ background:C.bg, border:`1px solid ${C.border}`, borderRadius:20, padding:"8px 18px", fontSize:13, color:C.text, cursor:"pointer", boxShadow:"0 2px 12px rgba(0,0,0,0.07)", fontFamily:FB, display:"flex", alignItems:"center", gap:8 }}>
+            <span style={{ fontSize:16 }}>⊕</span> Add to canvas
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
+
 // ── MAIN HUB ─────────────────────────────────────────────────────────────────
 
 export default function Hub() {
@@ -2473,52 +2972,31 @@ export default function Hub() {
           {tab==="management" && (
             <div>
               <div style={{ fontFamily:FH, fontWeight:700, fontSize:24, letterSpacing:"-0.04em", marginBottom:4 }}>Management Agent</div>
-              <p style={{ color:C.muted, fontSize:14, marginBottom:24, fontFamily:FB }}>Track your metrics and preferences. The management agent adapts its advice as your business evolves.</p>
+              <p style={{ color:C.muted, fontSize:14, marginBottom:20, fontFamily:FB }}>Your revenue channels and business dashboard. Drag cards to organize — pin notes, add fields, and track what matters.</p>
 
               <AutopilotCard businessId={businessId} planInfo={planInfo} navigate={navigate} />
 
-              <div style={{ ...card("12px 16px"), marginBottom:16, background:C.surface, border:`1px solid ${C.border}` }}>
-                <div style={{ fontSize:12, color:C.muted, fontFamily:FB }}>Business preferences and brand identity are now in <button onClick={()=>setTab("overview")} style={{ background:"none", border:"none", color:C.primary, cursor:"pointer", fontSize:12, fontFamily:FB, padding:0 }}>Overview →</button></div>
-              </div>
-
               <div style={{ ...card("16px 18px"), marginBottom:24, background:C.primaryBg, border:`1px solid ${C.primary}15` }}>
                 <div style={{ fontFamily:FH, fontWeight:600, fontSize:14, marginBottom:8 }}>Ask your management agent</div>
-                <p style={{ fontSize:12, color:C.muted, marginBottom:10, fontFamily:FB }}>Ask anything about your business. Say "I'm scaling up" or "I want to go global" and those preferences will be updated automatically.</p>
+                <p style={{ fontSize:12, color:C.muted, marginBottom:10, fontFamily:FB }}>Ask anything about revenue, clients, or business strategy. Say "I'm scaling up" and preferences update automatically.</p>
                 <div style={{ display:"flex", gap:8, marginBottom:mgmtAns?12:0 }}>
-                  <input value={mgmtQ} onChange={e=>setMgmtQ(e.target.value)} onKeyDown={e=>e.key==="Enter"&&askMgmt()} placeholder="What should I focus on this week? I want to go global." style={{ ...inp(), flex:1 }} />
+                  <input value={mgmtQ} onChange={e=>setMgmtQ(e.target.value)} onKeyDown={e=>e.key==="Enter"&&askMgmt()} placeholder="What should I focus on this week?" style={{ ...inp(), flex:1 }} />
                   <button onClick={askMgmt} disabled={hubLoading} style={{ ...btn(C.primary,"#fff",13), padding:"10px 16px", flexShrink:0 }}>{hubLoading?"…":"Ask"}</button>
                 </div>
                 {mgmtAns&&<div style={{ background:C.surface, borderRadius:10, padding:"12px 14px", fontSize:13, color:C.text, lineHeight:1.7, fontFamily:FB, border:`1px solid ${C.border}` }}>{mgmtAns}</div>}
               </div>
 
-              <div style={{ fontFamily:FH, fontWeight:700, fontSize:15, marginBottom:12 }}>Revenue</div>
-              <div style={{ display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:12, marginBottom:24 }}>
-                <StatCard label="This month"  value={metrics.revenue.this_month}  prefix="$" onChange={v=>saveM("revenue.this_month",v)}/>
-                <StatCard label="Last month"  value={metrics.revenue.last_month}  prefix="$" onChange={v=>saveM("revenue.last_month",v)}/>
-                <StatCard label="All time"    value={metrics.revenue.total}       prefix="$" onChange={v=>saveM("revenue.total",v)}/>
-              </div>
-
-              <div style={{ fontFamily:FH, fontWeight:700, fontSize:15, marginBottom:12 }}>Clients &amp; Leads</div>
-              <div style={{ display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:12, marginBottom:24 }}>
-                <StatCard label="Active clients"   value={metrics.clients.active}   onChange={v=>saveM("clients.active",v)}/>
-                <StatCard label="Total clients"    value={metrics.clients.total}    onChange={v=>saveM("clients.total",v)}/>
-                <StatCard label="Leads this month" value={metrics.leads.this_month} onChange={v=>saveM("leads.this_month",v)}/>
-              </div>
-
-              <div style={{ fontFamily:FH, fontWeight:700, fontSize:15, marginBottom:12 }}>Social Media</div>
-              <div style={{ display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:12, marginBottom:24 }}>
-                <StatCard label="Instagram" value={metrics.social.instagram} onChange={v=>saveM("social.instagram",v)}/>
-                <StatCard label="TikTok"    value={metrics.social.tiktok}    onChange={v=>saveM("social.tiktok",v)}/>
-                <StatCard label="Facebook"  value={metrics.social.facebook}  onChange={v=>saveM("social.facebook",v)}/>
-              </div>
-
-              <div style={{ fontFamily:FH, fontWeight:700, fontSize:15, marginBottom:12 }}>Bookings &amp; Reviews</div>
-              <div style={{ display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:12 }}>
-                <StatCard label="Bookings this week"  value={metrics.bookings.this_week}    onChange={v=>saveM("bookings.this_week",v)}/>
-                <StatCard label="Bookings this month" value={metrics.bookings.this_month}   onChange={v=>saveM("bookings.this_month",v)}/>
-                <StatCard label="Google reviews"      value={metrics.social.google_reviews} onChange={v=>saveM("social.google_reviews",v)}/>
-                <StatCard label="Google rating"       value={metrics.social.google_rating}  onChange={v=>saveM("social.google_rating",v)}/>
-              </div>
+              <ManagementCanvas
+                businessId={businessId}
+                metrics={metrics}
+                saveM={saveM}
+                integs={integs}
+                hubNotes={hubNotes}
+                setHubNotes={setHubNotes}
+                stickyAssignments={stickyAssignments}
+                assignSticky={assignSticky}
+                unstickNote={unstickNote}
+              />
             </div>
           )}
         </div>
