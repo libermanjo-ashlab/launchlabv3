@@ -1157,46 +1157,117 @@ function IntegrationCard({ provider, label, desc, fields, savedMeta, onSave, isC
   );
 }
 
+const ARCHIVE_EXCLUDED = ["usage", "user_metrics"];
+const ARCHIVE_FOLDERS = {
+  "Business Info":  { types: ["website", "business_plan", "pitch_deck", "brand_identity"], taskMatch: /website|business plan|pitch/i },
+  "Social Media":   { types: ["social_content", "content_calendar", "social_post"], taskMatch: /social|instagram|tiktok|twitter|post|caption/i },
+  "Marketing":      { types: ["marketing_insights", "marketing_notes"], taskMatch: /marketing|campaign|insight|strategy/i },
+  "Email":          { types: ["email_templates"], taskMatch: /email/i },
+};
+
+function _archiveFolder(f) {
+  for (const [folder, cfg] of Object.entries(ARCHIVE_FOLDERS)) {
+    if (cfg.types.includes(f.outputType)) return folder;
+    if (f.source === "task" && cfg.taskMatch.test(f.name)) return folder;
+  }
+  return "Other";
+}
+
 function FilesArchive({ businessId, outputs, tasks }) {
   const [open, setOpen] = useState(false);
+  const [openFolders, setOpenFolders] = useState({});
 
-  const files = [
-    ...outputs.filter(o=>o.content).map(o=>({ name:o.title||o.type, type:o.type, content:o.content, source:"generated" })),
-    ...tasks.filter(t=>t.status==="done"&&extractOutput(t.outputData)).map(t=>{ const ex=extractOutput(t.outputData); return { name:t.name, type:ex.type, content:ex.content||ex.fields?.map(f=>`${f.label}: ${f.value}`).join("\n")||"", filename:t.outputData?.filename, source:"task" }; }),
+  const allFiles = [
+    ...outputs
+      .filter(o => o.content && !ARCHIVE_EXCLUDED.includes(o.type))
+      .map(o => ({ name: o.title || o.type.replace(/_/g, " "), outputType: o.type, content: o.content, source: "generated" })),
+    ...tasks
+      .filter(t => t.status === "done" && extractOutput(t.outputData))
+      .map(t => {
+        const ex = extractOutput(t.outputData);
+        return {
+          name: t.name,
+          outputType: ex.type,
+          content: ex.content || ex.fields?.map(f => `${f.label}: ${f.value}`).join("\n") || "",
+          filename: t.outputData?.filename,
+          source: "task",
+        };
+      }),
   ];
 
-  if (!files.length) return (
+  const folderMap = {};
+  for (const f of allFiles) {
+    const folder = _archiveFolder(f);
+    if (!folderMap[folder]) folderMap[folder] = [];
+    folderMap[folder].push(f);
+  }
+  const folderOrder = [...Object.keys(ARCHIVE_FOLDERS), "Other"].filter(k => folderMap[k]?.length);
+  const totalFiles = allFiles.length;
+
+  const toggleFolder = name => setOpenFolders(p => ({ ...p, [name]: !p[name] }));
+
+  if (!totalFiles) return (
     <div style={{ ...card("16px 18px"), marginTop:20, textAlign:"center" }}>
       <div style={{ fontSize:12, color:C.muted, fontFamily:FB }}>Generated files and completed task output will appear here.</div>
     </div>
   );
 
   const download = f => {
-    const isHtml = f.type==="website"||f.type==="html"||f.type==="business_plan"||f.type==="pitch_deck"||(f.content&&f.content.trim().startsWith("<"));
-    const ext  = isHtml?".html":f.type==="json"?".json":".txt";
-    const mime = isHtml?"text/html":f.type==="json"?"application/json":"text/plain";
-    const blob = new Blob([f.content],{type:mime});
+    const isHtml = f.outputType === "website" || f.outputType === "html" || f.outputType === "business_plan" || f.outputType === "pitch_deck" || (f.content && f.content.trim().startsWith("<"));
+    const ext  = isHtml ? ".html" : f.outputType === "json" ? ".json" : ".txt";
+    const mime = isHtml ? "text/html" : f.outputType === "json" ? "application/json" : "text/plain";
+    const blob = new Blob([f.content], { type: mime });
     const url  = URL.createObjectURL(blob);
-    const a    = document.createElement("a"); a.href=url; a.download=f.filename||(f.name.toLowerCase().replace(/\s+/g,"-")+ext); a.click(); URL.revokeObjectURL(url);
+    const a    = document.createElement("a");
+    a.href = url; a.download = f.filename || (f.name.toLowerCase().replace(/\s+/g, "-") + ext); a.click();
+    URL.revokeObjectURL(url);
   };
+
+  const folderIcons = { "Business Info": "🏢", "Social Media": "📱", "Marketing": "📊", "Email": "✉️", "Other": "📁" };
 
   return (
     <div style={{ ...card("0"), overflow:"hidden", marginTop:20 }}>
-      <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", padding:"14px 18px", cursor:"pointer" }} onClick={()=>setOpen(p=>!p)}>
-        <div style={{ fontFamily:FH, fontWeight:600, fontSize:14 }}>Files Archive <span style={{ background:C.primaryBg, color:C.primary, fontSize:10, fontWeight:700, padding:"2px 8px", borderRadius:20, marginLeft:6 }}>{files.length}</span></div>
+      <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", padding:"14px 18px", cursor:"pointer" }} onClick={() => setOpen(p => !p)}>
+        <div style={{ fontFamily:FH, fontWeight:600, fontSize:14 }}>
+          Files Archive
+          <span style={{ background:C.primaryBg, color:C.primary, fontSize:10, fontWeight:700, padding:"2px 8px", borderRadius:20, marginLeft:6 }}>{totalFiles}</span>
+        </div>
         <span style={{ color:C.muted, fontSize:14, transform:open?"rotate(180deg)":"none", transition:"transform 0.15s", display:"inline-block" }}>▾</span>
       </div>
       {open && (
         <div style={{ borderTop:`1px solid ${C.border}` }}>
-          {files.map((f,i) => (
-            <div key={i} style={{ display:"flex", justifyContent:"space-between", alignItems:"center", padding:"12px 18px", borderBottom:i<files.length-1?`1px solid ${C.border}`:"none" }}>
-              <div>
-                <div style={{ fontSize:13, fontWeight:500, fontFamily:FB }}>{f.name}</div>
-                <div style={{ fontSize:11, color:C.muted, fontFamily:FB }}>{f.source==="generated"?"Auto-generated":"Task output"} &middot; {f.type}</div>
+          {folderOrder.map((folderName, fi) => {
+            const files = folderMap[folderName];
+            const isFolderOpen = openFolders[folderName];
+            return (
+              <div key={folderName} style={{ borderBottom: fi < folderOrder.length - 1 ? `1px solid ${C.border}` : "none" }}>
+                <div
+                  style={{ display:"flex", justifyContent:"space-between", alignItems:"center", padding:"11px 18px", cursor:"pointer", background:C.surface }}
+                  onClick={() => toggleFolder(folderName)}
+                >
+                  <div style={{ display:"flex", alignItems:"center", gap:8 }}>
+                    <span style={{ fontSize:14 }}>{folderIcons[folderName]}</span>
+                    <span style={{ fontSize:13, fontWeight:600, fontFamily:FH }}>{folderName}</span>
+                    <span style={{ fontSize:10, color:C.muted, fontFamily:FB }}>{files.length} file{files.length !== 1 ? "s" : ""}</span>
+                  </div>
+                  <span style={{ color:C.muted, fontSize:12, transform:isFolderOpen?"rotate(180deg)":"none", transition:"transform 0.15s", display:"inline-block" }}>▾</span>
+                </div>
+                {isFolderOpen && (
+                  <div style={{ borderTop:`1px solid ${C.border}` }}>
+                    {files.map((f, i) => (
+                      <div key={i} style={{ display:"flex", justifyContent:"space-between", alignItems:"center", padding:"10px 18px 10px 42px", borderBottom: i < files.length - 1 ? `1px solid ${C.border}` : "none" }}>
+                        <div>
+                          <div style={{ fontSize:13, fontWeight:500, fontFamily:FB }}>{f.name}</div>
+                          <div style={{ fontSize:11, color:C.muted, fontFamily:FB }}>{f.source === "generated" ? "Auto-generated" : "Task output"} · {f.outputType}</div>
+                        </div>
+                        <button onClick={() => download(f)} style={{ ...btnO(C.primary, 11), padding:"5px 12px" }}>Download</button>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
-              <button onClick={()=>download(f)} style={{ ...btnO(C.primary,11), padding:"5px 12px" }}>Download</button>
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
     </div>

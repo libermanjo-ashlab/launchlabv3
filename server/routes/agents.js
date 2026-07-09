@@ -1141,6 +1141,18 @@ router.post("/:businessId/content-lab", requireAuth, async (req, res, next) => {
       captionResult = await ig.generateCaption(biz.name, idea.name, context, tone, {});
     }
 
+    // Persist generated post so it appears in Files Archive
+    const postContent = JSON.stringify({
+      channel, caption: captionResult?.caption || null, body: captionResult?.body || null,
+      hashtags: captionResult?.hashtags || null, imageUrl, generatedAt: new Date().toISOString(),
+    });
+    const existingPost = await prisma.businessOutput.findFirst({ where: { businessId: req.params.businessId, type: "social_post", title: `Generated Post - ${channel}` } });
+    if (existingPost) {
+      await prisma.businessOutput.update({ where: { id: existingPost.id }, data: { content: postContent } });
+    } else {
+      await prisma.businessOutput.create({ data: { businessId: req.params.businessId, type: "social_post", title: `Generated Post - ${channel}`, content: postContent } });
+    }
+
     return res.json({
       channel,
       caption:  captionResult?.caption || null,
