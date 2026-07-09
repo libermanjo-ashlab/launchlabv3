@@ -2612,11 +2612,12 @@ export default function AgentPanel({ businessId, businessName, metrics, planInfo
   const deleteCampaign = (id) => saveCampaigns(p=>p.filter(c=>c.id!==id));
 
   // Campaign buckets
-  const marketInsightCampaigns = campaigns.filter(c=>c.type==="market_insight");
+  // Market insights stay in their own section only while planned/active — once done they flow into the shared buckets
+  const marketInsightCampaigns = campaigns.filter(c=>c.type==="market_insight"&&(c.status==="planned"||c.status==="active"||!c.status));
   const plannedCampaigns    = campaigns.filter(c=>c.status==="planned"&&c.type!=="market_insight");
   const activeCampaigns     = campaigns.filter(c=>c.status==="active"&&c.type!=="market_insight");
-  const monitoringCampaigns = campaigns.filter(c=>c.status==="monitoring"&&c.type!=="market_insight");
-  const archivedCampaigns   = campaigns.filter(c=>c.status==="archived"&&c.type!=="market_insight");
+  const monitoringCampaigns = campaigns.filter(c=>c.status==="monitoring");
+  const archivedCampaigns   = campaigns.filter(c=>c.status==="archived");
   const [showArchived, setShowArchived] = useState(false);
 
   const nextRunIn = ranAt ? Math.max(0, Math.round((12*3600*1000-(Date.now()-new Date(ranAt).getTime()))/3600000)) : null;
@@ -2938,11 +2939,13 @@ export default function AgentPanel({ businessId, businessName, metrics, planInfo
                 )}
               </div>
               {monitoringCampaigns.map(c=>(
-                c.isManual
-                  ? <ManualCampaignCard key={c.id} campaign={c} onUpdate={updateCampaign} onDelete={deleteCampaign} />
-                  : c.topic && c.tone
-                    ? <SuggestedCampaignCard key={c.id} campaign={c} agentMode={agentMode} businessId={businessId} businessName={businessName} onUpdate={updateCampaign} onDelete={deleteCampaign} />
-                    : <CampaignCard key={c.id} campaign={c} onUpdate={updateCampaign} onDelete={deleteCampaign} businessId={businessId} businessName={businessName} setTab={setTab} activeCampaignCount={activeCampaigns.length} refreshTasks={refreshTasks} stickyNote={stickyAssignments?.[c.id] ? hubNotes?.find(n=>n.id===stickyAssignments[c.id]?.noteId) : null} onAssignSticky={onAssignSticky} onUnstickNote={onUnstickNote} />
+                c.type==="market_insight"
+                  ? <MarketInsightCard key={c.id} campaign={c} businessId={businessId} onUpdate={updateCampaign} onDelete={deleteCampaign} />
+                  : c.isManual
+                    ? <ManualCampaignCard key={c.id} campaign={c} onUpdate={updateCampaign} onDelete={deleteCampaign} />
+                    : c.topic && c.tone
+                      ? <SuggestedCampaignCard key={c.id} campaign={c} agentMode={agentMode} businessId={businessId} businessName={businessName} onUpdate={updateCampaign} onDelete={deleteCampaign} />
+                      : <CampaignCard key={c.id} campaign={c} onUpdate={updateCampaign} onDelete={deleteCampaign} businessId={businessId} businessName={businessName} setTab={setTab} activeCampaignCount={activeCampaigns.length} refreshTasks={refreshTasks} stickyNote={stickyAssignments?.[c.id] ? hubNotes?.find(n=>n.id===stickyAssignments[c.id]?.noteId) : null} onAssignSticky={onAssignSticky} onUnstickNote={onUnstickNote} />
               ))}
             </div>
           )}
@@ -2970,11 +2973,13 @@ export default function AgentPanel({ businessId, businessName, metrics, planInfo
                 {showArchived?"▲":"▼"} Archived Campaigns ({archivedCampaigns.length})
               </button>
               {showArchived && archivedCampaigns.map(c=>(
-                c.isManual
-                  ? <ManualCampaignCard key={c.id} campaign={c} onUpdate={updateCampaign} onDelete={deleteCampaign} />
-                  : c.topic && c.tone
-                    ? <SuggestedCampaignCard key={c.id} campaign={c} agentMode={agentMode} businessId={businessId} businessName={businessName} onUpdate={updateCampaign} onDelete={deleteCampaign} />
-                    : <CampaignCard key={c.id} campaign={c} onUpdate={updateCampaign} onDelete={deleteCampaign} businessId={businessId} businessName={businessName} setTab={setTab} activeCampaignCount={activeCampaigns.length} refreshTasks={refreshTasks} stickyNote={stickyAssignments?.[c.id] ? hubNotes?.find(n=>n.id===stickyAssignments[c.id]?.noteId) : null} onAssignSticky={onAssignSticky} onUnstickNote={onUnstickNote} />
+                c.type==="market_insight"
+                  ? <MarketInsightCard key={c.id} campaign={c} businessId={businessId} onUpdate={updateCampaign} onDelete={deleteCampaign} />
+                  : c.isManual
+                    ? <ManualCampaignCard key={c.id} campaign={c} onUpdate={updateCampaign} onDelete={deleteCampaign} />
+                    : c.topic && c.tone
+                      ? <SuggestedCampaignCard key={c.id} campaign={c} agentMode={agentMode} businessId={businessId} businessName={businessName} onUpdate={updateCampaign} onDelete={deleteCampaign} />
+                      : <CampaignCard key={c.id} campaign={c} onUpdate={updateCampaign} onDelete={deleteCampaign} businessId={businessId} businessName={businessName} setTab={setTab} activeCampaignCount={activeCampaigns.length} refreshTasks={refreshTasks} stickyNote={stickyAssignments?.[c.id] ? hubNotes?.find(n=>n.id===stickyAssignments[c.id]?.noteId) : null} onAssignSticky={onAssignSticky} onUnstickNote={onUnstickNote} />
               ))}
             </div>
           )}
