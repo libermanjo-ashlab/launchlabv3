@@ -1159,7 +1159,7 @@ function IntegrationCard({ provider, label, desc, fields, savedMeta, onSave, isC
 
 const ARCHIVE_EXCLUDED = ["usage", "user_metrics"];
 const ARCHIVE_FOLDERS = {
-  "Business Info":  { types: ["website", "business_plan", "pitch_deck", "brand_identity"], taskMatch: /website|business plan|pitch/i },
+  "Business Info":  { types: ["website", "business_plan", "pitch_deck", "brand_identity", "management_strategy"], taskMatch: /website|business plan|pitch/i },
   "Social Media":   { types: ["social_content", "content_calendar", "social_post"], taskMatch: /social|instagram|tiktok|twitter|post|caption/i },
   "Marketing":      { types: ["marketing_insights", "marketing_notes"], taskMatch: /marketing|campaign|insight|strategy/i },
   "Email":          { types: ["email_templates"], taskMatch: /email/i },
@@ -1625,7 +1625,7 @@ function BrandIdentityPanel({ businessId }) {
     <div style={{ ...card("16px 18px"), marginBottom:20 }}>
       <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:8 }}>
         <div>
-          <div style={{ fontFamily:FH, fontWeight:700, fontSize:15 }}>Brand &amp; Social Identity</div>
+          <div style={{ fontFamily:FH, fontWeight:700, fontSize:15 }}>Brand &amp; Identity</div>
           <div style={{ fontSize:12, color:C.muted, fontFamily:FB, marginTop:2 }}>
             {identity?.populatedBy === "market_analysis" ? "Auto-analyzed from your channels + market data"
              : identity?.populatedBy === "user" ? "User-defined"
@@ -2061,6 +2061,359 @@ function AutopilotCard({ businessId, planInfo, navigate }) {
   );
 }
 
+// ── STRATEGY & CORRELATION ────────────────────────────────────────────────────
+
+const LINK_FIELDS = [
+  { id:"revenue",  label:"Revenue (month)", path:"revenue.this_month",    prefix:"$" },
+  { id:"cost",     label:"Costs",           path:"revenue.cost",           prefix:"$" },
+  { id:"profit",   label:"Profit",          path:"revenue.profit",         prefix:"$" },
+  { id:"leads",    label:"Leads (month)",   path:"leads.this_month",       prefix:""  },
+  { id:"clients",  label:"Active clients",  path:"clients.active",         prefix:""  },
+  { id:"bookings", label:"Bookings (month)",path:"bookings.this_month",    prefix:""  },
+  { id:"reviews",  label:"Google reviews",  path:"social.google_reviews",  prefix:""  },
+];
+
+function _getFieldVal(metrics, path) {
+  return path.split(".").reduce((o,k)=>o?.[k], metrics)||0;
+}
+
+function _pearson(xs, ys) {
+  const n=xs.length; if(n<2) return null;
+  const mx=xs.reduce((a,b)=>a+b,0)/n, my=ys.reduce((a,b)=>a+b,0)/n;
+  const num=xs.reduce((s,x,i)=>s+(x-mx)*(ys[i]-my),0);
+  const dx=Math.sqrt(xs.reduce((s,x)=>s+(x-mx)**2,0));
+  const dy=Math.sqrt(ys.reduce((s,y)=>s+(y-my)**2,0));
+  return dx*dy===0?null:+(num/(dx*dy)).toFixed(2);
+}
+
+function MiniSparkline({ data, color="#7C3AED", w=130, h=44 }) {
+  if(!data||data.length<2) return <div style={{ fontSize:10, color:C.muted, fontFamily:FB }}>No trend yet</div>;
+  const max=Math.max(...data), min=Math.min(...data), rng=max-min||1;
+  const pts=data.map((v,i)=>`${(i/(data.length-1))*(w-6)+3},${h-4-(v-min)/rng*(h-10)}`).join(" ");
+  return (
+    <svg width={w} height={h}>
+      <polyline points={pts} fill="none" stroke={color} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"/>
+      {data.map((v,i)=>(
+        <circle key={i} cx={(i/(data.length-1))*(w-6)+3} cy={h-4-(v-min)/rng*(h-10)} r={3} fill={color}/>
+      ))}
+    </svg>
+  );
+}
+
+function CorrelationPair({ link, metrics, snapshots, applied, onApplyToStrategy, onRemove }) {
+  const aF=LINK_FIELDS.find(f=>f.id===link.a);
+  const bF=LINK_FIELDS.find(f=>f.id===link.b);
+  if(!aF||!bF) return null;
+
+  const aVal=Number(_getFieldVal(metrics,aF.path)||0);
+  const bVal=Number(_getFieldVal(metrics,bF.path)||0);
+  const snapA=snapshots.map(s=>s[link.a]||0);
+  const snapB=snapshots.map(s=>s[link.b]||0);
+  const r=_pearson(snapA,snapB);
+  const perUnit=aVal>0?(bVal/aVal).toFixed(2):null;
+
+  const rLabel = r===null?"Not enough data yet":r>0.7?"Strong positive":r>0.3?"Moderate positive":r<-0.7?"Strong negative":r<-0.3?"Moderate negative":"Weak correlation";
+  const rClr   = r===null?C.muted:r>0.3?"#22C55E":r<-0.3?"#EF4444":"#F59E0B";
+  const summary = perUnit!==null
+    ? `Each +1 ${aF.label} → ${bF.prefix||aF.prefix}${perUnit} ${bF.label}`
+    : `${aF.label}: ${aF.prefix}${aVal.toLocaleString()} | ${bF.label}: ${bF.prefix}${bVal.toLocaleString()}`;
+
+  return (
+    <div style={{ background:C.surface, borderRadius:12, padding:"14px 16px", marginBottom:10, border:`1px solid ${C.border}` }}>
+      <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", marginBottom:10 }}>
+        <div style={{ flex:1, minWidth:0 }}>
+          <div style={{ display:"flex", alignItems:"center", gap:6, flexWrap:"wrap", marginBottom:4 }}>
+            <span style={{ fontFamily:FH, fontWeight:700, fontSize:13 }}>{aF.label}</span>
+            <span style={{ color:C.muted, fontSize:12 }}>→</span>
+            <span style={{ fontFamily:FH, fontWeight:700, fontSize:13 }}>{bF.label}</span>
+            {r!==null&&<span style={{ fontSize:10, padding:"2px 7px", borderRadius:10, background:rClr+"18", color:rClr, fontFamily:FB, fontWeight:600 }}>{rLabel} (r={r})</span>}
+          </div>
+          <div style={{ fontSize:11, color:C.muted, fontFamily:FB }}>{summary}</div>
+        </div>
+        <button onClick={onRemove} style={{ background:"none", border:"none", color:C.muted, cursor:"pointer", fontSize:14, padding:"0 4px", flexShrink:0 }}>×</button>
+      </div>
+      <div style={{ display:"flex", gap:16, marginBottom:12 }}>
+        <div>
+          <div style={{ fontSize:10, color:C.muted, fontFamily:FB, marginBottom:4 }}>{aF.label} trend</div>
+          <MiniSparkline data={snapA.length>=2?snapA:null} color="#3B82F6"/>
+        </div>
+        <div>
+          <div style={{ fontSize:10, color:C.muted, fontFamily:FB, marginBottom:4 }}>{bF.label} trend</div>
+          <MiniSparkline data={snapB.length>=2?snapB:null} color={rClr===C.muted?"#7C3AED":rClr}/>
+        </div>
+        {snapA.length<2&&<div style={{ fontSize:10, color:C.muted, fontFamily:FB, alignSelf:"center" }}>Visit monthly to build trend data.</div>}
+      </div>
+      <button onClick={()=>onApplyToStrategy({ ...link, aLabel:aF.label, bLabel:bF.label, r, summary })}
+        style={{ ...applied?btn("#22C55E","#fff",11):btnO(C.primary,11), padding:"5px 12px" }}>
+        {applied?"✓ Applied to strategy":"Apply to strategy"}
+      </button>
+    </div>
+  );
+}
+
+function BusinessStrategySection({ businessId, metrics, snapshots }) {
+  const LINKS_KEY = `earnedlab_links_${businessId}`;
+  const STRAT_KEY = `earnedlab_strat_${businessId}`;
+
+  const [links,  setLinks]  = useState(()=>{ try{return JSON.parse(localStorage.getItem(LINKS_KEY)||"[]");}catch{return [];} });
+  const [linking, setLinking] = useState(false);
+  const [linkA,   setLinkA]   = useState("");
+  const [linkB,   setLinkB]   = useState("");
+  const [applied,    setApplied]    = useState([]);
+  const [timeframe,  setTimeframe]  = useState("3 months");
+  const [generating, setGenerating] = useState(false);
+  const [strategy,   setStrategy]   = useState(()=>{ try{const s=localStorage.getItem(STRAT_KEY);return s?JSON.parse(s):null;}catch{return null;} });
+  const [stratTab,   setStratTab]   = useState("budget");
+  const [stratErr,   setStratErr]   = useState("");
+  const [expanded,   setExpanded]   = useState(true);
+
+  const saveLinks = l=>{ setLinks(l); try{localStorage.setItem(LINKS_KEY,JSON.stringify(l));}catch{} };
+
+  const addLink=()=>{
+    if(!linkA||!linkB||linkA===linkB) return;
+    if(!links.find(l=>l.a===linkA&&l.b===linkB)) saveLinks([...links,{ id:`lnk_${Date.now()}`, a:linkA, b:linkB }]);
+    setLinking(false); setLinkA(""); setLinkB("");
+  };
+  const removeLink  = id=>{ saveLinks(links.filter(l=>l.id!==id)); setApplied(p=>p.filter(l=>l.id!==id)); };
+  const toggleApply = corr=>setApplied(p=>p.find(l=>l.id===corr.id)?p.filter(l=>l.id!==corr.id):[...p,corr]);
+
+  const generate = async()=>{
+    setGenerating(true); setStratErr("");
+    try{
+      const{strategy:s}=await api.metrics.strategy(businessId,{ timeframe, correlations:applied, snapshots });
+      setStrategy(s); try{localStorage.setItem(STRAT_KEY,JSON.stringify(s));}catch{}
+      setStratTab("budget");
+    }catch(e){ setStratErr(e.message||"Generation failed — try again"); }
+    setGenerating(false);
+  };
+
+  const sendToMarketing=async()=>{
+    if(!strategy) return;
+    const text=`[Business Strategy — ${timeframe}]\nOutreach: ${(strategy.outreach?.suggestions||[]).join("; ")}\nScaling: ${(strategy.scaling?.suggestions||[]).join("; ")}\nPredictions: ${(strategy.predictedOutcomes||[]).join("; ")}`;
+    try{ await api.agents.addNote(businessId,text,"#EFF6FF"); }catch{}
+    try{ await api.generate.chat(`The management agent just generated a business strategy for ${timeframe}. Key outreach: ${(strategy.outreach?.suggestions||[]).slice(0,2).join(", ")}. Apply this to your next marketing analysis.`, businessId); }catch{}
+    alert("Strategy sent to Marketing Agent — it will be referenced in your next marketing analysis.");
+  };
+
+  const downloadStrategy=()=>{
+    if(!strategy) return;
+    const lines=[
+      `BUSINESS STRATEGY — ${timeframe.toUpperCase()}`,`Generated: ${new Date().toLocaleDateString()}`,``,
+      `BUDGET`, `Monthly: $${strategy.budget?.monthly||0}`, `Total: $${strategy.budget?.total||0}`, strategy.budget?.rationale||"", ``,
+      `OUTREACH ($${strategy.outreach?.monthlySpend||0}/mo)`, ...(strategy.outreach?.suggestions||[]).map(s=>`• ${s}`), ``,
+      `SCALING ($${strategy.scaling?.monthlySpend||0}/mo)`, ...(strategy.scaling?.suggestions||[]).map(s=>`• ${s}`), ``,
+      `CONSERVATION (save $${strategy.conservation?.monthlySavings||0}/mo)`, ...(strategy.conservation?.actions||[]).map(s=>`• ${s}`), ``,
+      `BUILDING ($${strategy.building?.monthlySpend||0}/mo)`, ...(strategy.building?.suggestions||[]).map(s=>`• ${s}`), ``,
+      `TASK SCHEDULE`, ...(strategy.taskSchedule||[]).flatMap(p=>[p.period+":",...(p.tasks||[]).map(t=>`  - ${t}`),""]),
+      `PREDICTED OUTCOMES`, ...(strategy.predictedOutcomes||[]).map(o=>`• ${o}`),
+    ];
+    const blob=new Blob([lines.join("\n")],{type:"text/plain"});
+    const u=URL.createObjectURL(blob); const a=document.createElement("a");
+    a.href=u; a.download="business-strategy.txt"; a.click(); URL.revokeObjectURL(u);
+  };
+
+  const TABS=[
+    {id:"budget","label":"Budget"},
+    {id:"outreach","label":"Outreach"},
+    {id:"scaling","label":"Scaling"},
+    {id:"conservation","label":"Conservation"},
+    {id:"building","label":"Building"},
+    {id:"schedule","label":"Schedule"},
+    {id:"outcomes","label":"Outcomes"},
+  ];
+
+  const renderTab=()=>{
+    if(!strategy) return null;
+    switch(stratTab){
+      case "budget": return (
+        <div>
+          <div style={{ display:"flex", gap:12, marginBottom:12 }}>
+            {[["Monthly budget",`$${(strategy.budget?.monthly||0).toLocaleString()}`],["Total ("+timeframe+")",`$${(strategy.budget?.total||0).toLocaleString()}`]].map(([l,v])=>(
+              <div key={l} style={{ flex:1, background:C.surface, borderRadius:10, padding:"12px 14px" }}>
+                <div style={{ fontSize:9, color:C.muted, fontFamily:FB, textTransform:"uppercase", letterSpacing:"0.07em", marginBottom:4 }}>{l}</div>
+                <div style={{ fontFamily:FH, fontWeight:700, fontSize:26, color:C.text }}>{v}</div>
+              </div>
+            ))}
+          </div>
+          {strategy.budget?.rationale&&<div style={{ fontSize:13, color:C.muted, fontFamily:FB, lineHeight:1.7 }}>{strategy.budget.rationale}</div>}
+        </div>
+      );
+      case "outreach": case "scaling": case "building": {
+        const sec=strategy[stratTab]||{};
+        const items=sec.suggestions||sec.actions||[];
+        return (
+          <div>
+            {(sec.monthlySpend>0||sec.monthlySavings>0)&&(
+              <div style={{ background:C.surface, borderRadius:10, padding:"10px 14px", marginBottom:14 }}>
+                <div style={{ fontSize:9, color:C.muted, fontFamily:FB, textTransform:"uppercase", letterSpacing:"0.07em", marginBottom:2 }}>{sec.monthlySavings>0?"Monthly savings":"Monthly spend"}</div>
+                <div style={{ fontFamily:FH, fontWeight:700, fontSize:22, color:C.text }}>${(sec.monthlySpend||sec.monthlySavings||0).toLocaleString()}</div>
+              </div>
+            )}
+            {items.map((s,i)=>(
+              <div key={i} style={{ display:"flex", gap:10, padding:"10px 0", borderBottom:i<items.length-1?`1px solid ${C.border}`:"none" }}>
+                <div style={{ width:22,height:22,borderRadius:"50%",background:C.primaryBg,color:C.primary,fontFamily:FH,fontWeight:700,fontSize:11,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0 }}>{i+1}</div>
+                <div style={{ flex:1, fontSize:13, color:C.text, fontFamily:FB, lineHeight:1.6, paddingTop:1 }}>{s}</div>
+              </div>
+            ))}
+          </div>
+        );
+      }
+      case "conservation": {
+        const sec=strategy.conservation||{};
+        return (
+          <div>
+            {sec.monthlySavings>0&&(
+              <div style={{ background:"#F0FDF4", borderRadius:10, padding:"10px 14px", marginBottom:14 }}>
+                <div style={{ fontSize:9, color:"#166534", fontFamily:FB, textTransform:"uppercase", letterSpacing:"0.07em", marginBottom:2 }}>Monthly savings target</div>
+                <div style={{ fontFamily:FH, fontWeight:700, fontSize:22, color:"#16A34A" }}>${(sec.monthlySavings||0).toLocaleString()}</div>
+              </div>
+            )}
+            {(sec.actions||[]).map((s,i)=>(
+              <div key={i} style={{ display:"flex", gap:10, padding:"10px 0", borderBottom:i<(sec.actions||[]).length-1?`1px solid ${C.border}`:"none" }}>
+                <div style={{ width:22,height:22,borderRadius:"50%",background:"#F0FDF4",color:"#16A34A",fontFamily:FH,fontWeight:700,fontSize:11,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0 }}>{i+1}</div>
+                <div style={{ flex:1, fontSize:13, color:C.text, fontFamily:FB, lineHeight:1.6, paddingTop:1 }}>{s}</div>
+              </div>
+            ))}
+          </div>
+        );
+      }
+      case "schedule": return (
+        <div>
+          {(strategy.taskSchedule||[]).map((p,i)=>(
+            <div key={i} style={{ marginBottom:16 }}>
+              <div style={{ fontFamily:FH, fontWeight:700, fontSize:13, color:C.primary, marginBottom:8 }}>{p.period}</div>
+              {(p.tasks||[]).map((t,j)=>(
+                <div key={j} style={{ display:"flex", gap:8, padding:"5px 0", borderBottom:j<p.tasks.length-1?`1px solid ${C.border}`:"none", alignItems:"flex-start" }}>
+                  <span style={{ width:5,height:5,borderRadius:"50%",background:C.primary,flexShrink:0,marginTop:7 }}/>
+                  <div style={{ fontSize:12, fontFamily:FB, color:C.text, lineHeight:1.6 }}>{t}</div>
+                </div>
+              ))}
+            </div>
+          ))}
+        </div>
+      );
+      case "outcomes": return (
+        <div>
+          {(strategy.predictedOutcomes||[]).map((o,i)=>(
+            <div key={i} style={{ display:"flex", gap:10, padding:"10px 0", borderBottom:i<strategy.predictedOutcomes.length-1?`1px solid ${C.border}`:"none" }}>
+              <span style={{ fontSize:16, flexShrink:0 }}>📈</span>
+              <div style={{ fontSize:13, fontFamily:FB, color:C.text, lineHeight:1.6 }}>{o}</div>
+            </div>
+          ))}
+        </div>
+      );
+      default: return null;
+    }
+  };
+
+  return (
+    <div style={{ ...card("0"), overflow:"hidden", marginBottom:28 }}>
+      <div style={{ background:"linear-gradient(135deg,#1E1B4B,#4338CA)", padding:"18px 20px", display:"flex", justifyContent:"space-between", alignItems:"center", cursor:"pointer" }} onClick={()=>setExpanded(p=>!p)}>
+        <div>
+          <div style={{ fontFamily:FH, fontWeight:700, fontSize:16, color:"#fff", marginBottom:2 }}>🧭 Business Strategy</div>
+          <div style={{ fontSize:12, color:"rgba(255,255,255,0.55)", fontFamily:FB }}>Link revenue channels → run correlation analysis → generate data-driven strategy</div>
+        </div>
+        <span style={{ color:"rgba(255,255,255,0.5)", fontSize:14, transform:expanded?"rotate(180deg)":"none", transition:"transform 0.15s", display:"inline-block" }}>▾</span>
+      </div>
+
+      {expanded&&(
+        <div style={{ padding:"20px 22px" }}>
+          {/* Correlations */}
+          <div style={{ marginBottom:22 }}>
+            <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:12 }}>
+              <div>
+                <div style={{ fontFamily:FH, fontWeight:700, fontSize:14 }}>Correlations</div>
+                <div style={{ fontSize:11, color:C.muted, fontFamily:FB }}>Link two revenue channel fields to see how they influence each other</div>
+              </div>
+              <button onClick={()=>setLinking(p=>!p)} style={{ ...btnO(C.primary,12) }}>
+                {linking?"Cancel":"+ Link fields"}
+              </button>
+            </div>
+
+            {linking&&(
+              <div style={{ background:C.surface, borderRadius:12, padding:"14px 16px", marginBottom:12, display:"flex", gap:8, alignItems:"flex-end", flexWrap:"wrap" }}>
+                <div style={{ flex:1, minWidth:130 }}>
+                  <label style={lbl}>Field A (input / cause)</label>
+                  <select value={linkA} onChange={e=>setLinkA(e.target.value)} style={{ ...inp(), fontSize:13 }}>
+                    <option value="">Select…</option>
+                    {LINK_FIELDS.map(f=><option key={f.id} value={f.id}>{f.label}</option>)}
+                  </select>
+                </div>
+                <div style={{ fontSize:18, color:C.muted, paddingBottom:10, flexShrink:0 }}>→</div>
+                <div style={{ flex:1, minWidth:130 }}>
+                  <label style={lbl}>Field B (output / effect)</label>
+                  <select value={linkB} onChange={e=>setLinkB(e.target.value)} style={{ ...inp(), fontSize:13 }}>
+                    <option value="">Select…</option>
+                    {LINK_FIELDS.filter(f=>f.id!==linkA).map(f=><option key={f.id} value={f.id}>{f.label}</option>)}
+                  </select>
+                </div>
+                <button onClick={addLink} disabled={!linkA||!linkB} style={{ ...btn(C.primary,"#fff",13), padding:"9px 16px", flexShrink:0 }}>Add</button>
+              </div>
+            )}
+
+            {links.length===0&&!linking&&(
+              <div style={{ background:C.surface, borderRadius:10, padding:"14px 16px", textAlign:"center" }}>
+                <div style={{ fontSize:12, color:C.muted, fontFamily:FB }}>No correlations yet. Example: link Leads → Revenue to see how lead volume affects revenue.</div>
+              </div>
+            )}
+
+            {links.map(link=>(
+              <CorrelationPair key={link.id} link={link} metrics={metrics} snapshots={snapshots}
+                applied={!!applied.find(l=>l.id===link.id)}
+                onApplyToStrategy={toggleApply}
+                onRemove={()=>removeLink(link.id)}
+              />
+            ))}
+          </div>
+
+          {/* Strategy generator */}
+          <div style={{ borderTop:`2px solid ${C.border}`, paddingTop:20 }}>
+            <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-end", marginBottom:12, flexWrap:"wrap", gap:10 }}>
+              <div>
+                <div style={{ fontFamily:FH, fontWeight:700, fontSize:14, marginBottom:2 }}>Generate Strategy</div>
+                <div style={{ fontSize:11, color:C.muted, fontFamily:FB }}>
+                  {applied.length>0
+                    ? `Using ${applied.length} correlation${applied.length>1?"s":""}: ${applied.map(l=>l.aLabel+"→"+l.bLabel).join(", ")}`
+                    : "Using current metrics — apply correlations above for deeper analysis"}
+                </div>
+              </div>
+              <div style={{ display:"flex", gap:8, alignItems:"center" }}>
+                <select value={timeframe} onChange={e=>setTimeframe(e.target.value)} style={{ ...inp(), fontSize:12, padding:"8px 10px" }}>
+                  <option value="4 weeks">4 weeks</option>
+                  <option value="3 months">3 months</option>
+                  <option value="6 months">6 months</option>
+                  <option value="1 year">1 year</option>
+                </select>
+                <button onClick={generate} disabled={generating} style={{ ...btn(C.primary,"#fff",13), padding:"9px 20px", flexShrink:0 }}>
+                  {generating?"Generating…":"Generate Strategy"}
+                </button>
+              </div>
+            </div>
+            {stratErr&&<div style={{ fontSize:12, color:C.err, fontFamily:FB, marginBottom:12 }}>{stratErr}</div>}
+
+            {strategy&&(
+              <div style={{ marginTop:16 }}>
+                <div style={{ display:"flex", gap:0, marginBottom:16, borderBottom:`1px solid ${C.border}`, overflowX:"auto" }}>
+                  {TABS.map(t=>(
+                    <button key={t.id} onClick={()=>setStratTab(t.id)} style={{ padding:"7px 13px", fontFamily:FB, fontSize:12, fontWeight:stratTab===t.id?700:400, color:stratTab===t.id?C.primary:C.muted, background:"none", border:"none", borderBottom:stratTab===t.id?`2px solid ${C.primary}`:"2px solid transparent", cursor:"pointer", whiteSpace:"nowrap", marginBottom:-1 }}>
+                      {t.label}
+                    </button>
+                  ))}
+                </div>
+                <div style={{ minHeight:100 }}>{renderTab()}</div>
+                <div style={{ display:"flex", gap:10, marginTop:18, paddingTop:16, borderTop:`1px solid ${C.border}`, flexWrap:"wrap" }}>
+                  <button onClick={sendToMarketing} style={{ ...btn(C.primary,"#fff",13) }}>Send to Marketing Agent</button>
+                  <button onClick={downloadStrategy} style={{ ...btnO(C.muted,12) }}>Download (.txt)</button>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ── MANAGEMENT CANVAS ──────────────────────────────────────────────────────────
 
 const MGMT_META = {
@@ -2257,19 +2610,42 @@ function ClientsContent({ metrics, saveM, businessId }) {
 }
 
 function RevenueContent({ metrics, saveM, wide }) {
-  const mom = metrics.revenue.last_month > 0
-    ? ((metrics.revenue.this_month - metrics.revenue.last_month) / metrics.revenue.last_month * 100).toFixed(0)
+  const rev  = metrics.revenue?.this_month||0;
+  const cost = metrics.revenue?.cost||0;
+  const profit = metrics.revenue?.profit!=null ? metrics.revenue.profit : rev - cost;
+  const isLoss = profit < 0;
+  const mom = metrics.revenue?.last_month > 0
+    ? ((rev - metrics.revenue.last_month) / metrics.revenue.last_month * 100).toFixed(0)
     : null;
+
+  const handleCostChange = v => {
+    saveM("revenue.cost", v);
+    if (metrics.revenue?.profit == null) saveM("revenue.profit", rev - v);
+  };
+
   return (
     <div>
-      <div style={{ display:"flex", gap:10, marginBottom:wide&&mom!==null?10:0 }}>
-        <MCell label="This month"  value={metrics.revenue.this_month}  onChange={v=>saveM("revenue.this_month",v)}  prefix="$" />
-        <MCell label="Last month"  value={metrics.revenue.last_month}  onChange={v=>saveM("revenue.last_month",v)}  prefix="$" />
-        <MCell label="All time"    value={metrics.revenue.total}       onChange={v=>saveM("revenue.total",v)}        prefix="$" />
+      <div style={{ display:"flex", gap:10, marginBottom:10, flexWrap:"wrap" }}>
+        <MCell label="Revenue (month)" value={rev}  onChange={v=>saveM("revenue.this_month",v)} prefix="$" />
+        <MCell label="Last month"  value={metrics.revenue?.last_month||0}  onChange={v=>saveM("revenue.last_month",v)}  prefix="$" />
+        <MCell label="All time"    value={metrics.revenue?.total||0}       onChange={v=>saveM("revenue.total",v)}        prefix="$" />
       </div>
-      {wide && mom !== null && (
-        <div style={{ background:C.surface, borderRadius:10, padding:"8px 12px", fontSize:11, color:Number(mom)>=0?"#22C55E":"#EF4444", fontFamily:FB, fontWeight:600 }}>
-          {Number(mom)>=0?"▲":"▼"} {Math.abs(Number(mom))}% vs last month
+      <div style={{ display:"flex", gap:10, flexWrap:"wrap" }}>
+        <MCell label="Costs (month)" value={cost} onChange={handleCostChange} prefix="$" />
+        <div style={{ flex:1, background:isLoss?"#FFF1F2":profit>0?"#F0FDF4":C.surface, borderRadius:10, padding:"10px 12px", minWidth:0, border:`1px solid ${isLoss?"#FECDD3":profit>0?"#BBF7D0":C.border}` }}>
+          <div style={{ fontSize:9, color:isLoss?"#EF4444":profit>0?"#16A34A":C.muted, fontWeight:700, textTransform:"uppercase", letterSpacing:"0.07em", fontFamily:FB, marginBottom:4 }}>
+            {isLoss?"Loss":"Profit"} (auto)
+          </div>
+          <div style={{ fontFamily:FH, fontWeight:700, fontSize:22, color:isLoss?"#EF4444":profit>0?"#16A34A":C.text }}>
+            {isLoss?"-$":"+$"}{Math.abs(profit).toLocaleString()}
+          </div>
+          <div style={{ fontSize:9, color:C.muted, fontFamily:FB, marginTop:2 }}>Revenue − Costs</div>
+        </div>
+        <MCell label="Profit (override)" value={metrics.revenue?.profit!=null?metrics.revenue.profit:""} onChange={v=>saveM("revenue.profit",v)} prefix="$" />
+      </div>
+      {mom !== null && (
+        <div style={{ background:C.surface, borderRadius:10, padding:"8px 12px", fontSize:11, color:Number(mom)>=0?"#22C55E":"#EF4444", fontFamily:FB, fontWeight:600, marginTop:10 }}>
+          {Number(mom)>=0?"▲":"▼"} {Math.abs(Number(mom))}% revenue vs last month
         </div>
       )}
     </div>
@@ -2435,6 +2811,29 @@ function DraggableCard({ id, pos, meta, note, isDragging, onDragStart, onRemove,
 function ManagementCanvas({ businessId, metrics, saveM, integs, hubNotes, setHubNotes, stickyAssignments, assignSticky, unstickNote }) {
   const POS_KEY   = `earnedlab_mgmt_pos_${businessId}`;
   const CARDS_KEY = `earnedlab_mgmt_cards_${businessId}`;
+  const SNAP_KEY  = `earnedlab_snaps_${businessId}`;
+
+  // Monthly snapshots for correlation trend data
+  const [snapshots, setSnapshots] = useState(()=>{ try{return JSON.parse(localStorage.getItem(SNAP_KEY)||"[]");}catch{return [];} });
+  useEffect(()=>{
+    if(!metrics||!metrics.revenue) return;
+    const monthKey=new Date().toISOString().slice(0,7);
+    const snap={
+      month:monthKey,
+      revenue:metrics.revenue?.this_month||0,
+      cost:metrics.revenue?.cost||0,
+      profit:metrics.revenue?.profit||(metrics.revenue?.this_month||0)-(metrics.revenue?.cost||0),
+      leads:metrics.leads?.this_month||0,
+      clients:metrics.clients?.active||0,
+      bookings:metrics.bookings?.this_month||0,
+      reviews:metrics.social?.google_reviews||0,
+    };
+    setSnapshots(prev=>{
+      const next=[...prev.filter(s=>s.month!==monthKey),snap].slice(-12);
+      try{localStorage.setItem(SNAP_KEY,JSON.stringify(next));}catch{}
+      return next;
+    });
+  },[metrics]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const [positions, setPositions] = useState(()=>{
     try{ const s=localStorage.getItem(POS_KEY); return s?JSON.parse(s):{...MGMT_DEFAULTS}; }catch{ return {...MGMT_DEFAULTS}; }
@@ -2522,6 +2921,8 @@ function ManagementCanvas({ businessId, metrics, saveM, integs, hubNotes, setHub
 
   return (
     <div>
+      <BusinessStrategySection businessId={businessId} metrics={metrics} snapshots={snapshots} />
+
       <div style={{ position:"relative", minHeight:canvasH, marginBottom:64 }}>
         {visible.map(id=>{
           const pos=positions[id]||MGMT_DEFAULTS[id]||{x:0,y:0,w:340};

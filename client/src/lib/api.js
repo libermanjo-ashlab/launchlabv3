@@ -130,8 +130,9 @@ export const api = {
     getSchedule:           bizId            => req("GET",  `/agents/${bizId}/content-schedule`),
   },
   metrics: {
-    get:     bizId          => req("GET", `/metrics/${bizId}`),
-    save:    (bizId,data)   => req("PUT", `/metrics/${bizId}`, data),
-    suggest: (bizId,question,prefs)=>req("POST",`/metrics/${bizId}/suggest`, { question, prefs }),
+    get:      bizId               => req("GET",  `/metrics/${bizId}`),
+    save:     (bizId,data)        => req("PUT",  `/metrics/${bizId}`, data),
+    suggest:  (bizId,question,prefs) => req("POST", `/metrics/${bizId}/suggest`, { question, prefs }),
+    strategy: (bizId,body)        => req("POST", `/metrics/${bizId}/strategy`, body),
   },
 };
