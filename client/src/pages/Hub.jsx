@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { useParams, useNavigate, useSearchParams } from "react-router-dom";
 import useStore from "../lib/store";
 import { api } from "../lib/api";
@@ -1006,6 +1006,138 @@ function ProGate({ isPro, children, label="Pro" }) {
         <span style={{ fontSize:12, color:"#7C3AED", fontFamily:FB, fontWeight:700 }}>{label}</span>
       </div>
       {showPlans && <PlansModal highlightPlan="pro" onClose={()=>setShowPlans(false)} />}
+    </div>
+  );
+}
+
+// ── Auto-task notification toasts ─────────────────────────────────────────────
+function AutoNotifications({ notifications, onDismiss }) {
+  if (!notifications.length) return null;
+  return (
+    <div style={{ position:"fixed", bottom:24, right:24, zIndex:600, display:"flex", flexDirection:"column", gap:8, maxWidth:360, pointerEvents:"none" }}>
+      {notifications.map(n=>(
+        <div key={n.id} style={{
+          background:n.status==="done"?"#F0FDF4":n.status==="in-progress"?"#FFFBEB":"#EFF6FF",
+          border:`1px solid ${n.status==="done"?"#BBF7D0":n.status==="in-progress"?"#FDE68A":"#BFDBFE"}`,
+          borderRadius:12, padding:"10px 14px", boxShadow:"0 4px 24px rgba(0,0,0,0.12)",
+          display:"flex", alignItems:"center", gap:10, fontFamily:FB, pointerEvents:"all"
+        }}>
+          {n.status==="in-progress"&&<span style={{ width:13,height:13,borderRadius:"50%",border:"2px solid #D97706",borderTopColor:"transparent",animation:"spin 0.8s linear infinite",display:"inline-block",flexShrink:0 }}/>}
+          {n.status==="done"&&<span style={{ color:"#16A34A",fontWeight:700,fontSize:14,flexShrink:0 }}>✓</span>}
+          {n.status==="active"&&<span style={{ width:7,height:7,borderRadius:"50%",background:"#3B82F6",flexShrink:0,display:"inline-block" }}/>}
+          <span style={{ fontSize:12,color:"#374151",flex:1,lineHeight:1.4 }}>{n.message}</span>
+          {n.status==="done"&&n.onUndo&&(
+            <button onClick={n.onUndo} style={{ background:"none",border:"1px solid #BBF7D0",borderRadius:6,padding:"2px 8px",fontSize:11,color:"#16A34A",cursor:"pointer",fontFamily:FB,flexShrink:0 }}>Undo</button>
+          )}
+          <button onClick={()=>onDismiss(n.id)} style={{ background:"none",border:"none",color:"#9CA3AF",cursor:"pointer",fontSize:15,padding:"0 2px",flexShrink:0 }}>×</button>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// ── Insight card constants & helpers ──────────────────────────────────────────
+const INSIGHT_CATS = {
+  profile:      { label:"Profile Update", color:"#6366F1", bg:"#EEF2FF" },
+  marketing:    { label:"Marketing",      color:"#0EA5E9", bg:"#F0F9FF" },
+  tasks:        { label:"Tasks",          color:"#7C3AED", bg:"#F5F3FF" },
+  outreach:     { label:"Outreach",       color:"#D97706", bg:"#FFFBEB" },
+  scaling:      { label:"Scaling",        color:"#16A34A", bg:"#F0FDF4" },
+  conservation: { label:"Conservation",   color:"#EF4444", bg:"#FFF1F2" },
+  building:     { label:"Building",       color:"#2563EB", bg:"#EFF6FF" },
+  outcomes:     { label:"Outcomes",       color:"#0891B2", bg:"#ECFEFF" },
+  budget:       { label:"Budget",         color:"#7C3AED", bg:"#F5F3FF" },
+  schedule:     { label:"Schedule",       color:"#8B5CF6", bg:"#F5F3FF" },
+};
+
+function buildInsightCards(strategy, timeframe) {
+  const ts = Date.now();
+  const ref = `strat_${ts}`;
+  const mk = (id, title, description, category, autoComplete, priority) => ({
+    id:`ic_${ref}_${id}`, title, description, category, autoComplete, priority,
+    status:"pending", strategyRef:ref, createdAt:new Date().toISOString(),
+  });
+  const cards = [];
+
+  if(strategy.budget?.rationale)
+    cards.push(mk("budget", `Budget: $${strategy.budget.monthly||0}/mo for ${timeframe}`, strategy.budget.rationale, "budget", false, "high"));
+
+  const outSugg = strategy.outreach?.suggestions||[];
+  outSugg.slice(0,3).forEach((s,i)=>cards.push(mk(`out${i}`,s,"",  "outreach", false, i===0?"high":"medium")));
+  if(outSugg.length>0)
+    cards.push(mk("mkt","Send outreach insights to Marketing Agent",`${outSugg.length} outreach suggestions queued for marketing strategy`,"marketing",true,"high"));
+
+  (strategy.scaling?.suggestions||[]).slice(0,3).forEach((s,i)=>cards.push(mk(`sc${i}`,s,"","scaling",false,"medium")));
+  (strategy.conservation?.actions||[]).slice(0,3).forEach((s,i)=>cards.push(mk(`con${i}`,s,"","conservation",false,i===0?"high":"medium")));
+  (strategy.building?.suggestions||[]).slice(0,2).forEach((s,i)=>cards.push(mk(`bld${i}`,s,"","building",false,"low")));
+  (strategy.taskSchedule||[]).flatMap(p=>p.tasks||[]).slice(0,2).forEach((t,i)=>cards.push(mk(`sched${i}`,t,`Schedule task`,"schedule",true,"medium")));
+  (strategy.predictedOutcomes||[]).slice(0,3).forEach((o,i)=>cards.push(mk(`out_${i}`,o,"Set as a trackable goal","outcomes",true,"medium")));
+
+  return cards;
+}
+
+// ── InsightCardsSection ───────────────────────────────────────────────────────
+function InsightCardsSection({ cards, onUpdate, onArchive, onPromoteToTask, isAutopilot, onAutoComplete }) {
+  const [showDone, setShowDone] = useState(false);
+  const pending = cards.filter(c=>c.status==="pending");
+  const done    = cards.filter(c=>c.status==="done");
+  if(cards.length===0) return null;
+
+  const sorted = [...pending].sort((a,b)=>{const o={high:0,medium:1,low:2};return (o[a.priority]||1)-(o[b.priority]||1);});
+  const autoPending = pending.filter(c=>c.autoComplete);
+
+  return (
+    <div style={{ marginTop:20 }}>
+      <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:12 }}>
+        <div style={{ display:"flex", alignItems:"center", gap:8 }}>
+          <div style={{ fontFamily:FH, fontWeight:700, fontSize:14 }}>Insights</div>
+          {pending.length>0&&<span style={{ background:C.primary,color:"#fff",fontSize:9,fontWeight:700,padding:"2px 7px",borderRadius:20,fontFamily:FB }}>{pending.length}</span>}
+        </div>
+        <div style={{ display:"flex", gap:8 }}>
+          {done.length>0&&<button onClick={()=>setShowDone(p=>!p)} style={{ ...btnO(C.muted,10), padding:"3px 10px" }}>{showDone?"Hide done":"Show done ("+done.length+")"}</button>}
+          {isAutopilot&&autoPending.length>0&&<button onClick={()=>autoPending.forEach(c=>onAutoComplete(c))} style={{ ...btn("#7C3AED","#fff",11), padding:"5px 12px" }}>Run all auto ({autoPending.length})</button>}
+        </div>
+      </div>
+
+      <div style={{ display:"flex", flexDirection:"column", gap:8 }}>
+        {sorted.map(c=>{
+          const cat=INSIGHT_CATS[c.category]||INSIGHT_CATS.building;
+          return (
+            <div key={c.id} style={{ background:cat.bg+"88", borderRadius:10, border:`1px solid ${cat.color}28`, padding:"10px 14px" }}>
+              <div style={{ display:"flex", alignItems:"flex-start", gap:8 }}>
+                <div style={{ flex:1, minWidth:0 }}>
+                  <div style={{ display:"flex", gap:5, flexWrap:"wrap", marginBottom:4 }}>
+                    <span style={{ fontSize:9,fontWeight:700,color:cat.color,background:cat.bg,padding:"1px 8px",borderRadius:20,fontFamily:FB,border:`1px solid ${cat.color}28` }}>{cat.label}</span>
+                    {c.autoComplete&&<span style={{ fontSize:9,fontWeight:700,color:"#7C3AED",background:"#F5F3FF",padding:"1px 8px",borderRadius:20,fontFamily:FB,border:"1px solid #DDD6FE" }}>Auto</span>}
+                    {c.priority==="high"&&<span style={{ fontSize:9,fontWeight:700,color:"#DC2626",background:"#FEF2F2",padding:"1px 8px",borderRadius:20,fontFamily:FB }}>High priority</span>}
+                  </div>
+                  <div style={{ fontSize:13,fontFamily:FB,fontWeight:600,color:C.text,marginBottom:c.description?3:0 }}>{c.title}</div>
+                  {c.description&&<div style={{ fontSize:12,color:C.muted,fontFamily:FB,lineHeight:1.5 }}>{c.description}</div>}
+                </div>
+                <div style={{ display:"flex", gap:4, flexShrink:0, flexWrap:"wrap", justifyContent:"flex-end", marginTop:2 }}>
+                  {c.autoComplete&&isAutopilot
+                    ? <button onClick={()=>onAutoComplete(c)} style={{ ...btn("#7C3AED","#fff",10), padding:"4px 10px" }}>Auto</button>
+                    : <button onClick={()=>onUpdate(c.id,{status:"done"})} style={{ ...btnO(C.muted,10), padding:"4px 10px" }}>Done</button>
+                  }
+                  <button onClick={()=>onPromoteToTask(c)} style={{ ...btnO(C.primary,10), padding:"4px 10px" }}>+ Task</button>
+                  <button onClick={()=>onArchive(c.id)} style={{ background:"none",border:"none",color:C.muted,cursor:"pointer",fontSize:14,padding:"2px 4px" }}>×</button>
+                </div>
+              </div>
+            </div>
+          );
+        })}
+        {showDone&&done.map(c=>{
+          const cat=INSIGHT_CATS[c.category]||INSIGHT_CATS.building;
+          return (
+            <div key={c.id} style={{ background:C.surface, borderRadius:10, border:`1px solid ${C.border}`, padding:"8px 14px", opacity:0.55, display:"flex", alignItems:"center", gap:8 }}>
+              <span style={{ fontSize:9,fontWeight:700,color:cat.color,background:cat.bg,padding:"1px 8px",borderRadius:20,fontFamily:FB }}>{cat.label}</span>
+              <span style={{ fontSize:12,fontFamily:FB,color:C.muted,flex:1 }}>{c.title}</span>
+              <span style={{ fontSize:11,color:"#16A34A",fontFamily:FB }}>Done ✓</span>
+              <button onClick={()=>onUpdate(c.id,{status:"pending"})} style={{ background:"none",border:"none",color:C.muted,cursor:"pointer",fontSize:11,fontFamily:FB }}>Reopen</button>
+            </div>
+          );
+        })}
+      </div>
     </div>
   );
 }
@@ -2401,7 +2533,7 @@ function CorrelationPair({ link, metrics, snapshots, applied, onApplyToStrategy,
   );
 }
 
-function BusinessStrategySection({ businessId, metrics, snapshots, isPro }) {
+function BusinessStrategySection({ businessId, metrics, snapshots, isPro, saveM, isAutopilot=false, onNotify, refreshTasks }) {
   const LINKS_KEY = `earnedlab_links_${businessId}`;
   const STRAT_KEY = `earnedlab_strat_${businessId}`;
 
@@ -2419,6 +2551,9 @@ function BusinessStrategySection({ businessId, metrics, snapshots, isPro }) {
 
   const saveLinks = l=>{ setLinks(l); try{localStorage.setItem(LINKS_KEY,JSON.stringify(l));}catch{} };
 
+  const insightCards = metrics?.insightCards || [];
+  const saveInsightCards = cards => saveM?.("insightCards", cards);
+
   const addLink=()=>{
     if(!linkA||!linkB||linkA===linkB) return;
     if(!links.find(l=>l.a===linkA&&l.b===linkB)) saveLinks([...links,{ id:`lnk_${Date.now()}`, a:linkA, b:linkB }]);
@@ -2433,16 +2568,60 @@ function BusinessStrategySection({ businessId, metrics, snapshots, isPro }) {
       const{strategy:s}=await api.metrics.strategy(businessId,{ timeframe, correlations:applied, snapshots });
       setStrategy(s); try{localStorage.setItem(STRAT_KEY,JSON.stringify(s));}catch{}
       setStratTab("budget");
+      // Generate insight cards from strategy — append, keeping existing cards from other runs
+      if(saveM){
+        const newCards = buildInsightCards(s, timeframe);
+        const existing = (metrics?.insightCards||[]).filter(c=>c.status!=="pending"||c.strategyRef!==newCards[0]?.strategyRef);
+        saveInsightCards([...newCards, ...existing]);
+      }
     }catch(e){ setStratErr(e.message||"Generation failed — try again"); }
     setGenerating(false);
   };
 
   const sendToMarketing=async()=>{
     if(!strategy) return;
-    const text=`[Business Strategy — ${timeframe}]\nOutreach: ${(strategy.outreach?.suggestions||[]).join("; ")}\nScaling: ${(strategy.scaling?.suggestions||[]).join("; ")}\nPredictions: ${(strategy.predictedOutcomes||[]).join("; ")}`;
+    const outreach=(strategy.outreach?.suggestions||[]);
+    const scaling=(strategy.scaling?.suggestions||[]);
+    const text=`[Business Strategy — ${timeframe}]\nOutreach: ${outreach.join("; ")}\nScaling: ${scaling.join("; ")}\nConservation: ${(strategy.conservation?.actions||[]).join("; ")}\nBuilding: ${(strategy.building?.suggestions||[]).join("; ")}\nOutcomes: ${(strategy.predictedOutcomes||[]).join("; ")}`;
     try{ await api.agents.addNote(businessId,text,"#EFF6FF"); }catch{}
-    try{ await api.generate.chat(`The management agent just generated a business strategy for ${timeframe}. Key outreach: ${(strategy.outreach?.suggestions||[]).slice(0,2).join(", ")}. Apply this to your next marketing analysis.`, businessId); }catch{}
     alert("Strategy sent to Marketing Agent — it will be referenced in your next marketing analysis.");
+  };
+
+  const updateInsightCard = (id, patch) => saveInsightCards(insightCards.map(c=>c.id===id?{...c,...patch}:c));
+  const archiveInsightCard = id => saveInsightCards(insightCards.filter(c=>c.id!==id));
+
+  const promoteToTask = async (card) => {
+    try {
+      await api.tasks.create(businessId, { name:card.title, description:card.description||"", category:"Strategy", canAutomate:false, status:"pending" });
+      updateInsightCard(card.id, { status:"done" });
+      refreshTasks?.();
+      onNotify?.({ id:`task_${card.id}`, status:"done", message:`Task created: ${card.title}` });
+    } catch(e) { onNotify?.({ id:`task_${card.id}`, status:"done", message:`Failed to create task: ${e.message}` }); }
+  };
+
+  const autoComplete = async (card) => {
+    if(!isAutopilot) return;
+    const nid = `auto_${card.id}_${Date.now()}`;
+    onNotify?.({ id:nid, status:"active", message:card.title });
+    await new Promise(r=>setTimeout(r,600));
+    onNotify?.({ id:nid, status:"in-progress", message:card.title });
+    try {
+      if(card.category==="marketing") {
+        const text=`[Strategy Insight — ${timeframe}]\n${card.title}\n${card.description||""}`;
+        await api.agents.addNote(businessId, text, "#EFF6FF");
+      } else if(card.category==="tasks"||card.category==="outcomes"||card.category==="schedule") {
+        await api.tasks.create(businessId, { name:card.title, description:card.description||"", category:"Strategy", canAutomate:false, status:"pending" });
+        refreshTasks?.();
+      }
+      const snapshot = [...insightCards];
+      updateInsightCard(card.id, { status:"done" });
+      await new Promise(r=>setTimeout(r,300));
+      onNotify?.({ id:nid, status:"done", message:`Completed: ${card.title}`,
+        onUndo: ()=>saveInsightCards(snapshot.map(c=>c.id===card.id?{...c,status:"pending"}:c))
+      });
+    } catch(e) {
+      onNotify?.({ id:nid, status:"done", message:`Error: ${e.message}` });
+    }
   };
 
   const downloadStrategy=()=>{
@@ -2653,6 +2832,20 @@ function BusinessStrategySection({ businessId, metrics, snapshots, isPro }) {
                   <button onClick={sendToMarketing} style={{ ...btn(C.primary,"#fff",13) }}>Send to Marketing Agent</button>
                   <button onClick={downloadStrategy} style={{ ...btnO(C.muted,12) }}>Download (.txt)</button>
                 </div>
+              </div>
+            )}
+
+            {/* Insight cards — shown whenever cards exist, regardless of strategy tab */}
+            {insightCards.length>0&&(
+              <div style={{ borderTop:`1px solid ${C.border}`, marginTop:20, paddingTop:20 }}>
+                <InsightCardsSection
+                  cards={insightCards}
+                  onUpdate={updateInsightCard}
+                  onArchive={archiveInsightCard}
+                  onPromoteToTask={promoteToTask}
+                  isAutopilot={isAutopilot}
+                  onAutoComplete={autoComplete}
+                />
               </div>
             )}
 
@@ -4060,7 +4253,7 @@ function MgmtSidebar({ open, onToggle, hubNotes, setHubNotes, businessId, mgmtNo
   );
 }
 
-function ManagementCanvas({ businessId, metrics, saveM, integs, hubNotes, setHubNotes, stickyAssignments, assignSticky, unstickNote, mgmtNoteAssignments, mgmtAssignNote, mgmtUnstickNote, sidebarOpen, setSidebarOpen, deleteNote, isPro }) {
+function ManagementCanvas({ businessId, metrics, saveM, integs, hubNotes, setHubNotes, stickyAssignments, assignSticky, unstickNote, mgmtNoteAssignments, mgmtAssignNote, mgmtUnstickNote, sidebarOpen, setSidebarOpen, deleteNote, isPro, isAutopilot, onNotify, refreshTasks }) {
   const POS_KEY     = `earnedlab_mgmt_pos_${businessId}`;
   const CARDS_KEY   = `earnedlab_mgmt_cards_${businessId}`;
   const SNAP_KEY    = `earnedlab_snaps_${businessId}`;
@@ -4259,7 +4452,7 @@ function ManagementCanvas({ businessId, metrics, saveM, integs, hubNotes, setHub
   return (
     <div style={{ paddingRight: sidebarOpen?300:0, transition:"padding-right 0.25s ease" }}>
       {showProGate && <PlansModal highlightPlan="pro" onClose={()=>setShowProGate(false)} />}
-      <BusinessStrategySection businessId={businessId} metrics={metrics} snapshots={snapshots} isPro={isPro} />
+      <BusinessStrategySection businessId={businessId} metrics={metrics} snapshots={snapshots} isPro={isPro} saveM={saveM} isAutopilot={isAutopilot} onNotify={onNotify} refreshTasks={refreshTasks} />
 
       {/* Global time range bar */}
       <div style={{ padding:"10px 22px", display:"flex", alignItems:"center", gap:10, flexWrap:"wrap", background:C.surface, borderBottom:`1px solid ${C.border}`, marginBottom:16 }}>
@@ -4413,7 +4606,17 @@ export default function Hub() {
   const [stickyAssignments, setStickyAssignments] = useState(()=>{
     try { return JSON.parse(localStorage.getItem(`earnedlab_sticky_${businessId}`)||"{}"); } catch { return {}; }
   });
+  const [autoNotifs, setAutoNotifs] = useState([]);
   const navigate = useNavigate();
+
+  const pushNotif = useCallback((n)=>{
+    setAutoNotifs(prev=>{
+      const without = prev.filter(x=>x.id!==n.id);
+      return [...without, n].slice(-5);
+    });
+    if(n.status==="done") setTimeout(()=>setAutoNotifs(p=>p.filter(x=>x.id!==n.id)), 6000);
+  }, []);
+  const dismissNotif = id => setAutoNotifs(p=>p.filter(x=>x.id!==id));
 
   const age     = user?.age;
   const isMinor = age && age < 18;
@@ -4850,6 +5053,9 @@ export default function Hub() {
                 setSidebarOpen={setMgmtSidebarOpen}
                 deleteNote={deleteHubNote}
                 isPro={planInfo?.plan==="pro"||planInfo?.plan==="pro_autopilot"||planInfo?.isAdmin}
+                isAutopilot={planInfo?.plan==="pro_autopilot"||planInfo?.isAdmin}
+                onNotify={pushNotif}
+                refreshTasks={refreshTasks}
               />
             </div>
           )}
@@ -4922,6 +5128,8 @@ export default function Hub() {
       <button onClick={()=>setChatOpen(o=>!o)} style={{ background:C.grad, color:"#fff", border:"none", borderRadius:24, padding:"10px 20px", fontSize:13, fontWeight:500, cursor:"pointer", position:"fixed", bottom:24, right:chatOpen?336:24, boxShadow:`0 4px 20px rgba(124,58,237,0.3)`, zIndex:100, transition:"right 0.25s", fontFamily:FB }}>
         Ask guide
       </button>
+
+      <AutoNotifications notifications={autoNotifs} onDismiss={dismissNotif} />
     </div>
   );
 }
