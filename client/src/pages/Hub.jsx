@@ -4789,6 +4789,34 @@ function ManagementCanvas({ businessId, metrics, saveM, integs, hubNotes, setHub
   );
 }
 
+// ── Missing Fields Bar ────────────────────────────────────────────────────────
+
+function MissingFieldsBar({ prefs, metrics, onGo, agent }) {
+  const bp = metrics?.businessProfile || {};
+  const missing = [];
+
+  if(!prefs?.targetMarket?.trim())    missing.push("target market");
+  if(!bp.uniqueValueProp?.trim())     missing.push("unique value proposition");
+  if(agent==="management"&&!bp.revenueTarget) missing.push("revenue target");
+
+  if(!missing.length) return null;
+
+  const fieldList = missing.length === 1
+    ? missing[0]
+    : missing.slice(0,-1).join(", ") + " and " + missing[missing.length-1];
+
+  return (
+    <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", gap:12, background:"#FFFBEB", border:"1px solid #FDE68A", borderRadius:10, padding:"9px 14px", marginBottom:20 }}>
+      <div style={{ fontSize:12, color:"#92400E", fontFamily:FB, lineHeight:1.5 }}>
+        <strong>Tip:</strong> Fill in your <strong>{fieldList}</strong> in Business Info for more accurate {agent==="marketing"?"marketing analysis":"business strategy"}.
+      </div>
+      <button onClick={onGo} style={{ ...btn("#D97706","#fff",11), padding:"5px 12px", flexShrink:0 }}>
+        Business Info →
+      </button>
+    </div>
+  );
+}
+
 // ── MAIN HUB ─────────────────────────────────────────────────────────────────
 
 export default function Hub() {
@@ -5242,6 +5270,7 @@ export default function Hub() {
           {tab==="marketing" && (
             <div>
               <div style={{ fontFamily:FH, fontWeight:700, fontSize:24, letterSpacing:"-0.04em", marginBottom:4 }}>Marketing Agent</div>
+              <MissingFieldsBar prefs={prefs} metrics={metrics} onGo={()=>setTab("business_info")} agent="marketing" />
               <AgentPanel businessId={businessId} businessName={business?.name || ""} metrics={metrics} planInfo={planInfo} integs={integs} setTab={setTab} refreshTasks={refreshTasks} hubNotes={hubNotes} stickyAssignments={stickyAssignments} onAssignSticky={assignSticky} onUnstickNote={unstickNote}/>
             </div>
           )}
@@ -5250,6 +5279,7 @@ export default function Hub() {
           {tab==="management" && (
             <div>
               <div style={{ fontFamily:FH, fontWeight:700, fontSize:24, letterSpacing:"-0.04em", marginBottom:4 }}>Management Agent</div>
+              <MissingFieldsBar prefs={prefs} metrics={metrics} onGo={()=>setTab("business_info")} agent="management" />
               <p style={{ color:C.muted, fontSize:14, marginBottom:20, fontFamily:FB }}>Your revenue channels and business dashboard. Drag cards to organize — pin notes, add fields, and track what matters.</p>
 
               <AutopilotCard businessId={businessId} planInfo={planInfo} navigate={navigate} />
