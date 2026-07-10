@@ -2881,7 +2881,7 @@ function CostsContent({ metrics, saveM, cardId="costs", globalRange=null, global
 }
 
 function LossContent({ metrics, globalRange=null, globalCStart="", globalCEnd="" }) {
-  const [rangeMode, setRangeMode] = useState("month");
+  const [rangeMode, setRangeMode] = useState("all");
   const [cStart, setCStart] = useState("");
   const [cEnd, setCEnd] = useState("");
   const sources = metrics.revenue?.sources || [];
@@ -2917,7 +2917,7 @@ function LossContent({ metrics, globalRange=null, globalCStart="", globalCEnd=""
 }
 
 function ProfitContent({ metrics, globalRange=null, globalCStart="", globalCEnd="" }) {
-  const [rangeMode, setRangeMode] = useState("month");
+  const [rangeMode, setRangeMode] = useState("all");
   const [cStart, setCStart] = useState("");
   const [cEnd, setCEnd] = useState("");
   const sources = metrics.revenue?.sources || [];
