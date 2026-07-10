@@ -2369,7 +2369,7 @@ function BusinessStrategySection({ businessId, metrics, snapshots }) {
           <div style={{ borderTop:`2px solid ${C.border}`, paddingTop:20 }}>
             <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-end", marginBottom:12, flexWrap:"wrap", gap:10 }}>
               <div>
-                <div style={{ fontFamily:FH, fontWeight:700, fontSize:14, marginBottom:2 }}>Generate Strategy</div>
+                <div style={{ fontFamily:FH, fontWeight:700, fontSize:14, marginBottom:2 }}>Suggested Strategy</div>
                 <div style={{ fontSize:11, color:C.muted, fontFamily:FB }}>
                   {applied.length>0
                     ? `Using ${applied.length} correlation${applied.length>1?"s":""}: ${applied.map(l=>l.aLabel+"→"+l.bLabel).join(", ")}`
@@ -2885,13 +2885,13 @@ function LossContent({ metrics, globalRange=null, globalCStart="", globalCEnd=""
   const [cStart, setCStart] = useState("");
   const [cEnd, setCEnd] = useState("");
   const sources = metrics.revenue?.sources || [];
-  const causes  = metrics.costs?.causes   || [];
-  const investOngoing = metrics.investments?.total_ongoing||0;
+  const causes      = metrics.costs?.causes || [];
+  const investItems = [...(metrics.investments?.initial||[]), ...(metrics.investments?.ongoing||[])];
   const effectiveMode = globalRange || rangeMode;
   const effectiveCStart = globalRange==="custom"?globalCStart:cStart;
   const effectiveCEnd   = globalRange==="custom"?globalCEnd:cEnd;
   const rev  = filterDateRange(sources, effectiveMode, effectiveCStart, effectiveCEnd).reduce((a,x)=>a+(x.amount||0),0);
-  const cost = filterDateRange(causes,  effectiveMode, effectiveCStart, effectiveCEnd).reduce((a,x)=>a+(x.amount||0),0) + investOngoing;
+  const cost = filterDateRange([...causes, ...investItems], effectiveMode, effectiveCStart, effectiveCEnd).reduce((a,x)=>a+(x.amount||0),0);
   const loss = Math.max(0, cost - rev);
   const label = effectiveMode==="day"?"Today":effectiveMode==="week"?"This Week":effectiveMode==="month"?"This Month":effectiveMode==="year"?"This Year":effectiveMode==="all"?"All Time":(cStart&&cEnd)?`${cStart} – ${cEnd}`:"Custom";
   return (
@@ -2921,13 +2921,13 @@ function ProfitContent({ metrics, globalRange=null, globalCStart="", globalCEnd=
   const [cStart, setCStart] = useState("");
   const [cEnd, setCEnd] = useState("");
   const sources = metrics.revenue?.sources || [];
-  const causes  = metrics.costs?.causes   || [];
-  const investOngoing = metrics.investments?.total_ongoing||0;
+  const causes      = metrics.costs?.causes || [];
+  const investItems = [...(metrics.investments?.initial||[]), ...(metrics.investments?.ongoing||[])];
   const effectiveMode = globalRange || rangeMode;
   const effectiveCStart = globalRange==="custom"?globalCStart:cStart;
   const effectiveCEnd   = globalRange==="custom"?globalCEnd:cEnd;
   const rev    = filterDateRange(sources, effectiveMode, effectiveCStart, effectiveCEnd).reduce((a,x)=>a+(x.amount||0),0);
-  const cost   = filterDateRange(causes,  effectiveMode, effectiveCStart, effectiveCEnd).reduce((a,x)=>a+(x.amount||0),0) + investOngoing;
+  const cost   = filterDateRange([...causes, ...investItems], effectiveMode, effectiveCStart, effectiveCEnd).reduce((a,x)=>a+(x.amount||0),0);
   const profit = Math.max(0, rev - cost);
   const label  = effectiveMode==="day"?"Today":effectiveMode==="week"?"This Week":effectiveMode==="month"?"This Month":effectiveMode==="year"?"This Year":effectiveMode==="all"?"All Time":(cStart&&cEnd)?`${cStart} – ${cEnd}`:"Custom";
   return (
