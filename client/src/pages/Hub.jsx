@@ -70,7 +70,7 @@ function GuidedTour({ business, user, onDone }) {
         <div style={{ fontSize:38, marginBottom:14, lineHeight:1 }}>{s.emoji}</div>
         <div style={{ fontFamily:FH, fontWeight:700, fontSize:22, letterSpacing:"-0.04em", marginBottom:10 }}>{s.title}</div>
         <p style={{ fontSize:14, color:C.muted, lineHeight:1.8, fontFamily:FB, marginBottom:s.cta?16:28 }}>{s.body}</p>
-        {s.cta && <div style={{ background:C.primaryBg, borderRadius:10, padding:"10px 14px", fontSize:12, color:C.primary, fontFamily:FB, fontWeight:600, marginBottom:28 }}>{s.cta}</div>}
+        {s.cta && <div style={{ background:"#F1F5F9", borderRadius:10, padding:"10px 14px", fontSize:12, color:C.text, fontFamily:FB, fontWeight:600, marginBottom:28 }}>{s.cta}</div>}
         <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center" }}>
           <button onClick={() => step > 0 && setStep(p => p - 1)} style={{ ...btnO(C.muted, 13), opacity:step===0?0.3:1, cursor:step===0?"default":"pointer" }} disabled={step===0}>Back</button>
           <div style={{ display:"flex", gap:8 }}>
@@ -145,7 +145,7 @@ function AddTaskModal({ businessId, onAdd, onClose, isStarterPlan }) {
                     <div style={{ fontFamily:FB, fontWeight:600, fontSize:13 }}>{t.name}</div>
                     <div style={{ fontSize:11, color:C.muted, marginTop:2 }}>{t.description}</div>
                   </div>
-                  <button onClick={()=>add(t)} disabled={saving} style={{ ...btn(C.primary,"#fff",11), padding:"6px 12px", flexShrink:0, marginLeft:12 }}>Add</button>
+                  <button onClick={()=>add(t)} disabled={saving} style={{ ...btn(C.dark,"#fff",11), padding:"6px 12px", flexShrink:0, marginLeft:12 }}>Add</button>
                 </div>
               ))}
             </div>
@@ -180,7 +180,7 @@ function AddTaskModal({ businessId, onAdd, onClose, isStarterPlan }) {
                 {["Strategy","Marketing","Legal","Finance","Operations","Other"].map(c=><option key={c}>{c}</option>)}
               </select>
             </div>
-            <button onClick={()=>custom.name.trim()&&add(custom)} disabled={!custom.name.trim()||saving} style={{ ...btn(C.primary,"#fff",13) }}>Add task</button>
+            <button onClick={()=>custom.name.trim()&&add(custom)} disabled={!custom.name.trim()||saving} style={{ ...btn(C.dark,"#fff",13) }}>Add task</button>
           </div>
         )}
       </div>
@@ -244,7 +244,7 @@ function OutputViewer({ outputData, taskName }) {
         <div>
           <div style={{ background:"#F4F4F5", padding:"8px 12px", display:"flex", justifyContent:"space-between", alignItems:"center" }}>
             <span style={{ fontSize:11, color:C.muted, fontFamily:FB, fontWeight:600 }}>Source</span>
-            <button onClick={()=>setShowSource(false)} style={{ ...btnO(C.primary,10), padding:"3px 10px" }}>Show preview</button>
+            <button onClick={()=>setShowSource(false)} style={{ ...btnO("#475569",10), padding:"3px 10px" }}>Show preview</button>
           </div>
           <pre style={{ margin:0, padding:"12px 14px", fontSize:11, fontFamily:"monospace", color:C.text, lineHeight:1.6, maxHeight:300, overflowY:"auto", background:C.surface, whiteSpace:"pre-wrap", wordBreak:"break-word" }}>
             {content.slice(0, 5000)}{content.length > 5000 ? "\n…(truncated)" : ""}
@@ -463,7 +463,7 @@ function TaskCard({ task, businessId, outputs, onUpdate, onDelete, isStarterPlan
           <div style={{ display:"flex", alignItems:"center", gap:8, flexWrap:"wrap" }}>
             <span style={{ fontFamily:FB, fontWeight:600, fontSize:13, textDecoration:status==="done"?"line-through":"none", color:status==="done"?C.muted:C.text }}>{task.name}</span>
             <span style={{ background:(statusColor[status]||C.muted)+"18", color:statusColor[status]||C.muted, fontSize:9, fontWeight:700, padding:"2px 7px", borderRadius:20, textTransform:"uppercase", letterSpacing:"0.06em", fontFamily:FB }}>{statusLabel[status]||status}</span>
-            {canAuto && status!=="done" && <span style={{ background:C.primaryBg, color:C.primary, fontSize:9, fontWeight:700, padding:"2px 7px", borderRadius:20, textTransform:"uppercase", letterSpacing:"0.04em", fontFamily:FB }}>Auto</span>}
+            {canAuto && status!=="done" && <span style={{ background:"#F1F5F9", color:C.muted, fontSize:9, fontWeight:700, padding:"2px 7px", borderRadius:20, textTransform:"uppercase", letterSpacing:"0.04em", fontFamily:FB }}>Auto</span>}
             <span style={{ fontSize:9, fontWeight:600, color:C.subtle, textTransform:"uppercase", letterSpacing:"0.06em", fontFamily:FB, background:C.bg, padding:"2px 7px", borderRadius:20 }}>{task.category}</span>
           </div>
           {task.description && <div style={{ fontSize:12, color:C.muted, marginTop:3, fontFamily:FB }}>{task.description}</div>}
@@ -495,7 +495,7 @@ function TaskCard({ task, businessId, outputs, onUpdate, onDelete, isStarterPlan
             <>
               {/* Action steps */}
               <div style={{ marginBottom:14 }}>
-                <button onClick={getSteps} disabled={stepsLoading} style={{ ...btnO(C.primary,12), padding:"7px 14px", marginBottom: steps ? 10 : 0 }}>
+                <button onClick={getSteps} disabled={stepsLoading} style={{ ...btnO("#475569",12), padding:"7px 14px", marginBottom: steps ? 10 : 0 }}>
                   {stepsLoading ? "Loading…" : steps ? "Refresh steps" : "Get action steps"}
                 </button>
                 {steps && (
@@ -510,7 +510,7 @@ function TaskCard({ task, businessId, outputs, onUpdate, onDelete, isStarterPlan
               <div style={{ marginBottom:12 }}>
                 <label style={{ ...lbl, marginBottom:6 }}>Record output (optional — saves to Hub/Files)</label>
                 <div style={{ display:"flex", gap:8, marginBottom:8 }}>
-                  <button onClick={()=>fileRef.current?.click()} disabled={uploading} style={{ ...btnO(C.primary,12), padding:"7px 14px" }}>Upload file</button>
+                  <button onClick={()=>fileRef.current?.click()} disabled={uploading} style={{ ...btnO("#475569",12), padding:"7px 14px" }}>Upload file</button>
                 </div>
                 <textarea value={textInput} onChange={e=>setTextInput(e.target.value)} placeholder="Paste notes, a link, or any output to save to Hub/Files…" style={{ ...inp({ height:70, resize:"vertical" }) }} />
               </div>
@@ -531,10 +531,10 @@ function TaskCard({ task, businessId, outputs, onUpdate, onDelete, isStarterPlan
             <div style={{ marginBottom:14 }}>
               <label style={{ ...lbl, marginBottom:6 }}>Upload output (file or paste text)</label>
               <div style={{ display:"flex", gap:8, marginBottom:8 }}>
-                <button onClick={()=>fileRef.current?.click()} disabled={uploading} style={{ ...btnO(C.primary,12), padding:"8px 14px" }}>Upload file</button>
+                <button onClick={()=>fileRef.current?.click()} disabled={uploading} style={{ ...btnO("#475569",12), padding:"8px 14px" }}>Upload file</button>
               </div>
               <textarea value={textInput} onChange={e=>setTextInput(e.target.value)} placeholder="Or paste text, notes, a link, or any output…" style={{ ...inp({ height:80, resize:"vertical" }) }} />
-              {textInput.trim() && <button onClick={saveTextOutput} disabled={uploading} style={{ ...btn(C.primary,"#fff",12), marginTop:6 }}>Save text output</button>}
+              {textInput.trim() && <button onClick={saveTextOutput} disabled={uploading} style={{ ...btn(C.dark,"#fff",12), marginTop:6 }}>Save text output</button>}
             </div>
           )}
 
@@ -542,7 +542,7 @@ function TaskCard({ task, businessId, outputs, onUpdate, onDelete, isStarterPlan
           {hasOutput && (
             <div style={{ marginBottom:12 }}>
               <div style={{ display:"flex", gap:8, marginBottom:10 }}>
-                <button onClick={()=>setViewOutput(p=>!p)} style={{ ...btnO(C.primary,12), padding:"7px 12px" }}>{viewOutput?"Hide output":"View output"}</button>
+                <button onClick={()=>setViewOutput(p=>!p)} style={{ ...btnO("#475569",12), padding:"7px 12px" }}>{viewOutput?"Hide output":"View output"}</button>
                 <button onClick={downloadOutput} style={{ ...btnO(C.ok,12), padding:"7px 12px" }}>Download</button>
               </div>
               {viewOutput && <OutputViewer outputData={outputData} taskName={task.name} />}
@@ -562,7 +562,7 @@ function TaskCard({ task, businessId, outputs, onUpdate, onDelete, isStarterPlan
             <>
               <div style={{ marginBottom:10 }}>
                 <textarea value={textInput} onChange={e=>setTextInput(e.target.value)} placeholder="Add or replace output…" style={{ ...inp({ height:60, resize:"vertical" }) }} />
-                {textInput.trim() && <button onClick={saveTextOutput} disabled={uploading} style={{ ...btn(C.primary,"#fff",12), marginTop:6 }}>Save to Hub/Files</button>}
+                {textInput.trim() && <button onClick={saveTextOutput} disabled={uploading} style={{ ...btn(C.dark,"#fff",12), marginTop:6 }}>Save to Hub/Files</button>}
               </div>
               <div style={{ display:"flex", gap:8, flexWrap:"wrap" }}>
                 <button onClick={markTodo} style={{ ...btnO(C.muted,12), padding:"7px 12px" }}>Reopen</button>
@@ -682,7 +682,7 @@ function TaskRowWrapper({ task, businessId, businessName, outputs, onUpdate, onD
             <textarea value={eDesc} onChange={e=>setEDesc(e.target.value)}
               style={{ ...inp({ height:60, resize:"vertical", marginBottom:8 }) }} placeholder="Description (optional)" />
             <div style={{ display:"flex", gap:8 }}>
-              <button onClick={saveEdit} disabled={saving||!eName.trim()} style={{ ...btn(C.primary,"#fff",12), padding:"6px 14px" }}>
+              <button onClick={saveEdit} disabled={saving||!eName.trim()} style={{ ...btn(C.dark,"#fff",12), padding:"6px 14px" }}>
                 {saving ? "Saving…" : "Save"}
               </button>
               <button onClick={()=>{ setEditing(false); setEName(task.name); setEDesc(task.description||""); }}
@@ -717,7 +717,7 @@ function CampaignGroup({ title, tasks, businessId, businessName, outputs, onUpda
       <div onClick={()=>setOpen(p=>!p)}
         style={{ display:"flex", alignItems:"center", gap:8, padding:"8px 12px", background:"#F8FAFC", borderRadius:8, cursor:"pointer", marginBottom:open?6:0, border:`1px solid ${C.border}` }}>
         <span style={{ fontSize:11 }}>{open?"▼":"▶"}</span>
-        <span style={{ fontFamily:FH, fontWeight:600, fontSize:13, color:C.primary, flex:1 }}>{title}</span>
+        <span style={{ fontFamily:FH, fontWeight:600, fontSize:13, color:C.text, flex:1 }}>{title}</span>
         <span style={{ fontSize:11, color:C.muted, fontFamily:FB }}>{done}/{tasks.length} done</span>
       </div>
       {open && (
@@ -850,7 +850,7 @@ function TasksPanel({ businessId, businessName, businessOutputs, hubNotes, stick
               {selectMode ? "Done selecting" : "Select"}
             </button>
           )}
-          {!isNoteTab && <button onClick={()=>setShowAdd(true)} style={{ ...btn(C.primary,"#fff",13) }}>+ Add task</button>}
+          {!isNoteTab && <button onClick={()=>setShowAdd(true)} style={{ ...btn(C.dark,"#fff",13) }}>+ Add task</button>}
         </div>
       </div>
 
@@ -862,7 +862,7 @@ function TasksPanel({ businessId, businessName, businessOutputs, hubNotes, stick
 
       {/* Bulk action bar */}
       {selectMode && (
-        <div style={{ display:"flex", alignItems:"center", gap:8, padding:"10px 14px", background:C.primaryBg, borderRadius:8, marginBottom:12, flexWrap:"wrap" }}>
+        <div style={{ display:"flex", alignItems:"center", gap:8, padding:"10px 14px", background:"#F8FAFC", borderRadius:8, marginBottom:12, flexWrap:"wrap", border:`1px solid ${C.border}` }}>
           <input type="checkbox"
             checked={visibleIds.length>0 && visibleIds.every(id=>selected.has(id))}
             onChange={()=>toggleSelectAll(visibleIds)}
@@ -952,7 +952,7 @@ function TasksPanel({ businessId, businessName, businessOutputs, hubNotes, stick
           {visibleNonCampaign.length === 0 && campaignTasks.length === 0 && (
             <div style={{ ...card("28px"), textAlign:"center", color:C.muted }}>
               <div style={{ fontFamily:FH, fontWeight:600, fontSize:15, marginBottom:16 }}>No tasks yet</div>
-              <button onClick={()=>setShowAdd(true)} style={{ ...btn(C.primary,"#fff",13) }}>Add your first task</button>
+              <button onClick={()=>setShowAdd(true)} style={{ ...btn(C.dark,"#fff",13) }}>Add your first task</button>
             </div>
           )}
 
@@ -1205,7 +1205,7 @@ function InsightCardsSection({ cards, onUpdate, onArchive, onPromoteToTask, isAu
                     ? <button onClick={()=>onAutoComplete(c)} style={{ ...btn("#7C3AED","#fff",10), padding:"4px 10px" }}>Auto</button>
                     : <button onClick={()=>onUpdate(c.id,{status:"done"})} style={{ ...btnO(C.muted,10), padding:"4px 10px" }}>Done</button>
                   }
-                  <button onClick={()=>onPromoteToTask(c)} style={{ ...btnO(C.primary,10), padding:"4px 10px" }}>+ Task</button>
+                  <button onClick={()=>onPromoteToTask(c)} style={{ ...btnO("#475569",10), padding:"4px 10px" }}>+ Task</button>
                   <button onClick={()=>onArchive(c.id)} style={{ background:"none",border:"none",color:C.muted,cursor:"pointer",fontSize:14,padding:"2px 4px" }}>×</button>
                 </div>
               </div>
@@ -1253,8 +1253,8 @@ function SetupGuide({ steps }) {
   return (
     <div style={{ marginBottom:14, borderRadius:10, border:`1px solid ${C.primary}20`, overflow:"hidden" }}>
       <div onClick={()=>setOpen(o=>!o)} style={{ display:"flex", justifyContent:"space-between", alignItems:"center", padding:"10px 14px", background:"#EFF6FF", cursor:"pointer" }}>
-        <span style={{ fontSize:12, fontWeight:700, color:C.primary, fontFamily:FB }}>Step-by-step setup guide</span>
-        <span style={{ fontSize:13, color:C.primary, transform:open?"rotate(180deg)":"none", transition:"transform 0.15s", display:"inline-block" }}>▾</span>
+        <span style={{ fontSize:12, fontWeight:700, color:C.muted, fontFamily:FB }}>Step-by-step setup guide</span>
+        <span style={{ fontSize:13, color:C.muted, transform:open?"rotate(180deg)":"none", transition:"transform 0.15s", display:"inline-block" }}>▾</span>
       </div>
       {open && (
         <div style={{ background:"#FDFCFF", padding:"12px 14px" }}>
@@ -1263,7 +1263,7 @@ function SetupGuide({ steps }) {
               <div style={{ width:20, height:20, borderRadius:"50%", background:C.primary, color:"#fff", fontSize:10, fontWeight:700, fontFamily:FB, display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0, marginTop:2 }}>{i+1}</div>
               <div style={{ fontSize:12.5, color:C.text, lineHeight:1.65, fontFamily:FB }}>
                 {s.text}
-                {s.link && <>{" "}<a href={s.link} target="_blank" rel="noopener noreferrer" style={{ color:C.primary, fontWeight:600, textDecoration:"none" }}>Open ↗</a></>}
+                {s.link && <>{" "}<a href={s.link} target="_blank" rel="noopener noreferrer" style={{ color:C.text, fontWeight:600, textDecoration:"underline" }}>Open ↗</a></>}
               </div>
             </div>
           ))}
@@ -1344,7 +1344,7 @@ function IntegrationCard({ provider, label, desc, fields, savedMeta, onSave, isC
                 <div>
                   <input ref={fileRef} type="file" style={{ display:"none" }} onChange={e=>e.target.files[0]&&handleFile(f.key,e.target.files[0])} />
                   <div style={{ display:"flex", gap:8, alignItems:"center" }}>
-                    <button onClick={()=>fileRef.current?.click()} style={{ ...btnO(C.primary,12), padding:"8px 14px" }}>Upload {f.label.toLowerCase()}</button>
+                    <button onClick={()=>fileRef.current?.click()} style={{ ...btnO("#475569",12), padding:"8px 14px" }}>Upload {f.label.toLowerCase()}</button>
                     {vals[f.key] && <span style={{ fontSize:11, color:C.ok, fontFamily:FB }}>Uploaded</span>}
                   </div>
                 </div>
@@ -1376,7 +1376,7 @@ function IntegrationCard({ provider, label, desc, fields, savedMeta, onSave, isC
                   setTestMsg("✗ " + e.message);
                 }
                 setTesting(false);
-              }} disabled={testing} style={{ ...btnO(C.primary,12), padding:"8px 18px" }}>
+              }} disabled={testing} style={{ ...btnO("#475569",12), padding:"8px 18px" }}>
                 {testing ? "Testing…" : "Test connection"}
               </button>
               {testMsg && <div style={{ fontSize:11, fontFamily:FB, marginTop:6, color: testMsg.startsWith("✓") ? C.ok : C.err }}>{testMsg}</div>}
@@ -1464,7 +1464,7 @@ function FilesArchive({ businessId, outputs, tasks }) {
       <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", padding:"14px 18px", cursor:"pointer" }} onClick={() => setOpen(p => !p)}>
         <div style={{ fontFamily:FH, fontWeight:600, fontSize:14 }}>
           Files Archive
-          <span style={{ background:C.primaryBg, color:C.primary, fontSize:10, fontWeight:700, padding:"2px 8px", borderRadius:20, marginLeft:6 }}>{totalFiles}</span>
+          <span style={{ background:"#F1F5F9", color:C.muted, fontSize:10, fontWeight:700, padding:"2px 8px", borderRadius:20, marginLeft:6 }}>{totalFiles}</span>
         </div>
         <span style={{ color:C.muted, fontSize:14, transform:open?"rotate(180deg)":"none", transition:"transform 0.15s", display:"inline-block" }}>▾</span>
       </div>
@@ -1494,7 +1494,7 @@ function FilesArchive({ businessId, outputs, tasks }) {
                           <div style={{ fontSize:13, fontWeight:500, fontFamily:FB }}>{f.name}</div>
                           <div style={{ fontSize:11, color:C.muted, fontFamily:FB }}>{f.source === "generated" ? "Auto-generated" : "Task output"} · {f.outputType}</div>
                         </div>
-                        <button onClick={() => download(f)} style={{ ...btnO(C.primary, 11), padding:"5px 12px" }}>Download</button>
+                        <button onClick={() => download(f)} style={{ ...btnO("#475569", 11), padding:"5px 12px" }}>Download</button>
                       </div>
                     ))}
                   </div>
@@ -1773,7 +1773,7 @@ function StatCard({ label, value, onChange, prefix="", suffix="" }) {
       {editing ? (
         <div style={{ display:"flex", gap:6 }}>
           <input value={local} onChange={e=>setLocal(e.target.value)} onKeyDown={e=>e.key==="Enter"&&save()} autoFocus style={{ ...inp(), flex:1, fontSize:20, padding:"6px 10px" }} />
-          <button onClick={save} style={{ ...btn(C.primary,"#fff",12), padding:"6px 12px" }}>Save</button>
+          <button onClick={save} style={{ ...btn(C.dark,"#fff",12), padding:"6px 12px" }}>Save</button>
         </div>
       ) : (
         <div onClick={()=>{setLocal(String(value||"0"));setEditing(true);}} style={{ cursor:"pointer" }}>
@@ -1874,7 +1874,7 @@ function BrandIdentityPanel({ businessId, onGoToMarketing }) {
           onChange={e=>setField("postingRecommendation",e.target.value)}
           placeholder="Overview of channels in use, posting frequency and times, content mix."
         />
-        <div onClick={onGoToMarketing} style={{fontSize:11,color:C.primary,fontFamily:FB,marginTop:4,cursor:onGoToMarketing?"pointer":"default",display:"inline-block"}}>
+        <div onClick={onGoToMarketing} style={{fontSize:11,color:C.muted,fontFamily:FB,marginTop:4,cursor:onGoToMarketing?"pointer":"default",display:"inline-block",textDecoration:onGoToMarketing?"underline":"none"}}>
           View full analysis in Marketing Agent →
         </div>
       </div>
@@ -2141,7 +2141,7 @@ function ProductsSection({ metrics, saveM }) {
               </div>
             );
           })}
-          <button onClick={addProduct} style={{ ...btnO(C.primary,12), width:"100%", textAlign:"center", marginTop:products.length>0?4:0 }}>+ Add product or service</button>
+          <button onClick={addProduct} style={{ ...btnO("#475569",12), width:"100%", textAlign:"center", marginTop:products.length>0?4:0 }}>+ Add product or service</button>
         </div>
       )}
     </div>
@@ -2338,7 +2338,7 @@ function InstagramPanel({ businessId, businessName, integs }) {
                 <textarea value={postCaption} onChange={e=>setPostCaption(e.target.value)} rows={5} style={{ ...inp({ height:110, resize:"vertical" }), fontFamily:FB, fontSize:13 }} placeholder="Write your caption here, or generate one below…" />
               </div>
               <div style={{ display:"flex", gap:8, marginBottom:12, flexWrap:"wrap" }}>
-                <button onClick={generateCaption} disabled={genLoading} style={{ ...btnO(C.primary,12) }}>{genLoading?"Generating…":"Generate caption + image"}</button>
+                <button onClick={generateCaption} disabled={genLoading} style={{ ...btnO("#475569",12) }}>{genLoading?"Generating…":"Generate caption + image"}</button>
                 <label style={{ ...btnO(C.muted,12), cursor:"pointer", display:"flex", alignItems:"center", gap:6 }}>
                   {uploading?"Uploading…":"Upload your own image"}
                   <input type="file" accept="image/*" style={{ display:"none" }} onChange={e=>{ if(e.target.files[0]) uploadImage(e.target.files[0]); }} disabled={uploading} />
@@ -2413,10 +2413,10 @@ function InstagramPanel({ businessId, businessName, integs }) {
               </div>
               {!c.replied && c.suggestedReply && (
                 <div style={{ background:"#EFF6FF", borderRadius:8, padding:"8px 12px", marginTop:6 }}>
-                  <div style={{ fontSize:11, color:C.primary, fontWeight:600, fontFamily:FB, marginBottom:4 }}>Suggested reply</div>
+                  <div style={{ fontSize:11, color:C.muted, fontWeight:600, fontFamily:FB, marginBottom:4 }}>Suggested reply</div>
                   <div style={{ fontSize:12, fontFamily:FB, color:C.text, marginBottom:8 }}>{c.suggestedReply}</div>
                   <div style={{ display:"flex", gap:6 }}>
-                    <button onClick={()=>replyToComment(c.id, c.suggestedReply, i)} style={{ ...btn(C.primary,"#fff",11), padding:"4px 12px" }}>Post this reply</button>
+                    <button onClick={()=>replyToComment(c.id, c.suggestedReply, i)} style={{ ...btn(C.dark,"#fff",11), padding:"4px 12px" }}>Post this reply</button>
                     <button onClick={async()=>{try{const{reply}=await api.instagram.generateReply(businessId,c.text,"");setComments(p=>p.map((cm,ci)=>ci===i?{...cm,suggestedReply:reply}:cm));}catch{}}} style={{ ...btnO(C.muted,11), padding:"4px 10px" }}>Regenerate</button>
                     <button onClick={()=>api.instagram.hideComment(businessId,c.id,true)} style={{ ...btnO(C.err,11), padding:"4px 10px" }}>Hide</button>
                   </div>
@@ -2561,7 +2561,7 @@ function CorrelationPair({ link, metrics, snapshots, applied, onApplyToStrategy,
         {snapA.length<2&&<div style={{ fontSize:10, color:C.muted, fontFamily:FB, alignSelf:"center" }}>Visit monthly to build trend data.</div>}
       </div>
       <button onClick={()=>onApplyToStrategy({ ...link, aLabel:aF.label, bLabel:bF.label, r, summary })}
-        style={{ ...applied?btn("#22C55E","#fff",11):btnO(C.primary,11), padding:"5px 12px" }}>
+        style={{ ...applied?btn("#22C55E","#fff",11):btnO("#475569",11), padding:"5px 12px" }}>
         {applied?"✓ Applied to strategy":"Apply to strategy"}
       </button>
     </div>
@@ -3023,7 +3023,7 @@ function BusinessStrategySection({ businessId, metrics, snapshots, isPro, saveM,
               <div>
                 <div style={{ fontFamily:FH, fontWeight:700, fontSize:14 }}>Correlations</div>
               </div>
-              <button onClick={()=>setLinking(p=>!p)} style={{ ...btnO(C.primary,12) }}>
+              <button onClick={()=>setLinking(p=>!p)} style={{ ...btnO("#475569",12) }}>
                 {linking?"Cancel":"+ Link fields"}
               </button>
             </div>
@@ -3045,7 +3045,7 @@ function BusinessStrategySection({ businessId, metrics, snapshots, isPro, saveM,
                     {LINK_FIELDS.filter(f=>f.id!==linkA).map(f=><option key={f.id} value={f.id}>{f.label}</option>)}
                   </select>
                 </div>
-                <button onClick={addLink} disabled={!linkA||!linkB} style={{ ...btn(C.primary,"#fff",13), padding:"9px 16px", flexShrink:0 }}>Add</button>
+                <button onClick={addLink} disabled={!linkA||!linkB} style={{ ...btn(C.dark,"#fff",13), padding:"9px 16px", flexShrink:0 }}>Add</button>
               </div>
             )}
 
@@ -3082,7 +3082,7 @@ function BusinessStrategySection({ businessId, metrics, snapshots, isPro, saveM,
                   <option value="6 months">6 months</option>
                   <option value="1 year">1 year</option>
                 </select>
-                <button onClick={generate} disabled={generating} style={{ ...btn(C.primary,"#fff",13), padding:"9px 20px", flexShrink:0 }}>
+                <button onClick={generate} disabled={generating} style={{ ...btn(C.dark,"#fff",13), padding:"9px 20px", flexShrink:0 }}>
                   {generating?"Generating…":"Generate Strategy"}
                 </button>
               </div>
@@ -3107,11 +3107,11 @@ function BusinessStrategySection({ businessId, metrics, snapshots, isPro, saveM,
                 <div style={{ minHeight:100 }}>{renderTab()}</div>
                 <div style={{ marginTop:18, paddingTop:16, borderTop:`1px solid ${C.border}` }}>
                   <div style={{ display:"flex", gap:8, alignItems:"center", flexWrap:"wrap" }}>
-                    <button onClick={()=>syncToMarketing(strategy)} disabled={syncing||!strategy} style={{ ...btn(C.primary,"#fff",13) }}>
+                    <button onClick={()=>syncToMarketing(strategy)} disabled={syncing||!strategy} style={{ ...btn(C.dark,"#fff",13) }}>
                       {syncing?"Syncing…":"Sync to Marketing Agent"}
                     </button>
                     {strategy&&(
-                      <button onClick={()=>setShowMktgPrev(p=>!p)} style={{ ...btnO(C.primary,12) }}>
+                      <button onClick={()=>setShowMktgPrev(p=>!p)} style={{ ...btnO("#475569",12) }}>
                         {showMktgPrev?"Hide Preview":"Preview"}
                       </button>
                     )}
@@ -3195,7 +3195,7 @@ function MCell({ label, value, onChange, prefix="" }) {
       {ed ? (
         <div style={{ display:"flex", gap:4 }}>
           <input value={v} onChange={e=>setV(e.target.value)} onKeyDown={e=>e.key==="Enter"&&save()} autoFocus style={{ flex:1, fontSize:16, padding:"3px 8px", border:`1px solid ${C.border}`, borderRadius:6, fontFamily:FH, outline:"none", color:C.text, background:C.bg }} />
-          <button onClick={save} style={{ ...btn(C.primary,"#fff",11), padding:"4px 8px" }}>✓</button>
+          <button onClick={save} style={{ ...btn(C.dark,"#fff",11), padding:"4px 8px" }}>✓</button>
         </div>
       ) : (
         <div onClick={()=>setEd(true)} style={{ cursor:"pointer", display:"flex", alignItems:"baseline", gap:4 }}>
@@ -3247,7 +3247,7 @@ function LeadsContent({ metrics, saveM, businessId, globalRange=null, globalCSta
         {["all",...STATUS].map(s=>{
           const cnt = s==="all"?leads.length:leads.filter(l=>l.status===s).length;
           return (
-            <button key={s} onClick={()=>setFilter(s)} style={{ fontSize:10, padding:"3px 8px", borderRadius:12, border:`1px solid ${filter===s?C.primary:C.border}`, background:filter===s?C.primaryBg:"transparent", color:filter===s?C.primary:C.muted, cursor:"pointer", fontFamily:FB }}>
+            <button key={s} onClick={()=>setFilter(s)} style={{ fontSize:10, padding:"3px 8px", borderRadius:12, border:`1px solid ${filter===s?C.text:C.border}`, background:filter===s?"#F1F5F9":"transparent", color:filter===s?C.text:C.muted, cursor:"pointer", fontFamily:FB }}>
               {s==="all"?"All":s.charAt(0).toUpperCase()+s.slice(1)} ({cnt})
             </button>
           );
@@ -3279,11 +3279,11 @@ function LeadsContent({ metrics, saveM, businessId, globalRange=null, globalCSta
           <input value={newName} onChange={e=>setNewName(e.target.value)} placeholder="Lead name" onKeyDown={e=>e.key==="Enter"&&addLead()} autoFocus style={{ ...inp(), flex:"2 1 120px", fontSize:12, padding:"6px 10px" }} />
           <input value={newSource} onChange={e=>setNewSource(e.target.value)} placeholder="Source (optional)" style={{ ...inp(), flex:"1 1 90px", fontSize:12, padding:"6px 10px" }} />
           <input type="date" value={newDate} onChange={e=>setNewDate(e.target.value)} style={{ ...inp(), flex:"1 1 120px", fontSize:12, padding:"6px 10px" }} />
-          <button onClick={addLead} style={{ ...btn(C.primary,"#fff",12), padding:"6px 12px" }}>Add</button>
+          <button onClick={addLead} style={{ ...btn(C.dark,"#fff",12), padding:"6px 12px" }}>Add</button>
           <button onClick={()=>setAdding(false)} style={{ ...btnO(C.muted,12), padding:"6px 10px" }}>Cancel</button>
         </div>
       ) : (
-        <button onClick={()=>setAdding(true)} style={{ ...btnO(C.primary,11), marginTop:10, width:"100%", textAlign:"center" }}>+ Add lead</button>
+        <button onClick={()=>setAdding(true)} style={{ ...btnO("#475569",11), marginTop:10, width:"100%", textAlign:"center" }}>+ Add lead</button>
       )}
     </div>
   );
@@ -3372,11 +3372,11 @@ function ClientsContent({ metrics, saveM, businessId, globalRange=null, globalCS
             {TABS.map(t=><option key={t} value={t}>{t}</option>)}
           </select>
           <input type="date" value={newDate} onChange={e=>setNewDate(e.target.value)} style={{ ...inp(), flex:"1 1 120px", fontSize:12, padding:"6px 10px" }} />
-          <button onClick={addClient} style={{ ...btn(C.primary,"#fff",12), padding:"6px 12px" }}>Add</button>
+          <button onClick={addClient} style={{ ...btn(C.dark,"#fff",12), padding:"6px 12px" }}>Add</button>
           <button onClick={()=>setAdding(false)} style={{ ...btnO(C.muted,12), padding:"6px 10px" }}>Cancel</button>
         </div>
       ) : (
-        <button onClick={()=>setAdding(true)} style={{ ...btnO(C.primary,11), marginTop:10, width:"100%", textAlign:"center" }}>+ Add client</button>
+        <button onClick={()=>setAdding(true)} style={{ ...btnO("#475569",11), marginTop:10, width:"100%", textAlign:"center" }}>+ Add client</button>
       )}
     </div>
   );
@@ -3402,7 +3402,7 @@ function GlobalRangeLabel({ mode, count=0, prefix="" }) {
   const label = mode==="day"?"Today":mode==="week"?"This Week":mode==="month"?"This Month":mode==="year"?"This Year":mode==="all"?"All Time":mode==="custom"?"Custom Range":mode||"All Time";
   return (
     <div style={{ marginBottom:10, display:"flex", alignItems:"center", gap:10 }}>
-      <div style={{ background:"#EFF6FF", borderRadius:8, padding:"3px 10px", fontSize:10, color:C.primary, fontFamily:FB, fontWeight:600 }}>{label}</div>
+      <div style={{ background:"#F1F5F9", borderRadius:8, padding:"3px 10px", fontSize:10, color:C.muted, fontFamily:FB, fontWeight:600 }}>{label}</div>
       <div>
         <div style={{ fontFamily:FH, fontWeight:700, fontSize:28, color:C.text, letterSpacing:"-0.03em" }}>{prefix}{Number(count||0).toLocaleString()}</div>
         <div style={{ fontSize:10, color:C.muted, fontFamily:FB }}>{label}</div>
@@ -3450,7 +3450,7 @@ function NoteDropItem({ targetId, notesByTarget, onDropNote, onUnstickNote, chil
   return (
     <div style={{ position:"relative", ...style }}>
       <div onDragOver={handleDragOver} onDragLeave={handleDragLeave} onDrop={handleDrop}
-        style={{ borderRadius:6, border:`1px solid ${hover?C.primary:"transparent"}`, transition:"border-color 0.12s", background:hover?C.primaryBg+"44":"transparent" }}>
+        style={{ borderRadius:6, border:`1px solid ${hover?C.border:"transparent"}`, transition:"border-color 0.12s", background:hover?"#F8FAFC":"transparent" }}>
         {children}
       </div>
       {note&&(
@@ -3495,7 +3495,7 @@ function SourceList({ items, onAdd, onRemove, onUpdateCategory, prefix="$", note
           {["all",...usedCats].map(c=>{
             const cnt=c==="all"?items.length:items.filter(x=>x.category===c).length;
             return (
-              <button key={c} onClick={()=>setFilter(c)} style={{ fontSize:10, padding:"3px 8px", borderRadius:12, border:`1px solid ${filter===c?C.primary:C.border}`, background:filter===c?C.primaryBg:"transparent", color:filter===c?C.primary:C.muted, cursor:"pointer", fontFamily:FB }}>
+              <button key={c} onClick={()=>setFilter(c)} style={{ fontSize:10, padding:"3px 8px", borderRadius:12, border:`1px solid ${filter===c?C.text:C.border}`, background:filter===c?"#F1F5F9":"transparent", color:filter===c?C.text:C.muted, cursor:"pointer", fontFamily:FB }}>
                 {c==="all"?"All":c} ({cnt})
               </button>
             );
@@ -3512,7 +3512,7 @@ function SourceList({ items, onAdd, onRemove, onUpdateCategory, prefix="$", note
                 <span style={{ width:7, height:7, borderRadius:"50%", background:clr, flexShrink:0 }} />
                 <div style={{ flex:1, minWidth:0 }}>
                   <div style={{ fontSize:12, fontWeight:500, fontFamily:FB, color:C.text, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>
-                    {s.name}{prefix&&<span style={{ fontWeight:700, color:C.primary, marginLeft:6 }}>{prefix}{Number(s.amount||0).toLocaleString()}</span>}
+                    {s.name}{prefix&&<span style={{ fontWeight:700, color:C.text, marginLeft:6 }}>{prefix}{Number(s.amount||0).toLocaleString()}</span>}
                   </div>
                   <div style={{ display:"flex", gap:6 }}>
                     {s.source&&<span style={{ fontSize:10, color:C.muted, fontFamily:FB }}>{s.source}</span>}
@@ -3544,11 +3544,11 @@ function SourceList({ items, onAdd, onRemove, onUpdateCategory, prefix="$", note
           )}
           <input value={source} onChange={e=>setSource(e.target.value)} placeholder="Source (opt.)" style={{ ...inp(), flex:"1 1 90px", fontSize:12, padding:"6px 10px" }}/>
           <input type="date" value={date} onChange={e=>setDate(e.target.value)} style={{ ...inp(), flex:"1 1 120px", fontSize:12, padding:"6px 10px" }}/>
-          <button onClick={add} style={{ ...btn(C.primary,"#fff",12), padding:"6px 12px" }}>Add</button>
+          <button onClick={add} style={{ ...btn(C.dark,"#fff",12), padding:"6px 12px" }}>Add</button>
           <button onClick={()=>setAdding(false)} style={{ ...btnO(C.muted,12), padding:"6px 10px" }}>Cancel</button>
         </div>
       ):(
-        <button onClick={()=>setAdding(true)} style={{ ...btnO(C.primary,11), marginTop:6, width:"100%", textAlign:"center" }}>+ Add</button>
+        <button onClick={()=>setAdding(true)} style={{ ...btnO("#475569",11), marginTop:6, width:"100%", textAlign:"center" }}>+ Add</button>
       )}
     </div>
   );
@@ -3759,7 +3759,7 @@ function BookingsContent({ metrics, saveM, integs, globalRange=null, globalCStar
     <div>
       <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:10 }}>
         <span style={{ fontSize:10, padding:"2px 8px", borderRadius:12, background:isConn?"#F0FDF4":"#F1F5F9", color:isConn?"#22C55E":C.muted, fontFamily:FB, fontWeight:600 }}>{isConn?"Connected":hasLink?"Linked":"Not connected"}</span>
-        {hasLink&&<a href={`https://${(meta.bookingUrl||"").replace(/^https?:\/\//,"")}`} target="_blank" rel="noopener noreferrer" style={{ fontSize:11, color:C.primary, fontFamily:FB, textDecoration:"none" }}>View page →</a>}
+        {hasLink&&<a href={`https://${(meta.bookingUrl||"").replace(/^https?:\/\//,"")}`} target="_blank" rel="noopener noreferrer" style={{ fontSize:11, color:C.muted, fontFamily:FB, textDecoration:"underline" }}>View page →</a>}
       </div>
       {globalRange ? <GlobalRangeLabel mode={globalRange} count={val} /> : <RangeDropdown mode={rangeMode} setMode={setRangeMode} cStart={cStart} setCStart={setCStart} cEnd={cEnd} setCEnd={setCEnd} count={val} />}
       <div style={{ display:"flex", gap:8 }}>
@@ -3789,7 +3789,7 @@ function GoogleContent({ metrics, saveM, integs, globalRange=null, globalCStart=
       <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:10 }}>
         <span style={{ fontSize:10, padding:"2px 8px", borderRadius:12, background:statusClr+"18", color:statusClr, fontFamily:FB, fontWeight:600 }}>{statusLabel}</span>
         {(isConn||viewable)&&meta.profileUrl&&(
-          <a href={meta.profileUrl} target="_blank" rel="noopener noreferrer" style={{ fontSize:11, color:C.primary, fontFamily:FB, textDecoration:"none" }}>View listing →</a>
+          <a href={meta.profileUrl} target="_blank" rel="noopener noreferrer" style={{ fontSize:11, color:C.muted, fontFamily:FB, textDecoration:"underline" }}>View listing →</a>
         )}
       </div>
       {globalRange ? <GlobalRangeLabel mode={globalRange} count={reviewCount} /> : <RangeDropdown mode={rangeMode} setMode={setRangeMode} cStart={cStart} setCStart={setCStart} cEnd={cEnd} setCEnd={setCEnd} count={reviewCount} />}
@@ -3900,7 +3900,7 @@ function DraggableCard({ id, pos, meta, notes=[], isDragging, onDragStart, onRem
         </div>
         <div style={{ display:"flex", gap:4, alignItems:"center" }} onMouseDown={e=>e.stopPropagation()}>
           {widgetHover && <span style={{ fontSize:10, color:"#7C3AED", fontFamily:FB }}>Drop visual ↓</span>}
-          {dropHover && !widgetHover && <span style={{ fontSize:10, color:C.primary, fontFamily:FB }}>Drop note ↓</span>}
+          {dropHover && !widgetHover && <span style={{ fontSize:10, color:C.muted, fontFamily:FB }}>Drop note ↓</span>}
           <button title="Remove card" onClick={onRemove} style={{ background:"none", border:"none", cursor:"pointer", color:C.muted, fontSize:16, padding:"2px 6px", lineHeight:1 }}>×</button>
         </div>
       </div>
@@ -3951,7 +3951,7 @@ function EmbeddedWidget({ widget, onUpdateConfig, onRemove, metrics, snapshots, 
   const ConfigForm = ()=>{
     if(widget.type==="graph") return(<div>
       <select value={cfg.fieldId||""} onChange={e=>setCfg(p=>({...p,fieldId:e.target.value}))} style={s}><option value="">-- Select metric --</option>{fldOpts}</select>
-      <div style={{ display:"flex", gap:4 }}><button onClick={saveConfig} disabled={!cfg.fieldId} style={{ ...btn(C.primary,"#fff",10), padding:"4px 10px" }}>Save</button><button onClick={onRemove} style={{ ...btnO(C.muted,10), padding:"4px 8px" }}>Remove</button></div>
+      <div style={{ display:"flex", gap:4 }}><button onClick={saveConfig} disabled={!cfg.fieldId} style={{ ...btn(C.dark,"#fff",10), padding:"4px 10px" }}>Save</button><button onClick={onRemove} style={{ ...btnO(C.muted,10), padding:"4px 8px" }}>Remove</button></div>
     </div>);
     if(widget.type==="pie") return(<div>
       <select value={cfg.source||""} onChange={e=>setCfg(p=>({...p,source:e.target.value}))} style={s}>
@@ -3963,24 +3963,24 @@ function EmbeddedWidget({ widget, onUpdateConfig, onRemove, metrics, snapshots, 
         <option value="leads">Leads (by status)</option>
         <option value="clients">Clients (by type)</option>
       </select>
-      <div style={{ display:"flex", gap:4 }}><button onClick={saveConfig} disabled={!cfg.source} style={{ ...btn(C.primary,"#fff",10), padding:"4px 10px" }}>Save</button><button onClick={onRemove} style={{ ...btnO(C.muted,10), padding:"4px 8px" }}>Remove</button></div>
+      <div style={{ display:"flex", gap:4 }}><button onClick={saveConfig} disabled={!cfg.source} style={{ ...btn(C.dark,"#fff",10), padding:"4px 10px" }}>Save</button><button onClick={onRemove} style={{ ...btnO(C.muted,10), padding:"4px 8px" }}>Remove</button></div>
     </div>);
     if(widget.type==="corr") return(<div>
       <select value={cfg.fieldA||""} onChange={e=>setCfg(p=>({...p,fieldA:e.target.value}))} style={s}><option value="">-- Field A --</option>{fldOpts}</select>
       <select value={cfg.fieldB||""} onChange={e=>setCfg(p=>({...p,fieldB:e.target.value}))} style={s}><option value="">-- Field B --</option>{LINK_FIELDS.filter(f=>f.id!==cfg.fieldA).map(f=><option key={f.id} value={f.id}>{f.label}</option>)}</select>
-      <div style={{ display:"flex", gap:4 }}><button onClick={saveConfig} disabled={!cfg.fieldA||!cfg.fieldB} style={{ ...btn(C.primary,"#fff",10), padding:"4px 10px" }}>Save</button><button onClick={onRemove} style={{ ...btnO(C.muted,10), padding:"4px 8px" }}>Remove</button></div>
+      <div style={{ display:"flex", gap:4 }}><button onClick={saveConfig} disabled={!cfg.fieldA||!cfg.fieldB} style={{ ...btn(C.dark,"#fff",10), padding:"4px 10px" }}>Save</button><button onClick={onRemove} style={{ ...btnO(C.muted,10), padding:"4px 8px" }}>Remove</button></div>
     </div>);
     if(widget.type==="field") return(<div>
       <input value={cfg.title||""} onChange={e=>setCfg(p=>({...p,title:e.target.value}))} placeholder="Field name" style={s}/>
       <select value={(cfg.formula||[])[0]?.value||""} onChange={e=>setCfg(p=>({...p,formula:[{type:"field",value:e.target.value},...(p.formula||[]).slice(1)]}))} style={s}><option value="">-- Field A --</option>{fldOpts}</select>
       <select value={(cfg.formula||[null,{}])[1]?.value||""} onChange={e=>setCfg(p=>({...p,formula:[(p.formula||[{}])[0],{type:"op",value:e.target.value},(p.formula||[{},{},{}])[2]||{}]}))} style={s}><option value="">-- Operator --</option>{["+","-","×","÷"].map(op=><option key={op} value={op}>{op}</option>)}</select>
       <select value={(cfg.formula||[null,null,{}])[2]?.value||""} onChange={e=>setCfg(p=>({...p,formula:[(p.formula||[{}])[0],(p.formula||[{},{}])[1],{type:"field",value:e.target.value}]}))} style={s}><option value="">-- Field B --</option>{LINK_FIELDS.filter(f=>f.id!==((cfg.formula||[])[0]?.value)).map(f=><option key={f.id} value={f.id}>{f.label}</option>)}</select>
-      <div style={{ display:"flex", gap:4 }}><button onClick={saveConfig} disabled={!cfg.title} style={{ ...btn(C.primary,"#fff",10), padding:"4px 10px" }}>Save</button><button onClick={onRemove} style={{ ...btnO(C.muted,10), padding:"4px 8px" }}>Remove</button></div>
+      <div style={{ display:"flex", gap:4 }}><button onClick={saveConfig} disabled={!cfg.title} style={{ ...btn(C.dark,"#fff",10), padding:"4px 10px" }}>Save</button><button onClick={onRemove} style={{ ...btnO(C.muted,10), padding:"4px 8px" }}>Remove</button></div>
     </div>);
     if(widget.type==="eq") return(<div>
       <select value={cfg.source||""} onChange={e=>setCfg(p=>({...p,source:e.target.value}))} style={s}><option value="">-- Source --</option>{fldOpts}</select>
       <select value={cfg.target||""} onChange={e=>setCfg(p=>({...p,target:e.target.value}))} style={s}><option value="">-- Target --</option>{LINK_FIELDS.filter(f=>f.id!==cfg.source).map(f=><option key={f.id} value={f.id}>{f.label}</option>)}</select>
-      <div style={{ display:"flex", gap:4 }}><button onClick={saveConfig} disabled={!cfg.source||!cfg.target} style={{ ...btn(C.primary,"#fff",10), padding:"4px 10px" }}>Save</button><button onClick={onRemove} style={{ ...btnO(C.muted,10), padding:"4px 8px" }}>Remove</button></div>
+      <div style={{ display:"flex", gap:4 }}><button onClick={saveConfig} disabled={!cfg.source||!cfg.target} style={{ ...btn(C.dark,"#fff",10), padding:"4px 10px" }}>Save</button><button onClick={onRemove} style={{ ...btnO(C.muted,10), padding:"4px 8px" }}>Remove</button></div>
     </div>);
     return null;
   };
@@ -4378,7 +4378,7 @@ function EquationWidget({ config, metrics, saveM }) {
         </div>
       </div>
       {config.label&&<div style={{ fontSize:11, color:C.muted, fontFamily:FB, marginBottom:8 }}>{config.label}</div>}
-      <button onClick={sync} style={{ ...btn(C.primary,"#fff",11), padding:"5px 14px", width:"100%" }}>Sync {srcF.label} → {tgtF.label}</button>
+      <button onClick={sync} style={{ ...btn(C.dark,"#fff",11), padding:"5px 14px", width:"100%" }}>Sync {srcF.label} → {tgtF.label}</button>
     </div>
   );
 }
@@ -4412,7 +4412,7 @@ function MgmtSidebar({ open, onToggle, hubNotes, setHubNotes, businessId, mgmtNo
     const fldOpts=LINK_FIELDS.map(f=><option key={f.id} value={f.id}>{f.label}</option>);
     if(activeTool==="graph") return (<div>
       <select value={cfg.fieldId||""} onChange={e=>setCfg(p=>({...p,fieldId:e.target.value}))} style={s}><option value="">-- Select metric --</option>{fldOpts}</select>
-      <div style={{ display:"flex", gap:6 }}><button onClick={confirmTool} disabled={!cfg.fieldId} style={{ ...btn(C.primary,"#fff",11), padding:"5px 14px" }}>Add</button><button onClick={cancelTool} style={{ ...btnO(C.muted,11), padding:"5px 10px" }}>Cancel</button></div>
+      <div style={{ display:"flex", gap:6 }}><button onClick={confirmTool} disabled={!cfg.fieldId} style={{ ...btn(C.dark,"#fff",11), padding:"5px 14px" }}>Add</button><button onClick={cancelTool} style={{ ...btnO(C.muted,11), padding:"5px 10px" }}>Cancel</button></div>
     </div>);
     if(activeTool==="pie") return (<div>
       <select value={cfg.source||""} onChange={e=>setCfg(p=>({...p,source:e.target.value}))} style={s}>
@@ -4424,12 +4424,12 @@ function MgmtSidebar({ open, onToggle, hubNotes, setHubNotes, businessId, mgmtNo
         <option value="leads">Leads (by status)</option>
         <option value="clients">Clients (by type)</option>
       </select>
-      <div style={{ display:"flex", gap:6 }}><button onClick={confirmTool} disabled={!cfg.source} style={{ ...btn(C.primary,"#fff",11), padding:"5px 14px" }}>Add</button><button onClick={cancelTool} style={{ ...btnO(C.muted,11), padding:"5px 10px" }}>Cancel</button></div>
+      <div style={{ display:"flex", gap:6 }}><button onClick={confirmTool} disabled={!cfg.source} style={{ ...btn(C.dark,"#fff",11), padding:"5px 14px" }}>Add</button><button onClick={cancelTool} style={{ ...btnO(C.muted,11), padding:"5px 10px" }}>Cancel</button></div>
     </div>);
     if(activeTool==="corr") return (<div>
       <select value={cfg.fieldA||""} onChange={e=>setCfg(p=>({...p,fieldA:e.target.value}))} style={s}><option value="">-- Field A --</option>{fldOpts}</select>
       <select value={cfg.fieldB||""} onChange={e=>setCfg(p=>({...p,fieldB:e.target.value}))} style={s}><option value="">-- Field B --</option>{LINK_FIELDS.filter(f=>f.id!==cfg.fieldA).map(f=><option key={f.id} value={f.id}>{f.label}</option>)}</select>
-      <div style={{ display:"flex", gap:6 }}><button onClick={confirmTool} disabled={!cfg.fieldA||!cfg.fieldB} style={{ ...btn(C.primary,"#fff",11), padding:"5px 14px" }}>Add</button><button onClick={cancelTool} style={{ ...btnO(C.muted,11), padding:"5px 10px" }}>Cancel</button></div>
+      <div style={{ display:"flex", gap:6 }}><button onClick={confirmTool} disabled={!cfg.fieldA||!cfg.fieldB} style={{ ...btn(C.dark,"#fff",11), padding:"5px 14px" }}>Add</button><button onClick={cancelTool} style={{ ...btnO(C.muted,11), padding:"5px 10px" }}>Cancel</button></div>
     </div>);
     if(activeTool==="field") return (<div>
       <input value={cfg.title||""} onChange={e=>setCfg(p=>({...p,title:e.target.value}))} placeholder="Field name" style={s}/>
@@ -4439,13 +4439,13 @@ function MgmtSidebar({ open, onToggle, hubNotes, setHubNotes, businessId, mgmtNo
       </select>
       <select value={(cfg.formula||[null,null,{}])[2]?.value||""} onChange={e=>setCfg(p=>({...p,formula:[(p.formula||[{}])[0],(p.formula||[{},{}])[1],{type:"field",value:e.target.value}]}))} style={s}><option value="">-- Field B --</option>{LINK_FIELDS.filter(f=>f.id!==((cfg.formula||[])[0]?.value)).map(f=><option key={f.id} value={f.id}>{f.label}</option>)}</select>
       <input value={cfg.prefix||""} onChange={e=>setCfg(p=>({...p,prefix:e.target.value}))} placeholder="Prefix ($, %, ...)" style={{...s,width:100}}/>
-      <div style={{ display:"flex", gap:6 }}><button onClick={confirmTool} disabled={!cfg.title} style={{ ...btn(C.primary,"#fff",11), padding:"5px 14px" }}>Add</button><button onClick={cancelTool} style={{ ...btnO(C.muted,11), padding:"5px 10px" }}>Cancel</button></div>
+      <div style={{ display:"flex", gap:6 }}><button onClick={confirmTool} disabled={!cfg.title} style={{ ...btn(C.dark,"#fff",11), padding:"5px 14px" }}>Add</button><button onClick={cancelTool} style={{ ...btnO(C.muted,11), padding:"5px 10px" }}>Cancel</button></div>
     </div>);
     if(activeTool==="eq") return (<div>
       <select value={cfg.source||""} onChange={e=>setCfg(p=>({...p,source:e.target.value}))} style={s}><option value="">-- Source field --</option>{fldOpts}</select>
       <select value={cfg.target||""} onChange={e=>setCfg(p=>({...p,target:e.target.value}))} style={s}><option value="">-- Target field --</option>{LINK_FIELDS.filter(f=>f.id!==cfg.source).map(f=><option key={f.id} value={f.id}>{f.label}</option>)}</select>
       <input value={cfg.label||""} onChange={e=>setCfg(p=>({...p,label:e.target.value}))} placeholder="Label (optional)" style={s}/>
-      <div style={{ display:"flex", gap:6 }}><button onClick={confirmTool} disabled={!cfg.source||!cfg.target} style={{ ...btn(C.primary,"#fff",11), padding:"5px 14px" }}>Add</button><button onClick={cancelTool} style={{ ...btnO(C.muted,11), padding:"5px 10px" }}>Cancel</button></div>
+      <div style={{ display:"flex", gap:6 }}><button onClick={confirmTool} disabled={!cfg.source||!cfg.target} style={{ ...btn(C.dark,"#fff",11), padding:"5px 14px" }}>Add</button><button onClick={cancelTool} style={{ ...btnO(C.muted,11), padding:"5px 10px" }}>Cancel</button></div>
     </div>);
     return null;
   };
@@ -4542,7 +4542,7 @@ function MgmtSidebar({ open, onToggle, hubNotes, setHubNotes, businessId, mgmtNo
               </div>
               <div style={{ display:"flex", gap:6 }}>
                 <input value={noteText} onChange={e=>setNoteText(e.target.value)} onKeyDown={e=>e.key==="Enter"&&addNote()} placeholder="Add a note…" style={{ flex:1, fontSize:12, padding:"6px 10px", border:`1px solid ${C.border}`, borderRadius:8, fontFamily:FB, outline:"none", background:C.bg, color:C.text }}/>
-                <button onClick={addNote} disabled={adding||!noteText.trim()} style={{ ...btn(C.primary,"#fff",11), padding:"6px 12px", flexShrink:0 }}>{adding?"…":"Add"}</button>
+                <button onClick={addNote} disabled={adding||!noteText.trim()} style={{ ...btn(C.dark,"#fff",11), padding:"6px 12px", flexShrink:0 }}>{adding?"…":"Add"}</button>
               </div>
             </div>
           )}
@@ -4758,7 +4758,7 @@ function ManagementCanvas({ businessId, metrics, saveM, integs, hubNotes, setHub
         <span style={{ fontSize:11, color:C.muted, fontFamily:FB, fontWeight:600 }}>Time range:</span>
         <div style={{ display:"flex", gap:4, flexWrap:"wrap" }}>
           {[[null,"Per-card"],["day","Day"],["week","Week"],["month","Month"],["year","Year"],["all","All Time"],["custom","Custom"]].map(([v,l])=>(
-            <button key={String(v)} onClick={()=>setGlobalRange(v)} style={{ fontSize:10, padding:"3px 10px", borderRadius:20, border:`1px solid ${globalRange===v?C.primary:C.border}`, background:globalRange===v?C.primaryBg:"transparent", color:globalRange===v?C.primary:C.muted, fontFamily:FB, fontWeight:600, cursor:"pointer" }}>{l}</button>
+            <button key={String(v)} onClick={()=>setGlobalRange(v)} style={{ fontSize:10, padding:"3px 10px", borderRadius:20, border:`1px solid ${globalRange===v?C.text:C.border}`, background:globalRange===v?"#F1F5F9":"transparent", color:globalRange===v?C.text:C.muted, fontFamily:FB, fontWeight:600, cursor:"pointer" }}>{l}</button>
           ))}
         </div>
         {globalRange==="custom"&&(
@@ -4824,7 +4824,7 @@ function ManagementCanvas({ businessId, metrics, saveM, integs, hubNotes, setHub
         {toolbar ? (
           <div style={{ background:C.bg, border:`1px solid ${C.border}`, borderRadius:16, padding:"10px 14px", boxShadow:"0 8px 32px rgba(0,0,0,0.10)", display:"flex", gap:8, alignItems:"center", flexWrap:"wrap", maxWidth:640 }}>
             {addable.map(id=>(
-              <button key={id} onClick={()=>addCard(id)} style={{ ...btnO(C.primary,12) }}>
+              <button key={id} onClick={()=>addCard(id)} style={{ ...btnO("#475569",12) }}>
                 + {MGMT_META[id].label}
               </button>
             ))}
@@ -5212,7 +5212,7 @@ export default function Hub() {
             <p style={{ fontSize:13, color:"#6B7280", fontFamily:FB, lineHeight:1.6, marginBottom:20 }}>
               Your data is safe. Upgrade to a paid plan to continue using all features — your history, tasks, and settings will all be here waiting.
             </p>
-            <button onClick={()=>navigate("/pricing")} style={{ ...btn(C.primary,"#fff",14), padding:"10px 28px", width:"100%", marginBottom:8 }}>
+            <button onClick={()=>navigate("/pricing")} style={{ ...btn(C.dark,"#fff",14), padding:"10px 28px", width:"100%", marginBottom:8 }}>
               View Plans & Pricing
             </button>
             <button onClick={()=>setShowTrialExpiredModal(false)} style={{ ...btnO(C.muted,12), padding:"7px 20px", width:"100%" }}>
@@ -5375,62 +5375,83 @@ export default function Hub() {
                 <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:14, marginBottom:20 }}>
                   {/* Strategy summary */}
                   <div style={card("16px 18px")}>
-                    <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:10 }}>
+                    <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:12 }}>
                       <div style={{ fontFamily:FH, fontWeight:700, fontSize:13 }}>Business Strategy</div>
                       <button onClick={()=>setTab("management")} style={{ fontSize:10, color:C.muted, background:"none", border:"none", cursor:"pointer", fontFamily:FB }}>View →</button>
                     </div>
                     {lastStrat ? (
-                      <div>
-                        <div style={{ display:"flex", justifyContent:"space-between", padding:"5px 0", borderBottom:`1px solid ${C.border}` }}>
-                          <span style={{ fontSize:11, color:C.muted, fontFamily:FB }}>Monthly budget</span>
-                          <span style={{ fontSize:11, fontWeight:600, fontFamily:FB }}>${(lastStrat.budget?.monthly||0).toLocaleString()}</span>
-                        </div>
-                        <div style={{ display:"flex", justifyContent:"space-between", padding:"5px 0", borderBottom:`1px solid ${C.border}` }}>
-                          <span style={{ fontSize:11, color:C.muted, fontFamily:FB }}>Outreach focus</span>
-                          <span style={{ fontSize:11, fontWeight:600, fontFamily:FB }}>${(lastStrat.outreach?.monthlySpend||0).toLocaleString()}/mo</span>
-                        </div>
+                      <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
+                        {[
+                          ["Budget", `$${(lastStrat.budget?.monthly||0).toLocaleString()}/mo`],
+                          ["Outreach", `$${(lastStrat.outreach?.monthlySpend||0).toLocaleString()}/mo`],
+                        ].map(([label, val])=>(
+                          <div key={label} style={{ display:"flex", justifyContent:"space-between", padding:"5px 0", borderBottom:`1px solid ${C.border}` }}>
+                            <span style={{ fontSize:11, color:C.muted, fontFamily:FB }}>{label}</span>
+                            <span style={{ fontSize:11, fontWeight:600, fontFamily:FB }}>{val}</span>
+                          </div>
+                        ))}
                         {(lastStrat.predictedOutcomes||[]).slice(0,2).map((o,i)=>(
                           <div key={i} style={{ fontSize:11, color:C.muted, fontFamily:FB, lineHeight:1.5, padding:"5px 0", borderBottom:`1px solid ${C.border}` }}>
-                            {o.length>60?o.slice(0,57)+"…":o}
+                            {o.length>65?o.slice(0,62)+"…":o}
                           </div>
                         ))}
                         {(lastStrat.outreach?.suggestions||[]).slice(0,1).map((s,i)=>(
-                          <div key={i} style={{ fontSize:11, color:C.text, fontFamily:FB, lineHeight:1.5, padding:"5px 0" }}>
+                          <div key={i} style={{ fontSize:11, color:C.text, fontFamily:FB, lineHeight:1.5, paddingTop:5 }}>
                             {s.length>70?s.slice(0,67)+"…":s}
                           </div>
                         ))}
+                        {lastStrat.ranAt && <div style={{ fontSize:10, color:C.subtle, fontFamily:FB, marginTop:8 }}>Run {new Date(lastStrat.ranAt||Date.now()).toLocaleDateString()}</div>}
                       </div>
                     ) : (
-                      <div style={{ fontSize:12, color:C.muted, fontFamily:FB, lineHeight:1.5 }}>
-                        No strategy report yet.<br/>
-                        <span onClick={()=>setTab("management")} style={{ color:C.primary, cursor:"pointer" }}>Generate one in {managementName} →</span>
+                      <div style={{ fontSize:12, color:C.muted, fontFamily:FB, lineHeight:1.6 }}>
+                        No strategy report yet.{" "}
+                        <span onClick={()=>setTab("management")} style={{ color:C.text, textDecoration:"underline", cursor:"pointer" }}>Run one in {managementName} →</span>
                       </div>
                     )}
                   </div>
 
                   {/* Market analysis summary */}
                   <div style={card("16px 18px")}>
-                    <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:10 }}>
+                    <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:12 }}>
                       <div style={{ fontFamily:FH, fontWeight:700, fontSize:13 }}>Market Analysis</div>
                       <button onClick={()=>setTab("marketing")} style={{ fontSize:10, color:C.muted, background:"none", border:"none", cursor:"pointer", fontFamily:FB }}>View →</button>
                     </div>
-                    {mktgOutput?.content ? (
-                      <div style={{ fontSize:11, color:C.text, fontFamily:FB, lineHeight:1.65, maxHeight:130, overflowY:"auto" }}>
-                        {mktgOutput.content.slice(0,300)}{mktgOutput.content.length>300?"…":""}
-                      </div>
-                    ) : lastMktgNote ? (
+                    {mktgOutput?.content ? (()=>{
+                      let parsed = null;
+                      try { parsed = JSON.parse(mktgOutput.content); } catch {}
+                      if (parsed) {
+                        const summary = parsed.report?.analysis?.summary || parsed.overview?.summary || "";
+                        const insights = (parsed.insights||[]).filter(i=>i.title).slice(0,3);
+                        return (
+                          <div>
+                            {summary && (
+                              <div style={{ fontSize:11, color:C.muted, fontFamily:FB, lineHeight:1.6, marginBottom:insights.length?10:0 }}>
+                                {summary.length>160?summary.slice(0,157)+"…":summary}
+                              </div>
+                            )}
+                            {insights.map((ins,i)=>(
+                              <div key={i} style={{ display:"flex", gap:8, alignItems:"flex-start", padding:"4px 0", borderTop:`1px solid ${C.border}` }}>
+                                <span style={{ width:5, height:5, borderRadius:"50%", background:ins.priority==="high"?C.err:C.muted, flexShrink:0, marginTop:5 }}/>
+                                <span style={{ fontSize:11, color:C.text, fontFamily:FB, lineHeight:1.4, flex:1 }}>{ins.title}</span>
+                              </div>
+                            ))}
+                            {parsed.ranAt && <div style={{ fontSize:10, color:C.subtle, fontFamily:FB, marginTop:8 }}>Run {new Date(parsed.ranAt).toLocaleDateString()}</div>}
+                          </div>
+                        );
+                      }
+                      const text = mktgOutput.content;
+                      return <div style={{ fontSize:11, color:C.text, fontFamily:FB, lineHeight:1.65 }}>{text.slice(0,200)}{text.length>200?"…":""}</div>;
+                    })() : lastMktgNote ? (
                       <div>
-                        <div style={{ fontSize:11, color:C.muted, fontFamily:FB, marginBottom:6 }}>Latest sync from {managementName}</div>
-                        <div style={{ fontSize:11, color:C.text, fontFamily:FB, lineHeight:1.65, maxHeight:110, overflowY:"auto" }}>
-                          {(lastMktgNote.text||lastMktgNote.description||"").split("\n").slice(2,7).filter(Boolean).map((l,i)=>(
-                            <div key={i} style={{ padding:"3px 0", borderBottom:`1px solid ${C.border}` }}>{l}</div>
-                          ))}
-                        </div>
+                        <div style={{ fontSize:10, color:C.muted, fontFamily:FB, marginBottom:6, textTransform:"uppercase", letterSpacing:"0.05em" }}>Latest sync</div>
+                        {(lastMktgNote.text||lastMktgNote.description||"").split("\n").slice(2,7).filter(Boolean).map((l,i)=>(
+                          <div key={i} style={{ fontSize:11, color:C.text, fontFamily:FB, lineHeight:1.5, padding:"4px 0", borderBottom:`1px solid ${C.border}` }}>{l}</div>
+                        ))}
                       </div>
                     ) : (
-                      <div style={{ fontSize:12, color:C.muted, fontFamily:FB, lineHeight:1.5 }}>
-                        No market analysis yet.<br/>
-                        <span onClick={()=>setTab("marketing")} style={{ color:C.primary, cursor:"pointer" }}>Run one in {marketingName} →</span>
+                      <div style={{ fontSize:12, color:C.muted, fontFamily:FB, lineHeight:1.6 }}>
+                        No market analysis yet.{" "}
+                        <span onClick={()=>setTab("marketing")} style={{ color:C.text, textDecoration:"underline", cursor:"pointer" }}>Run one in {marketingName} →</span>
                       </div>
                     )}
                   </div>
@@ -5570,12 +5591,12 @@ export default function Hub() {
 
               <AutopilotCard businessId={businessId} planInfo={planInfo} navigate={navigate} />
 
-              <div style={{ ...card("16px 18px"), marginBottom:24, background:C.primaryBg, border:`1px solid ${C.primary}15` }}>
+              <div style={{ ...card("16px 18px"), marginBottom:24, background:"#F8FAFC", border:`1px solid ${C.border}` }}>
                 <div style={{ fontFamily:FH, fontWeight:600, fontSize:14, marginBottom:8 }}>Ask your management agent</div>
                 <p style={{ fontSize:12, color:C.muted, marginBottom:10, fontFamily:FB }}>Ask anything about revenue, clients, or business strategy. Say "I'm scaling up" and preferences update automatically.</p>
                 <div style={{ display:"flex", gap:8, marginBottom:mgmtAns?12:0 }}>
                   <input value={mgmtQ} onChange={e=>setMgmtQ(e.target.value)} onKeyDown={e=>e.key==="Enter"&&askMgmt()} placeholder="What should I focus on this week?" style={{ ...inp(), flex:1 }} />
-                  <button onClick={askMgmt} disabled={hubLoading} style={{ ...btn(C.primary,"#fff",13), padding:"10px 16px", flexShrink:0 }}>{hubLoading?"…":"Ask"}</button>
+                  <button onClick={askMgmt} disabled={hubLoading} style={{ ...btn(C.dark,"#fff",13), padding:"10px 16px", flexShrink:0 }}>{hubLoading?"…":"Ask"}</button>
                 </div>
                 {mgmtAns&&<div style={{ background:C.surface, borderRadius:10, padding:"12px 14px", fontSize:13, color:C.text, lineHeight:1.7, fontFamily:FB, border:`1px solid ${C.border}` }}>{mgmtAns}</div>}
               </div>
@@ -5659,7 +5680,7 @@ export default function Hub() {
                 placeholder="Add a note…"
                 style={{ flex:1, fontSize:12, padding:"6px 10px", border:"1px solid #E5E7EB", borderRadius:8, fontFamily:FB, outline:"none" }}
               />
-              <button onClick={addHubNote} disabled={noteAdding||!noteText.trim()} style={{ ...btn(C.primary,"#fff",11), padding:"6px 12px", flexShrink:0 }}>
+              <button onClick={addHubNote} disabled={noteAdding||!noteText.trim()} style={{ ...btn(C.dark,"#fff",11), padding:"6px 12px", flexShrink:0 }}>
                 {noteAdding?"…":"Add"}
               </button>
             </div>

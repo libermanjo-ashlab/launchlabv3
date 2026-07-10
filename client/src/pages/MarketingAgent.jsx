@@ -107,12 +107,12 @@ function ModeToggle({ mode, onChange, allowedModes }) {
                 }}
                 style={{ flex:1, padding:"8px 10px", borderRadius:9, border:"none", cursor:"pointer",
                   fontFamily:FB, fontWeight:600, fontSize:12, transition:"all 0.15s",
-                  background: mode===o.value ? (o.value==="auto"?C.primary:o.value==="guided"?"#1D4ED8":"#374151") : "transparent",
+                  background: mode===o.value ? C.dark : "transparent",
                   color: locked ? "#9CA3AF" : mode===o.value ? "#fff" : C.muted,
                   boxShadow: mode===o.value ? "0 1px 5px rgba(0,0,0,0.18)" : "none",
                   position:"relative" }}>
                 {o.label}
-                {locked && <span style={{ position:"absolute", top:-6, right:-4, fontSize:8, background:"#2563EB", color:"#fff", borderRadius:8, padding:"1px 4px", fontWeight:700 }}>PRO</span>}
+                {locked && <span style={{ position:"absolute", top:-6, right:-4, fontSize:8, background:C.dark, color:"#fff", borderRadius:8, padding:"1px 4px", fontWeight:700 }}>PRO</span>}
               </button>
             );
           })}
@@ -154,8 +154,8 @@ function StickyNotesPanel({ businessId }) {
 
   return (
     <div style={{ position:"relative" }}>
-      <button onClick={()=>setOpen(o=>!o)} style={{ ...btnO(open?C.primary:"#9CA3AF",11), padding:"5px 10px", display:"flex", alignItems:"center", gap:5 }}>
-        📝 Notes {notes.length>0 && <span style={{ background:C.primary, color:"#fff", borderRadius:10, padding:"0 5px", fontSize:10 }}>{notes.length}</span>}
+      <button onClick={()=>setOpen(o=>!o)} style={{ ...btnO(open?"#475569":"#9CA3AF",11), padding:"5px 10px", display:"flex", alignItems:"center", gap:5 }}>
+        📝 Notes {notes.length>0 && <span style={{ background:"#475569", color:"#fff", borderRadius:10, padding:"0 5px", fontSize:10 }}>{notes.length}</span>}
       </button>
 
       {open && (
@@ -187,7 +187,7 @@ function StickyNotesPanel({ businessId }) {
               placeholder="Add a note…"
               style={{ ...inp({ fontSize:12, padding:"6px 10px" }), flex:1 }} />
             <button onClick={addNote} disabled={adding||!newText.trim()}
-              style={{ ...btn(C.primary,"#fff",11), padding:"6px 12px", flexShrink:0 }}>
+              style={{ ...btn(C.dark,"#fff",11), padding:"6px 12px", flexShrink:0 }}>
               {adding?"…":"Add"}
             </button>
           </div>
@@ -258,7 +258,7 @@ function MarketAnalysisSection({ analysis }) {
         <MarketSubSection title="Opportunities">
           {analysis.opportunities.map((o,i)=>(
             <div key={i} style={{ fontSize:12, color:C.text, fontFamily:FB, marginBottom:4, display:"flex", gap:6 }}>
-              <span style={{ color:C.primary, flexShrink:0 }}>→</span>{o}
+              <span style={{ color:C.muted, flexShrink:0 }}>→</span>{o}
             </div>
           ))}
         </MarketSubSection>
@@ -399,14 +399,14 @@ function VideoSlideTaskBlock({ content, businessName, backgroundUrl }) {
 
   return (
     <div style={{ background:"#EFF6FF", border:`1px solid ${C.primary}30`, borderRadius:8, padding:"10px 12px", marginTop:8 }}>
-      <div style={{ fontSize:11, fontWeight:700, color:C.primary, textTransform:"uppercase", letterSpacing:"0.05em", marginBottom:8, fontFamily:FB }}>
+      <div style={{ fontSize:11, fontWeight:700, color:"#92400E", textTransform:"uppercase", letterSpacing:"0.05em", marginBottom:8, fontFamily:FB }}>
         Video Reel — {content.slides?.length || 0} slides
       </div>
       {/* Slide preview */}
       <div style={{ display:"flex", flexDirection:"column", gap:4, marginBottom:10 }}>
         {(content.slides || []).map((sl, i) => (
           <div key={i} style={{ display:"flex", gap:8, alignItems:"flex-start", fontSize:11, fontFamily:FB }}>
-            <span style={{ color:C.primary, fontWeight:700, minWidth:16 }}>{i+1}</span>
+            <span style={{ color:"#92400E", fontWeight:700, minWidth:16 }}>{i+1}</span>
             <div>
               <span style={{ fontWeight:600, color:C.text }}>{sl.headline}</span>
               {sl.subtext && <span style={{ color:C.muted }}> — {sl.subtext}</span>}
@@ -431,7 +431,7 @@ function VideoSlideTaskBlock({ content, businessName, backgroundUrl }) {
           </button>
         ) : (
           <button onClick={create} disabled={videoLoading}
-            style={{ ...btn(videoLoading ? "#9CA3AF" : C.primary,"#fff",11), padding:"4px 12px",
+            style={{ ...btn(videoLoading ? "#9CA3AF" : C.dark,"#fff",11), padding:"4px 12px",
               display:"inline-flex", alignItems:"center", gap:5 }}>
             {videoLoading && <span style={{ ...spin(), width:10, height:10, borderWidth:1.5 }} />}
             {videoLoading ? "Rendering…" : "Create Video"}
@@ -455,7 +455,7 @@ function SuggestionCard({ suggestion:s, mode, onAddToCampaign }) {
     <div style={{ ...card("12px 14px"), marginBottom:10, border:`1px solid ${s.priority==="high"?"#EF444422":C.border}`, background: s.priority==="high" ? "#FFF5F5" : "#FFFFFF" }}>
       <div style={{ display:"flex", gap:6, marginBottom:8, flexWrap:"wrap", alignItems:"center" }}>
         <span style={{ background:PRI_CLR[s.priority]+"18", color:PRI_CLR[s.priority], fontSize:9, fontWeight:700, padding:"2px 8px", borderRadius:20, textTransform:"uppercase", letterSpacing:"0.06em", fontFamily:FB }}>{s.priority}</span>
-        <span style={{ background:C.primaryBg, color:C.primary, fontSize:9, fontWeight:600, padding:"2px 8px", borderRadius:20, textTransform:"uppercase", letterSpacing:"0.04em", fontFamily:FB }}>{CH_LABELS[s.channel]||s.channel}</span>
+        <span style={{ background:"#F1F5F9", color:C.muted, fontSize:9, fontWeight:600, padding:"2px 8px", borderRadius:20, textTransform:"uppercase", letterSpacing:"0.04em", fontFamily:FB }}>{CH_LABELS[s.channel]||s.channel}</span>
         {s.estimatedMinutes && <span style={{ fontSize:10, color:C.muted, fontFamily:FB }}>~{s.estimatedMinutes} min</span>}
         <span style={{ fontSize:10, color:C.ok, fontFamily:FB, marginLeft:"auto" }}>{s.expectedImpact}</span>
       </div>
@@ -475,7 +475,7 @@ function SuggestionCard({ suggestion:s, mode, onAddToCampaign }) {
               ✓ Auto-queued
             </span>
             <button onClick={()=>onAddToCampaign({...s, autoStart:true})}
-              style={{ ...btnO(C.primary,11), padding:"5px 10px" }}>
+              style={{ ...btnO("#475569",11), padding:"5px 10px" }}>
               ▶ Run now
             </button>
           </>
@@ -591,14 +591,14 @@ function CampaignTaskRow({ task:t, mode, channel, businessId, businessName, onCo
           <div style={{ display:"flex", gap:4, flexShrink:0 }}>
             {mode==="auto" && t.id && (
               <button onClick={runTask} disabled={running||isAutoRunning}
-                style={{ ...btn(running?"#9CA3AF":C.primary,"#fff",10), padding:"3px 8px", display:"flex", alignItems:"center", gap:4 }}>
+                style={{ ...btn(running?"#9CA3AF":C.dark,"#fff",10), padding:"3px 8px", display:"flex", alignItems:"center", gap:4 }}>
                 {running&&<span style={{ ...spin(), width:10, height:10, borderWidth:1.5 }}/>}
                 {running?"Running…":"Run"}
               </button>
             )}
             {mode==="guided" && t.id && (
               <button onClick={getContent} disabled={running}
-                style={{ ...btnO(C.primary,10), padding:"3px 8px" }}>
+                style={{ ...btnO("#475569",10), padding:"3px 8px" }}>
                 {running?"…":content?"Content":"Get content"}
               </button>
             )}
@@ -664,7 +664,7 @@ function CampaignTaskRow({ task:t, mode, channel, businessId, businessName, onCo
                 }
                 setPosting(false);
               }} disabled={posting}
-                style={{ ...btn(posting?"#9CA3AF":C.primary,"#fff",11), padding:"5px 12px", display:"flex", alignItems:"center", gap:6 }}>
+                style={{ ...btn(posting?"#9CA3AF":C.dark,"#fff",11), padding:"5px 12px", display:"flex", alignItems:"center", gap:6 }}>
                 {posting && <span style={{ ...spin(), width:10, height:10, borderWidth:1.5 }}/>}
                 {posting ? "Posting…" : "Post to Instagram"}
               </button>
@@ -688,7 +688,7 @@ function CampaignTaskRow({ task:t, mode, channel, businessId, businessName, onCo
                       <div key={ch} style={{ flex:1, minWidth:140 }}>
                         {extraChannels[ch] ? (
                           <div style={{ background:"#F9FAFB", borderRadius:7, padding:"8px 10px" }}>
-                            <div style={{ fontSize:10, fontWeight:700, color:C.primary, fontFamily:FB, textTransform:"uppercase", marginBottom:4 }}>
+                            <div style={{ fontSize:10, fontWeight:700, color:C.muted, fontFamily:FB, textTransform:"uppercase", marginBottom:4 }}>
                               {CH_LABELS[ch]||ch}
                             </div>
                             <p style={{ fontSize:11, color:C.text, fontFamily:FB, lineHeight:1.5, marginBottom:4 }}>
@@ -898,7 +898,7 @@ function CampaignCard({ campaign:c, onUpdate, onDelete, businessId, businessName
       onDragOver={e=>{ e.preventDefault(); setDropOver(true); }}
       onDragLeave={()=>setDropOver(false)}
       onDrop={e=>{ e.preventDefault(); setDropOver(false); const noteId=e.dataTransfer.getData("text/noteId"); if(noteId&&onAssignSticky) onAssignSticky(noteId, c.id, c.title); }}
-      style={{ ...card("12px 14px"), marginBottom:10, border:`1px solid ${dropOver?C.primary:statusColor+"25"}`, background: c.status==="archived"?"#F9F9F9":"#fff", transition:"border-color 0.15s" }}>
+      style={{ ...card("12px 14px"), marginBottom:10, border:`1px solid ${dropOver?C.border:statusColor+"25"}`, background: c.status==="archived"?"#F9F9F9":"#fff", transition:"border-color 0.15s" }}>
       {/* Sticky note */}
       {stickyNote && (
         <div style={{ display:"flex", alignItems:"center", gap:5, background:stickyNote.color||"#FEF9C3", borderRadius:6, padding:"4px 8px", marginBottom:8, fontSize:11, color:"#374151", fontFamily:FB }}>
@@ -907,13 +907,13 @@ function CampaignCard({ campaign:c, onUpdate, onDelete, businessId, businessName
           <button onClick={()=>onUnstickNote?.(c.id)} style={{ background:"none", border:"none", cursor:"pointer", color:"#9CA3AF", fontSize:12, padding:0 }}>✕</button>
         </div>
       )}
-      {dropOver && !stickyNote && <div style={{ height:2, background:C.primary, borderRadius:2, marginBottom:6 }} />}
+      {dropOver && !stickyNote && <div style={{ height:2, background:C.border, borderRadius:2, marginBottom:6 }} />}
       {/* Header */}
       <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", marginBottom:6 }}>
         <div style={{ flex:1, paddingRight:8 }}>
           <div style={{ display:"flex", gap:6, marginBottom:4, flexWrap:"wrap", alignItems:"center" }}>
             <span style={{ fontSize:9, fontWeight:700, fontFamily:FB, padding:"2px 7px", borderRadius:20, textTransform:"uppercase", letterSpacing:"0.05em", background:statusColor+"18", color:statusColor }}>{c.status}</span>
-            {c.channel && <span style={{ fontSize:9, fontWeight:600, fontFamily:FB, padding:"2px 7px", borderRadius:20, background:C.primaryBg, color:C.primary, textTransform:"uppercase", letterSpacing:"0.04em" }}>{CH_LABELS[c.channel]||c.channel}</span>}
+            {c.channel && <span style={{ fontSize:9, fontWeight:600, fontFamily:FB, padding:"2px 7px", borderRadius:20, background:"#F1F5F9", color:C.muted, textTransform:"uppercase", letterSpacing:"0.04em" }}>{CH_LABELS[c.channel]||c.channel}</span>}
             <span style={{ fontSize:9, fontWeight:600, fontFamily:FB, padding:"2px 7px", borderRadius:20, background:"#F4F4F5", color:C.muted, textTransform:"uppercase", letterSpacing:"0.04em" }}>{mode}</span>
           </div>
           <div style={{ fontSize:13, fontWeight:600, fontFamily:FH, lineHeight:1.4 }}>{c.title}</div>
@@ -986,7 +986,7 @@ function CampaignCard({ campaign:c, onUpdate, onDelete, businessId, businessName
           </button>
         )}
         {c.status==="active" && mode==="auto" && !autoRunning && activeTasks.length>0 && (
-          <button onClick={()=>runTasksAuto(c)} style={{ ...btn(C.primary,"#fff",11), padding:"5px 12px" }}>▶ Resume auto-run</button>
+          <button onClick={()=>runTasksAuto(c)} style={{ ...btn(C.dark,"#fff",11), padding:"5px 12px" }}>▶ Resume auto-run</button>
         )}
         {autoRunning && (
           <button onClick={pause} style={{ ...btn(C.err,"#fff",11), padding:"5px 12px" }}>⏸ Pause</button>
@@ -1076,11 +1076,11 @@ function AddCampaignForm({ onAdd }) {
   };
 
   if (!open) return (
-    <button onClick={()=>setOpen(true)} style={{ ...btnO(C.primary,12), width:"100%", textAlign:"center", marginBottom:10 }}>+ Add campaign manually</button>
+    <button onClick={()=>setOpen(true)} style={{ ...btnO("#475569",12), width:"100%", textAlign:"center", marginBottom:10 }}>+ Add campaign manually</button>
   );
 
   return (
-    <div style={{ ...card("14px 16px"), marginBottom:12, border:`1px solid ${C.primary}20` }}>
+    <div style={{ ...card("14px 16px"), marginBottom:12 }}>
       <div style={{ fontFamily:FH, fontWeight:600, fontSize:13, marginBottom:10, display:"flex", justifyContent:"space-between" }}>
         New Campaign
         <button onClick={()=>setOpen(false)} style={{ background:"none", border:"none", cursor:"pointer", color:C.muted, fontSize:16 }}>×</button>
@@ -1126,7 +1126,7 @@ function AddCampaignForm({ onAdd }) {
       </div>
 
       <div style={{ display:"flex", gap:8 }}>
-        <button onClick={add} disabled={!title.trim()} style={{ ...btn(C.primary,"#fff",13), flex:1 }}>Add campaign</button>
+        <button onClick={add} disabled={!title.trim()} style={{ ...btn(C.dark,"#fff",13), flex:1 }}>Add campaign</button>
         <button onClick={()=>setOpen(false)} style={{ ...btnO(C.muted,13), padding:"8px 16px" }}>Cancel</button>
       </div>
     </div>
@@ -1193,7 +1193,7 @@ function ImplementResult({ result, businessId, businessName }) {
     return (
       <div style={{ background:C.okBg, borderRadius:8, padding:"8px 12px", marginTop:8 }}>
         <div style={{ fontSize:12, color:C.ok, fontFamily:FB, marginBottom:4 }}>✓ Website deployed</div>
-        <a href={result.liveUrl} target="_blank" rel="noopener noreferrer" style={{ fontSize:12, color:C.primary }}>{result.liveUrl} ↗</a>
+        <a href={result.liveUrl} target="_blank" rel="noopener noreferrer" style={{ fontSize:12, color:C.muted, textDecoration:"underline" }}>{result.liveUrl} ↗</a>
       </div>
     );
   }
@@ -1206,8 +1206,8 @@ function ImplementResult({ result, businessId, businessName }) {
         <p style={{ fontSize:13, color:C.text, fontFamily:FB, lineHeight:1.6, marginBottom:8 }}>{result.body || result.caption}</p>
         {result.hashtags && <p style={{ fontSize:11, color:C.muted, fontFamily:FB, marginBottom:10 }}>{result.hashtags}</p>}
         <div style={{ display:"flex", gap:6 }}>
-          <button onClick={()=>copy(result.body||result.caption)} style={{ ...btnO(C.primary,11), flex:1, padding:"5px 10px" }}>{copied?"Copied!":"Copy text"}</button>
-          {result.channel==="instagram" && <button onClick={publishNow} disabled={publishing} style={{ ...btn(C.primary,"#fff",11), flex:1, padding:"5px 10px" }}>{publishing?"Publishing…":"Publish to Instagram"}</button>}
+          <button onClick={()=>copy(result.body||result.caption)} style={{ ...btnO("#475569",11), flex:1, padding:"5px 10px" }}>{copied?"Copied!":"Copy text"}</button>
+          {result.channel==="instagram" && <button onClick={publishNow} disabled={publishing} style={{ ...btn(C.dark,"#fff",11), flex:1, padding:"5px 10px" }}>{publishing?"Publishing…":"Publish to Instagram"}</button>}
         </div>
       </div>
     );
@@ -1218,7 +1218,7 @@ function ImplementResult({ result, businessId, businessName }) {
       <div style={{ marginTop:8, background:"#F9FAFB", borderRadius:8, padding:"10px 12px" }}>
         <p style={{ fontSize:11, fontWeight:700, color:C.muted, textTransform:"uppercase", letterSpacing:"0.05em", marginBottom:6, fontFamily:FB }}>Action plan</p>
         <p style={{ fontSize:13, color:C.text, fontFamily:FB, lineHeight:1.6 }}>{result.actionPlan}</p>
-        <button onClick={()=>copy(result.actionPlan)} style={{ ...btnO(C.primary,10), padding:"3px 8px", marginTop:8 }}>{copied?"Copied!":"Copy plan"}</button>
+        <button onClick={()=>copy(result.actionPlan)} style={{ ...btnO("#475569",10), padding:"3px 8px", marginTop:8 }}>{copied?"Copied!":"Copy plan"}</button>
       </div>
     );
   }
@@ -1277,7 +1277,7 @@ function BrandQAPanel({ businessId }) {
         </div>
       ))}
       <div style={{ display:"flex", justifyContent:"flex-end" }}>
-        <button onClick={save} disabled={saving} style={{ ...btnO(C.primary,11), padding:"3px 10px" }}>
+        <button onClick={save} disabled={saving} style={{ ...btnO("#475569",11), padding:"3px 10px" }}>
           {saved ? "Saved ✓" : saving ? "Saving…" : "Save answers"}
         </button>
       </div>
@@ -1332,7 +1332,7 @@ function SuggestedContentCard({ item, onAddToQueue }) {
   const [added,         setAdded]         = useState(false);
 
   const TYPE_CLR = { post:"#3B82F6", update:"#10B981", article:"#8B5CF6", newsletter:"#F59E0B", schedule:"#EC4899" };
-  const clr  = TYPE_CLR[item.type] || C.primary;
+  const clr  = TYPE_CLR[item.type] || C.muted;
   const title = suggestedTitle(item.type, item.channel);
 
   const handleAdd = () => {
@@ -1344,7 +1344,7 @@ function SuggestedContentCard({ item, onAddToQueue }) {
     <div style={{ ...card("10px 12px"), marginBottom:8, border:`1px solid ${clr}25` }}>
       <div style={{ display:"flex", gap:5, alignItems:"center", marginBottom:5, flexWrap:"wrap" }}>
         <span style={{ fontSize:9, fontWeight:700, padding:"2px 7px", borderRadius:20, background:`${clr}20`, color:clr, textTransform:"uppercase", fontFamily:FB }}>{item.type}</span>
-        {item.channel && <span style={{ fontSize:9, fontWeight:600, padding:"2px 7px", borderRadius:20, background:C.primaryBg, color:C.primary, fontFamily:FB }}>{CH_LABELS[item.channel]||item.channel}</span>}
+        {item.channel && <span style={{ fontSize:9, fontWeight:600, padding:"2px 7px", borderRadius:20, background:"#F1F5F9", color:C.muted, fontFamily:FB }}>{CH_LABELS[item.channel]||item.channel}</span>}
         {item.priority && <span style={{ fontSize:9, color:PRI_CLR[item.priority]||C.muted, fontFamily:FB, marginLeft:"auto" }}>{item.priority}</span>}
       </div>
       <div style={{ fontSize:13, fontWeight:700, color:C.text, fontFamily:FH, marginBottom:3, lineHeight:1.3 }}>{title}</div>
@@ -1387,7 +1387,7 @@ function SuggestedCampaignCard({ campaign:c, agentMode, businessId, businessName
   const [showRationale, setShowRationale] = useState(false);
 
   const TYPE_CLR = { post:"#3B82F6", update:"#10B981", article:"#8B5CF6", newsletter:"#F59E0B", schedule:"#EC4899" };
-  const clr = TYPE_CLR[c.type] || C.primary;
+  const clr = TYPE_CLR[c.type] || C.muted;
 
   const composedUrl = useMemo(()=>composedBlob?URL.createObjectURL(composedBlob):null,[composedBlob]);
   useEffect(()=>()=>{ if (composedUrl) URL.revokeObjectURL(composedUrl); },[composedUrl]);
@@ -1433,7 +1433,7 @@ function SuggestedCampaignCard({ campaign:c, agentMode, businessId, businessName
         <div style={{ flex:1, paddingRight:8 }}>
           <div style={{ display:"flex", gap:5, marginBottom:4, flexWrap:"wrap", alignItems:"center" }}>
             {c.type && <span style={{ fontSize:9, fontWeight:700, padding:"2px 7px", borderRadius:20, background:`${clr}20`, color:clr, textTransform:"uppercase", fontFamily:FB }}>{c.type}</span>}
-            {c.channel && <span style={{ fontSize:9, fontWeight:600, padding:"2px 7px", borderRadius:20, background:C.primaryBg, color:C.primary, fontFamily:FB }}>{CH_LABELS[c.channel]||c.channel}</span>}
+            {c.channel && <span style={{ fontSize:9, fontWeight:600, padding:"2px 7px", borderRadius:20, background:"#F1F5F9", color:C.muted, fontFamily:FB }}>{CH_LABELS[c.channel]||c.channel}</span>}
           </div>
           <div style={{ fontSize:13, fontWeight:600, fontFamily:FH, lineHeight:1.4 }}>{c.title}</div>
         </div>
@@ -1460,10 +1460,10 @@ function SuggestedCampaignCard({ campaign:c, agentMode, businessId, businessName
         </div>
       )}
       {result && (
-        <div style={{ background:C.primaryBg, borderRadius:8, padding:"8px 10px", marginBottom:8 }}>
+        <div style={{ background:"#F8FAFC", borderRadius:8, padding:"8px 10px", marginBottom:8 }}>
           {composedUrl && <img src={composedUrl} alt="Generated" style={{ width:"100%", borderRadius:6, marginBottom:8, display:"block" }} />}
           <p style={{ fontSize:12, color:C.text, fontFamily:FB, lineHeight:1.6, marginBottom:result.hashtags?4:0, whiteSpace:"pre-wrap" }}>{result.body||result.caption}</p>
-          {result.hashtags && <p style={{ fontSize:11, color:C.primary, fontFamily:FB }}>{result.hashtags}</p>}
+          {result.hashtags && <p style={{ fontSize:11, color:C.muted, fontFamily:FB }}>{result.hashtags}</p>}
         </div>
       )}
       {error && <p style={{ fontSize:11, color:C.err, fontFamily:FB, marginBottom:6 }}>{error}</p>}
@@ -1476,7 +1476,7 @@ function SuggestedCampaignCard({ campaign:c, agentMode, businessId, businessName
         {/* Active: generate content */}
         {c.status === "active" && !result && (
           <button onClick={generate} disabled={loading}
-            style={{ ...btn(loading?"#9CA3AF":C.primary,"#fff",11), padding:"5px 12px", display:"flex", alignItems:"center", gap:5 }}>
+            style={{ ...btn(loading?"#9CA3AF":C.dark,"#fff",11), padding:"5px 12px", display:"flex", alignItems:"center", gap:5 }}>
             {loading && <span style={spin()}/>}
             {loading ? "Generating…" : "Generate"}
           </button>
@@ -1486,7 +1486,7 @@ function SuggestedCampaignCard({ campaign:c, agentMode, businessId, businessName
             <button onClick={generate} disabled={loading} style={{ ...btnO(C.muted,10), padding:"4px 10px" }}>
               {loading ? "…" : "Regenerate"}
             </button>
-            <button onClick={copy} style={{ ...btnO(C.primary,10), padding:"4px 10px" }}>{copied?"Copied!":"Copy"}</button>
+            <button onClick={copy} style={{ ...btnO("#475569",10), padding:"4px 10px" }}>{copied?"Copied!":"Copy"}</button>
             {composedBlob && <button onClick={downloadImage} style={{ ...btnO(C.muted,10), padding:"4px 10px" }}>Download</button>}
             <button onClick={()=>onUpdate({...c,status:"monitoring",completedAt:new Date().toISOString()})}
               style={{ ...btn(C.ok,"#fff",10), padding:"4px 10px", marginLeft:"auto" }}>
@@ -1646,7 +1646,7 @@ function ContentLab({ businessId, businessName, plan }) {
   return (
     <>
     {showPlans && <PlansModalMA highlightPlan="pro" onClose={()=>setShowPlans(false)} />}
-    <div style={{ ...card("0"), marginBottom:20, overflow:"hidden", border:`1px solid ${C.primary}20`, borderRadius:12 }}>
+    <div style={{ ...card("0"), marginBottom:20, overflow:"hidden", borderRadius:12 }}>
       {/* Header */}
       <button onClick={() => isStarter ? setShowPlans(true) : setOpen(o => !o)} style={{
         width:"100%", border:"none", cursor:"pointer",
@@ -1693,7 +1693,7 @@ function ContentLab({ businessId, businessName, plan }) {
                 style={{ ...inp({ fontSize:12 }), width:"100%" }} />
             </div>
             <button onClick={generate} disabled={loading || !context.trim()}
-              style={{ ...btn(loading ? "#9CA3AF" : C.primary, "#fff", 12), padding:"8px 18px",
+              style={{ ...btn(loading ? "#9CA3AF" : C.dark, "#fff", 12), padding:"8px 18px",
                 display:"flex", alignItems:"center", gap:6, whiteSpace:"nowrap" }}>
               {loading && <div style={spin()} />}
               {loading ? "Generating…" : "Generate"}
@@ -1723,14 +1723,14 @@ function ContentLab({ businessId, businessName, plan }) {
                         </button>
                       </>
                     ) : (
-                      <div style={{ ...card("18px 12px"), background:"#EFF6FF", border:`1px solid ${C.primary}30`, borderRadius:8, textAlign:"center" }}>
+                      <div style={{ ...card("18px 12px"), background:"#F8FAFC", border:`1px solid ${C.border}`, borderRadius:8, textAlign:"center" }}>
                         <div style={{ fontSize:28, marginBottom:8 }}>🎬</div>
                         <div style={{ fontSize:12, color:C.text, fontFamily:FB, marginBottom:12, lineHeight:1.5 }}>
                           {result.slides.length} slides ready<br/>
                           <span style={{ fontSize:11, color:C.muted }}>~{result.slides.length * 4}s video</span>
                         </div>
                         <button onClick={createVideo} disabled={videoLoading}
-                          style={{ ...btn(videoLoading ? "#9CA3AF" : C.primary,"#fff",12), padding:"7px 18px",
+                          style={{ ...btn(videoLoading ? "#9CA3AF" : C.dark,"#fff",12), padding:"7px 18px",
                             display:"inline-flex", alignItems:"center", gap:6 }}>
                           {videoLoading && <div style={spin()} />}
                           {videoLoading ? "Rendering…" : "Create Video"}
@@ -1754,7 +1754,7 @@ function ContentLab({ businessId, businessName, plan }) {
                       <div style={{ display:"flex", flexDirection:"column", gap:6 }}>
                         {result.slides.map((sl, i) => (
                           <div key={i} style={{ display:"flex", gap:8, alignItems:"flex-start" }}>
-                            <span style={{ fontSize:10, fontWeight:700, color:C.primary, fontFamily:FB, minWidth:18, paddingTop:1 }}>{i + 1}</span>
+                            <span style={{ fontSize:10, fontWeight:700, color:C.muted, fontFamily:FB, minWidth:18, paddingTop:1 }}>{i + 1}</span>
                             <div>
                               <div style={{ fontSize:12, fontWeight:600, color:C.text, fontFamily:FH }}>{sl.headline}</div>
                               {sl.subtext && <div style={{ fontSize:11, color:C.muted, fontFamily:FB, marginTop:1 }}>{sl.subtext}</div>}
@@ -1871,7 +1871,7 @@ function ContentLab({ businessId, businessName, plan }) {
                             }
                             setPosting(false);
                           }}
-                          style={{ ...btn(postResult?.success ? C.ok : posting ? "#9CA3AF" : C.primary,"#fff",11), padding:"5px 14px", display:"flex", alignItems:"center", gap:6 }}>
+                          style={{ ...btn(postResult?.success ? C.ok : posting ? "#9CA3AF" : C.dark,"#fff",11), padding:"5px 14px", display:"flex", alignItems:"center", gap:6 }}>
                           {posting && <span style={{ ...spin(), width:10, height:10, borderWidth:1.5 }}/>}
                           {postResult?.success ? "Posted!" : posting ? "Posting…" : `Post to ${channelOpt?.label||channel}`}
                         </button>
@@ -1964,7 +1964,7 @@ function ContentSchedulePanel({ businessId, businessName }) {
     <div style={{ paddingTop:12 }}>
       <div style={{ display:"flex", gap:8, alignItems:"center", flexWrap:"wrap", marginBottom:12 }}>
         <button onClick={generate} disabled={loading}
-          style={{ ...btn(loading?"#9CA3AF":C.primary,"#fff",12), padding:"8px 18px", display:"flex", alignItems:"center", gap:6 }}>
+          style={{ ...btn(loading?"#9CA3AF":C.dark,"#fff",12), padding:"8px 18px", display:"flex", alignItems:"center", gap:6 }}>
           {loading&&<div style={spin()}/>}
           {loading?"Generating…":schedule?"Regenerate 30-day schedule":"Generate 30-day schedule"}
         </button>
@@ -1995,8 +1995,8 @@ function ContentSchedulePanel({ businessId, businessName }) {
       {schedule && (
         <div>
           {schedule.strategy && (
-            <div style={{ ...card("10px 12px"), background:C.primaryBg, border:`1px solid ${C.primary}20`, marginBottom:10, fontSize:12, color:C.text, fontFamily:FB, lineHeight:1.6 }}>
-              <span style={{ fontWeight:700, color:C.primary }}>Strategy: </span>{schedule.strategy}
+            <div style={{ ...card("10px 12px"), background:"#F8FAFC", border:`1px solid ${C.border}`, marginBottom:10, fontSize:12, color:C.text, fontFamily:FB, lineHeight:1.6 }}>
+              <span style={{ fontWeight:700, color:C.muted }}>Strategy:</span>{schedule.strategy}
             </div>
           )}
           {(schedule.weeks||[]).map((w,wi)=>(
@@ -2010,7 +2010,7 @@ function ContentSchedulePanel({ businessId, businessName }) {
                 <div>
                   <span style={{ fontFamily:FH, fontWeight:700, fontSize:12, color:C.text }}>Week {wi+1}</span>
                   {w.dateRange&&<span style={{ fontSize:11, color:C.muted, fontFamily:FB, marginLeft:8 }}>{w.dateRange}</span>}
-                  {w.theme&&<span style={{ fontSize:11, color:C.primary, fontFamily:FB, marginLeft:8 }}>• {w.theme}</span>}
+                  {w.theme&&<span style={{ fontSize:11, color:C.muted, fontFamily:FB, marginLeft:8 }}>• {w.theme}</span>}
                 </div>
                 <span style={{ fontSize:10, color:C.muted }}>{openWeeks.has(wi)?"▲":"▼"} {(w.posts||[]).length} posts</span>
               </button>
@@ -2020,7 +2020,7 @@ function ContentSchedulePanel({ businessId, businessName }) {
                     <div key={pi} style={{ padding:"10px 12px", borderBottom: pi<(w.posts.length-1)?`1px solid ${C.border}`:"none", background: pi%2===0?"#fff":"#FAFAFA" }}>
                       <div style={{ display:"flex", gap:6, alignItems:"center", marginBottom:4, flexWrap:"wrap" }}>
                         <span style={{ fontSize:10, fontWeight:700, color:C.muted, fontFamily:FB }}>{p.day}</span>
-                        <span style={{ fontSize:10, background:C.primaryBg, color:C.primary, padding:"1px 6px", borderRadius:10, fontFamily:FB }}>{CH_LABELS[p.channel]||p.channel}</span>
+                        <span style={{ fontSize:10, background:"#F1F5F9", color:C.muted, padding:"1px 6px", borderRadius:10, fontFamily:FB }}>{CH_LABELS[p.channel]||p.channel}</span>
                         <span style={{ fontSize:10, color:C.muted, fontFamily:FB, textTransform:"capitalize" }}>{p.format}</span>
                       </div>
                       <div style={{ fontSize:12, fontWeight:600, color:C.text, fontFamily:FH, marginBottom:3 }}>{p.headline}</div>
@@ -2068,7 +2068,7 @@ function MarketInsightCard({ campaign:c, businessId, onUpdate, onDelete }) {
     <div style={{ ...card("12px 14px"), marginBottom:10, border:"1px solid #8B5CF620", background: c.status==="archived" ? "#F9F9F9" : "#F5F3FF" }}>
       <div style={{ display:"flex", gap:6, marginBottom:6, flexWrap:"wrap", alignItems:"center" }}>
         <span style={{ fontSize:9, fontWeight:700, background:"#8B5CF6", color:"#fff", padding:"2px 8px", borderRadius:20, textTransform:"uppercase", letterSpacing:"0.06em", fontFamily:FB }}>Market Insight</span>
-        {c.channel&&<span style={{ background:C.primaryBg, color:C.primary, fontSize:9, fontWeight:600, padding:"2px 8px", borderRadius:20, fontFamily:FB }}>{CH_LABELS[c.channel]||c.channel}</span>}
+        {c.channel&&<span style={{ background:"#F1F5F9", color:C.muted, fontSize:9, fontWeight:600, padding:"2px 8px", borderRadius:20, fontFamily:FB }}>{CH_LABELS[c.channel]||c.channel}</span>}
         <span style={{ fontSize:9, fontWeight:700, padding:"2px 7px", borderRadius:20, background:statusBadgeClr+"18", color:statusBadgeClr, textTransform:"uppercase", fontFamily:FB }}>{c.status||"planned"}</span>
         <button onClick={()=>onDelete(c.id)} style={{ background:"none", border:"none", cursor:"pointer", color:C.muted, fontSize:18, padding:"0 2px", lineHeight:1, marginLeft:"auto" }}>×</button>
       </div>
@@ -2210,12 +2210,12 @@ function QuickCreatePanel({ businessId, businessName, plan, agentMode }) {
           <button key={t.id} onClick={()=>selectType(t.id)} style={{
             fontSize:11, fontWeight:600, fontFamily:FB,
             padding:"7px 13px", borderRadius:20, cursor:"pointer", position:"relative",
-            border: activeType===t.id ? `1.5px solid ${C.primary}` : `1.5px solid ${C.border}`,
-            background: activeType===t.id ? C.primaryBg : "#fff",
-            color: activeType===t.id ? C.primary : C.muted,
+            border: activeType===t.id ? `1.5px solid ${C.text}` : `1.5px solid ${C.border}`,
+            background: activeType===t.id ? "#F1F5F9" : "#fff",
+            color: activeType===t.id ? C.text : C.muted,
           }}>
             {t.label}
-            {t.proOnly && isStarter && <span style={{ position:"absolute", top:-6, right:-4, fontSize:8, background:"#2563EB", color:"#fff", borderRadius:8, padding:"1px 4px", fontWeight:700 }}>PRO</span>}
+            {t.proOnly && isStarter && <span style={{ position:"absolute", top:-6, right:-4, fontSize:8, background:C.dark, color:"#fff", borderRadius:8, padding:"1px 4px", fontWeight:700 }}>PRO</span>}
           </button>
         ))}
       </div>
@@ -2231,7 +2231,7 @@ function QuickCreatePanel({ businessId, businessName, plan, agentMode }) {
           {isStarter ? (
             <div style={{ textAlign:"center", padding:"8px 0" }}>
               <div style={{ fontSize:13, color:C.muted, fontFamily:FB, marginBottom:10 }}>Quick Create requires a Pro plan.</div>
-              <button onClick={()=>navigate("/pricing")} style={{ ...btn(C.primary,"#fff",12), padding:"7px 20px" }}>Upgrade to Pro</button>
+              <button onClick={()=>navigate("/pricing")} style={{ ...btn(C.dark,"#fff",12), padding:"7px 20px" }}>Upgrade to Pro</button>
             </div>
           ) : (
             <>
@@ -2262,7 +2262,7 @@ function QuickCreatePanel({ businessId, businessName, plan, agentMode }) {
                     style={{ ...inp({ fontSize:12 }), width:"100%" }} />
                 </div>
                 <button onClick={generate} disabled={loading||!context.trim()}
-                  style={{ ...btn(loading?"#9CA3AF":C.primary,"#fff",12), padding:"8px 18px", display:"flex", alignItems:"center", gap:6, whiteSpace:"nowrap" }}>
+                  style={{ ...btn(loading?"#9CA3AF":C.dark,"#fff",12), padding:"8px 18px", display:"flex", alignItems:"center", gap:6, whiteSpace:"nowrap" }}>
                   {loading&&<div style={spin()}/>}
                   {loading?"Generating…":"Generate"}
                 </button>
@@ -2293,7 +2293,7 @@ function QuickCreatePanel({ businessId, businessName, plan, agentMode }) {
                             <div style={{ fontSize:20, marginBottom:6 }}>🎬</div>
                             <div style={{ fontSize:11, color:C.muted, fontFamily:FB, marginBottom:10 }}>{result.slides.length} slides ready</div>
                             <button onClick={createVideo} disabled={videoLoading}
-                              style={{ ...btn(videoLoading?"#9CA3AF":C.primary,"#fff",11), padding:"6px 14px", display:"inline-flex", alignItems:"center", gap:6 }}>
+                              style={{ ...btn(videoLoading?"#9CA3AF":C.dark,"#fff",11), padding:"6px 14px", display:"inline-flex", alignItems:"center", gap:6 }}>
                               {videoLoading&&<div style={spin()}/>}
                               {videoLoading?"Rendering…":"Create Video"}
                             </button>
@@ -2376,7 +2376,7 @@ function QuickCreatePanel({ businessId, businessName, plan, agentMode }) {
                               } catch(e) { setPostResult({success:false,msg:e.message||"Post failed"}); }
                               setPosting(false);
                             }}
-                            style={{ ...btn(postResult?.success?"#6B7280":posting?"#9CA3AF":C.primary,"#fff",11), padding:"5px 14px", marginTop:10, display:"flex", alignItems:"center", gap:6 }}>
+                            style={{ ...btn(postResult?.success?"#6B7280":posting?"#9CA3AF":C.dark,"#fff",11), padding:"5px 14px", marginTop:10, display:"flex", alignItems:"center", gap:6 }}>
                             {posting&&<span style={{...spin(),width:10,height:10,borderWidth:1.5}}/>}
                             {postResult?.success?"Posted!":posting?"Posting…":`Post to ${channelOpt?.label||channel}`}
                           </button>
@@ -2715,7 +2715,7 @@ export default function AgentPanel({ businessId, businessName, metrics, planInfo
             : connectedChannels.length > 0 && (
               <div style={{ display:"flex", gap:5, flexWrap:"wrap", marginBottom:12 }}>
                 {connectedChannels.map(ch=>(
-                  <span key={ch} style={{ fontSize:10, fontWeight:600, fontFamily:FB, padding:"3px 9px", borderRadius:20, background:C.primaryBg, color:C.primary }}>{CH_LABELS[ch]||ch} ✓</span>
+                  <span key={ch} style={{ fontSize:10, fontWeight:600, fontFamily:FB, padding:"3px 9px", borderRadius:20, background:"#F1F5F9", color:C.muted }}>{CH_LABELS[ch]||ch} ✓</span>
                 ))}
               </div>
             )
@@ -2728,13 +2728,13 @@ export default function AgentPanel({ businessId, businessName, metrics, planInfo
               <BrandQAPanel businessId={businessId} />
               {overview ? (
                 <div>
-                  <div style={{ ...card("12px 14px"), background:C.primaryBg, border:`1px solid ${C.primary}20`, marginBottom:12 }}>
+                  <div style={{ ...card("12px 14px"), background:"#F8FAFC", marginBottom:12 }}>
                     <p style={{ fontSize:14, fontWeight:600, fontFamily:FH, marginBottom:4 }}>{overview.headline}</p>
                     <p style={{ fontSize:13, color:C.muted, fontFamily:FB, lineHeight:1.6 }}>{overview.summary}</p>
                   </div>
                   {overview.channelNotes?.map((n,i)=>(
                     <div key={i} style={{ ...card("10px 12px"), marginBottom:6, border:`1px solid ${C.border}` }}>
-                      <span style={{ fontSize:11, fontWeight:700, color:C.primary, fontFamily:FB }}>{CH_LABELS[n.channel]||n.channel}: </span>
+                      <span style={{ fontSize:11, fontWeight:700, color:C.muted, fontFamily:FB }}>{CH_LABELS[n.channel]||n.channel}: </span>
                       <span style={{ fontSize:12, color:C.text, fontFamily:FB }}>{n.note}</span>
                     </div>
                   ))}
@@ -2802,11 +2802,11 @@ export default function AgentPanel({ businessId, businessName, metrics, planInfo
               )}
 
               {running && (
-                <div style={{ ...card("12px"), marginBottom:12, background:C.primaryBg, border:`1px solid ${C.primary}15` }}>
+                <div style={{ ...card("12px"), marginBottom:12, background:"#F8FAFC" }}>
                   {["Collecting channel data","Running market analysis","Generating campaign suggestions","Preparing content previews"].map((s,i)=>(
                     <div key={i} style={{ display:"flex", gap:8, alignItems:"center", padding:"4px 0", opacity:0.55+i*0.12 }}>
-                      <div style={{ width:4, height:4, borderRadius:"50%", background:C.primary, flexShrink:0 }} />
-                      <span style={{ fontSize:12, color:C.primary, fontFamily:FB }}>{s}</span>
+                      <div style={{ width:4, height:4, borderRadius:"50%", background:C.muted, flexShrink:0 }} />
+                      <span style={{ fontSize:12, color:C.muted, fontFamily:FB }}>{s}</span>
                     </div>
                   ))}
                 </div>
