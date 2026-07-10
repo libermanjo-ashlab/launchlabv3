@@ -107,9 +107,9 @@ const MANUAL_TASK_TEMPLATES = [
   { name:"Create Social Media Accounts",category:"Marketing",description:"Set up Instagram, TikTok, and Facebook business profiles",        canAutomate:false },
 ];
 
-function AddTaskModal({ businessId, onAdd, onClose }) {
+function AddTaskModal({ businessId, onAdd, onClose, isStarterPlan }) {
   const [tab, setTab]       = useState("templates");
-  const [custom, setCustom] = useState({ name:"", description:"", category:"Operations", canAutomate:false });
+  const [custom, setCustom] = useState({ name:"", description:"", category:"Operations" });
   const [saving, setSaving] = useState(false);
 
   const add = async (template) => {
@@ -136,7 +136,8 @@ function AddTaskModal({ businessId, onAdd, onClose }) {
 
         {tab === "templates" && (
           <div>
-            <div style={{ fontSize:11, fontWeight:700, color:C.muted, textTransform:"uppercase", letterSpacing:"0.08em", marginBottom:10 }}>Auto-generate these instantly</div>
+            {!isStarterPlan && <div style={{ fontSize:11, fontWeight:700, color:C.muted, textTransform:"uppercase", letterSpacing:"0.08em", marginBottom:10 }}>Auto-generate these instantly</div>}
+            {isStarterPlan && <div style={{ fontSize:11, fontWeight:700, color:C.muted, textTransform:"uppercase", letterSpacing:"0.08em", marginBottom:10 }}>Output templates — complete manually</div>}
             <div style={{ display:"flex", flexDirection:"column", gap:8, marginBottom:20 }}>
               {AUTO_TASK_TEMPLATES.map(t => (
                 <div key={t.name} style={{ display:"flex", justifyContent:"space-between", alignItems:"center", padding:"12px 14px", borderRadius:10, border:`1px solid ${C.border}`, background:C.bg }}>
@@ -178,10 +179,6 @@ function AddTaskModal({ businessId, onAdd, onClose }) {
               <select style={{ ...inp(), appearance:"none" }} value={custom.category} onChange={e=>setCustom(p=>({...p,category:e.target.value}))}>
                 {["Strategy","Marketing","Legal","Finance","Operations","Other"].map(c=><option key={c}>{c}</option>)}
               </select>
-            </div>
-            <div style={{ display:"flex", alignItems:"center", gap:10, padding:"12px 14px", borderRadius:10, border:`1px solid ${C.border}`, background:C.bg }}>
-              <input type="checkbox" id="canAutomate" checked={custom.canAutomate} onChange={e=>setCustom(p=>({...p,canAutomate:e.target.checked}))} style={{ width:16, height:16, cursor:"pointer" }} />
-              <label htmlFor="canAutomate" style={{ fontFamily:FB, fontSize:13, cursor:"pointer" }}>Auto-generate a digital output for this task</label>
             </div>
             <button onClick={()=>custom.name.trim()&&add(custom)} disabled={!custom.name.trim()||saving} style={{ ...btn(C.primary,"#fff",13) }}>Add task</button>
           </div>
@@ -327,17 +324,20 @@ function OutputViewer({ outputData, taskName }) {
   );
 }
 
-function TaskCard({ task, businessId, outputs, onUpdate, onDelete }) {
-  const [expanded,  setExpanded]  = useState(false);
-  const [running,   setRunning]   = useState(false);
-  const [uploading, setUploading] = useState(false);
-  const [textInput, setTextInput] = useState("");
-  const [viewOutput,setViewOutput]= useState(false);
-  const [error,     setError]     = useState("");
+function TaskCard({ task, businessId, outputs, onUpdate, onDelete, isStarterPlan }) {
+  const [expanded,     setExpanded]     = useState(false);
+  const [running,      setRunning]      = useState(false);
+  const [uploading,    setUploading]    = useState(false);
+  const [textInput,    setTextInput]    = useState("");
+  const [viewOutput,   setViewOutput]   = useState(false);
+  const [error,        setError]        = useState("");
+  const [steps,        setSteps]        = useState(null);
+  const [stepsLoading, setStepsLoading] = useState(false);
   const fileRef = useRef();
 
-  const outputData    = task.outputData;
-  const hasOutput     = !!extractOutput(outputData);
+  const outputData = task.outputData;
+  const hasOutput  = !!extractOutput(outputData);
+  const canAuto    = task.canAutomate && !isStarterPlan;
 
   const generate = async () => {
     setRunning(true); setError("");
@@ -392,10 +392,31 @@ function TaskCard({ task, businessId, outputs, onUpdate, onDelete }) {
     setUploading(false);
   };
 
+  const getSteps = async () => {
+    setStepsLoading(true);
+    try {
+      const q = `Give 4-5 concise numbered action steps to complete this task for a small business: "${task.name}"${task.description ? ` — ${task.description}` : ""}. Be specific and practical.`;
+      const { suggestion } = await api.metrics.suggest(businessId, q, {});
+      setSteps(suggestion || "No guidance available.");
+    } catch { setSteps("Unable to load guidance — check your connection."); }
+    setStepsLoading(false);
+  };
+
   const markDone = async () => {
-    if (!extractOutput(outputData)) return;
     await api.tasks.update(task.id, { status:"done" }).catch(()=>{});
     onUpdate({ ...task, status:"done" });
+  };
+
+  const saveOutputAndComplete = async () => {
+    if (!textInput.trim()) { await markDone(); return; }
+    setUploading(true);
+    try {
+      const od = { type:"text", content:textInput.trim(), uploadedAt:new Date().toISOString() };
+      await api.tasks.update(task.id, { outputData:od, status:"done" });
+      onUpdate({ ...task, outputData:od, status:"done" });
+      setTextInput("");
+    } catch(e) { setError(e.message); }
+    setUploading(false);
   };
 
   const markTodo = async () => {
@@ -442,7 +463,7 @@ function TaskCard({ task, businessId, outputs, onUpdate, onDelete }) {
           <div style={{ display:"flex", alignItems:"center", gap:8, flexWrap:"wrap" }}>
             <span style={{ fontFamily:FB, fontWeight:600, fontSize:13, textDecoration:status==="done"?"line-through":"none", color:status==="done"?C.muted:C.text }}>{task.name}</span>
             <span style={{ background:(statusColor[status]||C.muted)+"18", color:statusColor[status]||C.muted, fontSize:9, fontWeight:700, padding:"2px 7px", borderRadius:20, textTransform:"uppercase", letterSpacing:"0.06em", fontFamily:FB }}>{statusLabel[status]||status}</span>
-            {task.canAutomate && status!=="done" && <span style={{ background:C.primaryBg, color:C.primary, fontSize:9, fontWeight:700, padding:"2px 7px", borderRadius:20, textTransform:"uppercase", letterSpacing:"0.04em", fontFamily:FB }}>Auto</span>}
+            {canAuto && status!=="done" && <span style={{ background:C.primaryBg, color:C.primary, fontSize:9, fontWeight:700, padding:"2px 7px", borderRadius:20, textTransform:"uppercase", letterSpacing:"0.04em", fontFamily:FB }}>Auto</span>}
             <span style={{ fontSize:9, fontWeight:600, color:C.subtle, textTransform:"uppercase", letterSpacing:"0.06em", fontFamily:FB, background:C.bg, padding:"2px 7px", borderRadius:20 }}>{task.category}</span>
           </div>
           {task.description && <div style={{ fontSize:12, color:C.muted, marginTop:3, fontFamily:FB }}>{task.description}</div>}
@@ -456,11 +477,12 @@ function TaskCard({ task, businessId, outputs, onUpdate, onDelete }) {
       {expanded && (
         <div style={{ borderTop:`1px solid ${C.border}`, padding:"14px 16px", background:C.bg }}>
           {error && <div style={{ background:C.errBg, border:`1px solid ${C.err}25`, borderRadius:8, padding:"8px 12px", fontSize:12, color:C.err, fontFamily:FB, marginBottom:12 }}>{error}</div>}
+          <input ref={fileRef} type="file" style={{ display:"none" }} onChange={e=>e.target.files[0]&&saveFileOutput(e.target.files[0])} />
 
-          {/* Auto generate */}
-          {task.canAutomate && status !== "done" && (
+          {/* ── AUTO mode (template tasks on non-starter plans) ── */}
+          {canAuto && status !== "done" && (
             <div style={{ marginBottom:14 }}>
-              <button onClick={generate} disabled={running||status==="running"} style={{ ...btn(running||status==="running"?"#9CA3AF":C.grad,"#fff",12), display:"flex", alignItems:"center", gap:8, marginBottom:4 }}>
+              <button onClick={generate} disabled={running||status==="running"} style={{ ...btn(running||status==="running"?"#9CA3AF":C.dark,"#fff",12), display:"flex", alignItems:"center", gap:8, marginBottom:4 }}>
                 {(running||status==="running")&&<span style={{ width:11,height:11,borderRadius:"50%",border:"2px solid rgba(255,255,255,0.4)",borderTopColor:"#fff",animation:"spin 0.7s linear infinite" }}/>}
                 {running||status==="running" ? "Generating…" : "Auto-generate"}
               </button>
@@ -468,12 +490,47 @@ function TaskCard({ task, businessId, outputs, onUpdate, onDelete }) {
             </div>
           )}
 
-          {/* Upload output */}
-          {status !== "done" && (
+          {/* ── MANUAL mode: guidance steps + output ── */}
+          {!canAuto && status !== "done" && (
+            <>
+              {/* Action steps */}
+              <div style={{ marginBottom:14 }}>
+                <button onClick={getSteps} disabled={stepsLoading} style={{ ...btnO(C.primary,12), padding:"7px 14px", marginBottom: steps ? 10 : 0 }}>
+                  {stepsLoading ? "Loading…" : steps ? "Refresh steps" : "Get action steps"}
+                </button>
+                {steps && (
+                  <div style={{ background:"#FFFBEB", border:"1px solid #FDE68A", borderRadius:8, padding:"12px 14px", marginTop:8 }}>
+                    <div style={{ fontSize:10, fontWeight:700, color:"#92400E", fontFamily:FB, textTransform:"uppercase", letterSpacing:"0.05em", marginBottom:8 }}>How to complete this task</div>
+                    <div style={{ fontSize:12, color:"#374151", fontFamily:FB, lineHeight:1.65, whiteSpace:"pre-wrap" }}>{steps}</div>
+                  </div>
+                )}
+              </div>
+
+              {/* Output input */}
+              <div style={{ marginBottom:12 }}>
+                <label style={{ ...lbl, marginBottom:6 }}>Record output (optional — saves to Hub/Files)</label>
+                <div style={{ display:"flex", gap:8, marginBottom:8 }}>
+                  <button onClick={()=>fileRef.current?.click()} disabled={uploading} style={{ ...btnO(C.primary,12), padding:"7px 14px" }}>Upload file</button>
+                </div>
+                <textarea value={textInput} onChange={e=>setTextInput(e.target.value)} placeholder="Paste notes, a link, or any output to save to Hub/Files…" style={{ ...inp({ height:70, resize:"vertical" }) }} />
+              </div>
+
+              {/* Complete actions */}
+              <div style={{ display:"flex", gap:8, flexWrap:"wrap", alignItems:"center" }}>
+                <button onClick={saveOutputAndComplete} disabled={uploading} style={{ ...btn(C.ok,"#fff",12), padding:"7px 16px" }}>
+                  {textInput.trim() ? "Save output & mark done" : "Mark done"}
+                </button>
+                <button onClick={()=>onDelete(task.id)} style={{ ...btnO(C.err,12), padding:"7px 12px" }}>Remove</button>
+                {textInput.trim() && <span style={{ fontSize:11, color:C.muted, fontFamily:FB }}>Output saved to Hub/Files</span>}
+              </div>
+            </>
+          )}
+
+          {/* ── AUTO: upload section (when canAuto) ── */}
+          {canAuto && status !== "done" && (
             <div style={{ marginBottom:14 }}>
               <label style={{ ...lbl, marginBottom:6 }}>Upload output (file or paste text)</label>
               <div style={{ display:"flex", gap:8, marginBottom:8 }}>
-                <input ref={fileRef} type="file" style={{ display:"none" }} onChange={e=>e.target.files[0]&&saveFileOutput(e.target.files[0])} />
                 <button onClick={()=>fileRef.current?.click()} disabled={uploading} style={{ ...btnO(C.primary,12), padding:"8px 14px" }}>Upload file</button>
               </div>
               <textarea value={textInput} onChange={e=>setTextInput(e.target.value)} placeholder="Or paste text, notes, a link, or any output…" style={{ ...inp({ height:80, resize:"vertical" }) }} />
@@ -481,38 +538,38 @@ function TaskCard({ task, businessId, outputs, onUpdate, onDelete }) {
             </div>
           )}
 
-          {/* View existing output */}
+          {/* View existing output (all modes) */}
           {hasOutput && (
             <div style={{ marginBottom:12 }}>
-              <div style={{ display:"flex", gap:8, marginBottom:12 }}>
+              <div style={{ display:"flex", gap:8, marginBottom:10 }}>
                 <button onClick={()=>setViewOutput(p=>!p)} style={{ ...btnO(C.primary,12), padding:"7px 12px" }}>{viewOutput?"Hide output":"View output"}</button>
                 <button onClick={downloadOutput} style={{ ...btnO(C.ok,12), padding:"7px 12px" }}>Download</button>
-                {status === "done" && (
-                  <button onClick={()=>fileRef.current?.click()} disabled={uploading} style={{ ...btnO(C.muted,12), padding:"7px 12px" }}>Reupload</button>
-                )}
               </div>
               {viewOutput && <OutputViewer outputData={outputData} taskName={task.name} />}
             </div>
           )}
 
-          {/* Re-upload if done */}
-          {status === "done" && (
-            <div style={{ display:"flex", gap:8 }}>
-              <textarea value={textInput} onChange={e=>setTextInput(e.target.value)} placeholder="Replace output with new text…" style={{ ...inp({ height:60, resize:"vertical", flex:1 }) }} />
-              {textInput.trim() && <button onClick={saveTextOutput} disabled={uploading} style={{ ...btn(C.primary,"#fff",12), alignSelf:"flex-end" }}>Save</button>}
+          {/* AUTO: mark complete (requires output) */}
+          {canAuto && status !== "done" && (
+            <div style={{ display:"flex", gap:8, flexWrap:"wrap" }}>
+              {hasOutput && <button onClick={markDone} style={{ ...btn(C.ok,"#fff",12), padding:"7px 14px" }}>Mark complete</button>}
+              <button onClick={()=>onDelete(task.id)} style={{ ...btnO(C.err,12), padding:"7px 12px" }}>Remove task</button>
             </div>
           )}
 
-          {/* Actions */}
-          <div style={{ display:"flex", gap:8, marginTop:4, flexWrap:"wrap" }}>
-            {status !== "done" && hasOutput && (
-              <button onClick={markDone} style={{ ...btn(C.ok,"#fff",12), padding:"7px 14px" }}>Mark complete</button>
-            )}
-            {status === "done" && (
-              <button onClick={markTodo} style={{ ...btnO(C.muted,12), padding:"7px 12px" }}>Reopen</button>
-            )}
-            <button onClick={()=>onDelete(task.id)} style={{ ...btnO(C.err,12), padding:"7px 12px" }}>Remove task</button>
-          </div>
+          {/* Done state (all modes) */}
+          {status === "done" && (
+            <>
+              <div style={{ marginBottom:10 }}>
+                <textarea value={textInput} onChange={e=>setTextInput(e.target.value)} placeholder="Add or replace output…" style={{ ...inp({ height:60, resize:"vertical" }) }} />
+                {textInput.trim() && <button onClick={saveTextOutput} disabled={uploading} style={{ ...btn(C.primary,"#fff",12), marginTop:6 }}>Save to Hub/Files</button>}
+              </div>
+              <div style={{ display:"flex", gap:8, flexWrap:"wrap" }}>
+                <button onClick={markTodo} style={{ ...btnO(C.muted,12), padding:"7px 12px" }}>Reopen</button>
+                <button onClick={()=>onDelete(task.id)} style={{ ...btnO(C.err,12), padding:"7px 12px" }}>Remove task</button>
+              </div>
+            </>
+          )}
         </div>
       )}
     </div>
@@ -581,7 +638,7 @@ function StickyNoteChip({ note, onUnstick }) {
   );
 }
 
-function TaskRowWrapper({ task, businessId, businessName, outputs, onUpdate, onDelete, selectable, selected, onToggleSelect, stickyNote, onAssignSticky, onUnstickNote }) {
+function TaskRowWrapper({ task, businessId, businessName, outputs, onUpdate, onDelete, selectable, selected, onToggleSelect, stickyNote, onAssignSticky, onUnstickNote, isStarterPlan }) {
   const [editing,  setEditing]  = useState(false);
   const [eName,    setEName]    = useState(task.name);
   const [eDesc,    setEDesc]    = useState(task.description || "");
@@ -636,7 +693,7 @@ function TaskRowWrapper({ task, businessId, businessName, outputs, onUpdate, onD
           <CampaignTaskCard task={task} />
         ) : (
           <div style={{ position:"relative" }}>
-            <TaskCard task={task} businessId={businessId} outputs={outputs} onUpdate={onUpdate} onDelete={onDelete} />
+            <TaskCard task={task} businessId={businessId} outputs={outputs} onUpdate={onUpdate} onDelete={onDelete} isStarterPlan={isStarterPlan} />
             {/* Edit pencil — top-right of card header */}
             <button onClick={e=>{e.stopPropagation();setEditing(true);}}
               title="Edit task"
@@ -652,7 +709,7 @@ function TaskRowWrapper({ task, businessId, businessName, outputs, onUpdate, onD
 }
 
 // ── Campaign group accordion ──────────────────────────────────────────────────
-function CampaignGroup({ title, tasks, businessId, businessName, outputs, onUpdate, onDelete, selectable, selected, onToggleSelect, hubNotes, stickyAssignments, onAssignSticky, onUnstickNote }) {
+function CampaignGroup({ title, tasks, businessId, businessName, outputs, onUpdate, onDelete, selectable, selected, onToggleSelect, hubNotes, stickyAssignments, onAssignSticky, onUnstickNote, isStarterPlan }) {
   const [open, setOpen] = useState(true);
   const done  = tasks.filter(t=>t.status==="done").length;
   return (
@@ -672,7 +729,8 @@ function CampaignGroup({ title, tasks, businessId, businessName, outputs, onUpda
               <TaskRowWrapper key={t.id} task={t} businessId={businessId} businessName={businessName} outputs={outputs}
                 onUpdate={onUpdate} onDelete={onDelete}
                 selectable={selectable} selected={selected.has(t.id)} onToggleSelect={onToggleSelect}
-                stickyNote={stickyNote} onAssignSticky={onAssignSticky} onUnstickNote={onUnstickNote} />
+                stickyNote={stickyNote} onAssignSticky={onAssignSticky} onUnstickNote={onUnstickNote}
+                isStarterPlan={isStarterPlan} />
             );
           })}
         </div>
@@ -681,7 +739,7 @@ function CampaignGroup({ title, tasks, businessId, businessName, outputs, onUpda
   );
 }
 
-function TasksPanel({ businessId, businessName, businessOutputs, hubNotes, stickyAssignments, onAssignSticky, onUnstickNote, onTasksChanged }) {
+function TasksPanel({ businessId, businessName, businessOutputs, hubNotes, stickyAssignments, onAssignSticky, onUnstickNote, onTasksChanged, planInfo }) {
   const [tasks,      setTasks]      = useState([]);
   const [loading,    setLoading]    = useState(true);
   const [showAdd,    setShowAdd]    = useState(false);
@@ -689,6 +747,8 @@ function TasksPanel({ businessId, businessName, businessOutputs, hubNotes, stick
   const [selectMode, setSelectMode] = useState(false);
   const [selected,   setSelected]   = useState(new Set());
   const [bulkBusy,   setBulkBusy]   = useState(false);
+
+  const isStarterPlan = !planInfo?.isAdmin && planInfo?.plan !== "pro" && planInfo?.plan !== "pro_autopilot";
 
   useEffect(() => {
     api.tasks.list(businessId).then(d => { const t = d.tasks||[]; setTasks(t); onTasksChanged?.(t); }).catch(()=>{}).finally(()=>setLoading(false));
@@ -865,7 +925,8 @@ function TasksPanel({ businessId, businessName, businessOutputs, hubNotes, stick
               businessId={businessId} businessName={businessName} outputs={businessOutputs}
               onUpdate={onUpdate} onDelete={onDelete}
               selectable={selectMode} selected={selected} onToggleSelect={toggleSelect}
-              hubNotes={hubNotes} stickyAssignments={stickyAssignments} onAssignSticky={onAssignSticky} onUnstickNote={onUnstickNote} />
+              hubNotes={hubNotes} stickyAssignments={stickyAssignments} onAssignSticky={onAssignSticky} onUnstickNote={onUnstickNote}
+              isStarterPlan={isStarterPlan} />
           ))
         )
       ) : (
@@ -881,7 +942,8 @@ function TasksPanel({ businessId, businessName, businessOutputs, hubNotes, stick
                   businessId={businessId} businessName={businessName} outputs={businessOutputs}
                   onUpdate={onUpdate} onDelete={onDelete}
                   selectable={selectMode} selected={selected} onToggleSelect={toggleSelect}
-                  hubNotes={hubNotes} stickyAssignments={stickyAssignments} onAssignSticky={onAssignSticky} onUnstickNote={onUnstickNote} />
+                  hubNotes={hubNotes} stickyAssignments={stickyAssignments} onAssignSticky={onAssignSticky} onUnstickNote={onUnstickNote}
+                  isStarterPlan={isStarterPlan} />
               ))}
             </div>
           )}
@@ -901,7 +963,8 @@ function TasksPanel({ businessId, businessName, businessOutputs, hubNotes, stick
               <TaskRowWrapper key={t.id} task={t} businessId={businessId} businessName={businessName} outputs={businessOutputs}
                 onUpdate={onUpdate} onDelete={onDelete}
                 selectable={selectMode} selected={selected.has(t.id)} onToggleSelect={toggleSelect}
-                stickyNote={stickyNote} onAssignSticky={onAssignSticky} onUnstickNote={onUnstickNote} />
+                stickyNote={stickyNote} onAssignSticky={onAssignSticky} onUnstickNote={onUnstickNote}
+                isStarterPlan={isStarterPlan} />
             );
           })}
 
@@ -915,7 +978,8 @@ function TasksPanel({ businessId, businessName, businessOutputs, hubNotes, stick
                   <TaskRowWrapper key={t.id} task={t} businessId={businessId} businessName={businessName} outputs={businessOutputs}
                     onUpdate={onUpdate} onDelete={onDelete}
                     selectable={selectMode} selected={selected.has(t.id)} onToggleSelect={toggleSelect}
-                    stickyNote={stickyNote} onAssignSticky={onAssignSticky} onUnstickNote={onUnstickNote} />
+                    stickyNote={stickyNote} onAssignSticky={onAssignSticky} onUnstickNote={onUnstickNote}
+                    isStarterPlan={isStarterPlan} />
                 );
               })}
             </>
@@ -923,7 +987,7 @@ function TasksPanel({ businessId, businessName, businessOutputs, hubNotes, stick
         </>
       )}
 
-      {showAdd && <AddTaskModal businessId={businessId} onAdd={onAdd} onClose={()=>setShowAdd(false)} />}
+      {showAdd && <AddTaskModal businessId={businessId} onAdd={onAdd} onClose={()=>setShowAdd(false)} isStarterPlan={isStarterPlan} />}
     </div>
   );
 }
@@ -5429,7 +5493,7 @@ export default function Hub() {
           )}
 
           {/* TASKS */}
-          {tab==="tasks" && <TasksPanel businessId={businessId} businessName={business?.name||""} businessOutputs={outputs} hubNotes={hubNotes} stickyAssignments={stickyAssignments} onAssignSticky={assignSticky} onUnstickNote={unstickNote} onTasksChanged={refreshTasks}/>}
+          {tab==="tasks" && <TasksPanel businessId={businessId} businessName={business?.name||""} businessOutputs={outputs} hubNotes={hubNotes} stickyAssignments={stickyAssignments} onAssignSticky={assignSticky} onUnstickNote={unstickNote} onTasksChanged={refreshTasks} planInfo={planInfo}/>}
 
           {/* HUB / INTELLIGENCE AGENT */}
           {tab==="hub" && (
