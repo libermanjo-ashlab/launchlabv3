@@ -1728,155 +1728,184 @@ function UpgradeCard({ reason, navigate }) {
 
 // ── Instagram Panel ───────────────────────────────────────────────────────────
 
-// ── Brand & Social Identity Panel ─────────────────────────────────────────────
+// ── Social Media Presence Panel ───────────────────────────────────────────────
 
-const PILLAR_SUGGESTIONS = ["value tips", "social proof", "behind the scenes", "offers", "FAQs", "transformations", "client stories", "how-tos"];
+const SMP_MISMATCH_FIELDS = ["voice","tone","targetAudience","colorPalette","visualStyle"];
+const SMP_FIELD_LABELS = { voice:"Brand Voice", tone:"Tone", targetAudience:"Target Audience", colorPalette:"Color Palette", visualStyle:"Visual Style" };
 
-function BrandIdentityPanel({ businessId }) {
-  const [identity, setIdentity] = useState(null);
-  const [loading,  setLoading]  = useState(true);
-  const [saving,   setSaving]   = useState(false);
+function _smpWordsSimilar(a, b) {
+  if(!a||!b) return true;
+  const tok = s=>s.toLowerCase().replace(/[^\w\s]/g,"").split(/\s+/).filter(w=>w.length>2);
+  const wa=new Set(tok(a)), wb=new Set(tok(b));
+  const overlap=[...wa].filter(w=>wb.has(w)).length;
+  return overlap/Math.max(wa.size,wb.size,1)>=0.25;
+}
+
+function BrandIdentityPanel({ businessId, isPro=false, refreshTasks, onGoToMarketing }) {
+  const [identity,   setIdentity]   = useState(null);
+  const [loading,    setLoading]    = useState(true);
+  const [saving,     setSaving]     = useState(false);
   const [populating, setPopulating] = useState(false);
-  const [saved,    setSaved]    = useState(false);
-  const [expanded, setExpanded] = useState(false);
+  const [saved,      setSaved]      = useState(false);
   const savedTimerRef = useRef(null);
 
-  useEffect(() => {
+  useEffect(()=>{
     api.agents.getBrandIdentity(businessId)
-      .then(d => setIdentity(d.identity))
-      .catch(() => {})
-      .finally(() => setLoading(false));
-    return () => clearTimeout(savedTimerRef.current);
-  }, [businessId]);
+      .then(d=>setIdentity(d.identity)).catch(()=>{}).finally(()=>setLoading(false));
+    return ()=>clearTimeout(savedTimerRef.current);
+  },[businessId]);
 
-  const field = (key, label, placeholder, multiline) => {
-    const val = identity?.[key] || "";
-    return (
-      <div key={key}>
-        <label style={lbl}>{label}</label>
-        {multiline
-          ? <textarea style={{ ...inp(), minHeight:56, resize:"vertical" }} value={val}
-              onChange={e => setIdentity(p => ({...p, [key]: e.target.value}))}
-              placeholder={placeholder} />
-          : <input style={inp()} value={val}
-              onChange={e => setIdentity(p => ({...p, [key]: e.target.value}))}
-              placeholder={placeholder} />
-        }
-      </div>
-    );
-  };
+  const sources = identity?.fieldSources || {};
 
-  const save = async () => {
-    setSaving(true);
-    try {
-      const { identity: saved } = await api.agents.saveBrandIdentity(businessId, identity);
-      setIdentity(saved); setSaved(true);
-      savedTimerRef.current = setTimeout(() => setSaved(false), 2000);
-    } catch(e) { alert(e.message); }
-    setSaving(false);
-  };
+  const setField = (key, val) =>
+    setIdentity(p=>({...p,[key]:val,fieldSources:{...(p?.fieldSources||{}),[key]:"manual"}}));
 
-  const populate = async () => {
+  const populate = async()=>{
     setPopulating(true);
-    try {
-      const { identity: filled } = await api.agents.populateBrandIdentity(businessId);
-      setIdentity(filled);
-    } catch(e) { alert(e.message); }
+    const prev = identity ? {...identity} : null;
+    const prevSrc = {...(identity?.fieldSources||{})};
+    try{
+      const{identity:filled}=await api.agents.populateBrandIdentity(businessId);
+      const newSrc={};
+      for(const k of Object.keys(filled)){
+        if(k!=="fieldSources"&&filled[k]) newSrc[k]="auto";
+      }
+      // Brand mismatch detection — Pro/Pro Autopilot only
+      if(isPro&&prev&&refreshTasks){
+        for(const k of SMP_MISMATCH_FIELDS){
+          const wasManual=prevSrc[k]==="manual";
+          const prevVal=prev[k]; const newVal=filled[k];
+          if(wasManual&&prevVal&&newVal&&!_smpWordsSimilar(prevVal,newVal)){
+            try{
+              await api.tasks.create(businessId,{
+                name:`Potential Brand Mismatch: ${SMP_FIELD_LABELS[k]||k}`,
+                description:`Your current setting: "${prevVal}"\nMarketing analysis suggests: "${newVal}"\nReview both and update to ensure brand consistency.`,
+                category:"Brand",canAutomate:false,status:"pending",
+              });
+            }catch{}
+          }
+        }
+        refreshTasks();
+      }
+      setIdentity({...filled,fieldSources:newSrc});
+    }catch{}
     setPopulating(false);
   };
 
-  const presence = identity?.channelPresence;
-  const connectedChannels = presence?.channels || [];
-  const STATUS_CLR = { active: C.ok, limited: C.warn, absent: C.muted };
+  const save=async()=>{
+    setSaving(true);
+    try{
+      const{identity:s}=await api.agents.saveBrandIdentity(businessId,identity);
+      setIdentity(s); setSaved(true);
+      savedTimerRef.current=setTimeout(()=>setSaved(false),2000);
+    }catch{}
+    setSaving(false);
+  };
 
-  if (loading) return <div style={{ ...card(), marginBottom:20, color:C.muted, fontSize:13, fontFamily:FB }}>Loading brand identity…</div>;
+  // Field renderer with auto/manual color coding
+  const srcStyle=(key)=>{
+    const val=identity?.[key]||""; const src=sources[key];
+    if(!val||!src) return {};
+    return src==="auto"
+      ? {borderColor:"#6366F1",background:"#EEF2FF"}
+      : {borderColor:"#16A34A",background:"#F0FDF4"};
+  };
+  const srcTag=(key)=>{
+    const src=sources[key]; const val=identity?.[key]||"";
+    if(!val||!src) return null;
+    return <span style={{fontSize:8,fontFamily:FB,fontWeight:700,color:src==="auto"?"#6366F1":"#16A34A",textTransform:"uppercase",letterSpacing:"0.07em",marginLeft:5}}>{src==="auto"?"auto":"manual"}</span>;
+  };
+
+  const F=(key,label,placeholder,type="text")=>(
+    <div key={key}>
+      <label style={lbl}>{label}{srcTag(key)}</label>
+      {type==="textarea"
+        ?<textarea style={{...inp(),minHeight:60,resize:"vertical",...srcStyle(key)}} value={identity?.[key]||""} onChange={e=>setField(key,e.target.value)} placeholder={placeholder}/>
+        :type==="select"
+          ?<select style={{...inp(),appearance:"none",...srcStyle(key)}} value={identity?.[key]||""} onChange={e=>setField(key,e.target.value)}>
+            <option value="">Select visual style…</option>
+            <option value="abstract">Abstract</option>
+            <option value="colorful">Colorful</option>
+            <option value="busy">Busy</option>
+            <option value="minimalistic">Minimalistic</option>
+          </select>
+          :<input style={{...inp(),...srcStyle(key)}} value={identity?.[key]||""} onChange={e=>setField(key,e.target.value)} placeholder={placeholder}/>
+      }
+    </div>
+  );
+
+  const populatedDate=identity?.populatedAt?new Date(identity.populatedAt).toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"}):null;
+
+  if(loading) return <div style={{...card(),marginBottom:20,color:C.muted,fontSize:13,fontFamily:FB}}>Loading…</div>;
 
   return (
-    <div style={{ ...card("16px 18px"), marginBottom:20 }}>
-      <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:8 }}>
+    <div style={{...card("16px 18px"),marginBottom:20}}>
+      {/* Header */}
+      <div style={{display:"flex",alignItems:"flex-start",justifyContent:"space-between",marginBottom:16}}>
         <div>
-          <div style={{ fontFamily:FH, fontWeight:700, fontSize:15 }}>Brand &amp; Identity</div>
-          <div style={{ fontSize:12, color:C.muted, fontFamily:FB, marginTop:2 }}>
-            {identity?.populatedBy === "market_analysis" ? "Auto-analyzed from your channels + market data"
-             : identity?.populatedBy === "user" ? "User-defined"
-             : "Auto-filled from your business idea"}
-            {identity?.populatedAt ? ` · ${new Date(identity.populatedAt).toLocaleDateString()}` : ""}
+          <div style={{fontFamily:FH,fontWeight:700,fontSize:15}}>Social Media Presence</div>
+          <div style={{fontSize:12,color:C.muted,fontFamily:FB,marginTop:2}}>
+            {populatedDate?`From analysis on ${populatedDate}`:"Not yet analyzed — use Auto-fill to populate"}
           </div>
         </div>
-        <div style={{ display:"flex", gap:8, alignItems:"center" }}>
-          <button onClick={populate} disabled={populating}
-            style={{ ...btnO(C.primary, 11), padding:"5px 12px", display:"flex", alignItems:"center", gap:5 }}>
-            {populating && <span style={{ width:10, height:10, borderRadius:"50%", border:`1.5px solid ${C.primary}40`, borderTopColor:C.primary, animation:"spin 0.8s linear infinite", display:"inline-block" }} />}
-            {populating ? "Analyzing…" : "Auto-fill"}
-          </button>
-          <button onClick={() => setExpanded(e => !e)} style={{ ...btnO(C.muted, 11), padding:"5px 12px" }}>
-            {expanded ? "Collapse" : "Edit"}
-          </button>
+        <button onClick={populate} disabled={populating} style={{...btnO(C.primary,11),padding:"5px 12px",display:"flex",alignItems:"center",gap:5,flexShrink:0}}>
+          {populating&&<span style={{width:10,height:10,borderRadius:"50%",border:`1.5px solid ${C.primary}40`,borderTopColor:C.primary,animation:"spin 0.8s linear infinite",display:"inline-block"}}/>}
+          {populating?"Analyzing…":"Auto-fill"}
+        </button>
+      </div>
+
+      {/* Legend */}
+      <div style={{display:"flex",gap:14,marginBottom:18}}>
+        <div style={{display:"flex",alignItems:"center",gap:5}}>
+          <span style={{width:9,height:9,borderRadius:2,background:"#EEF2FF",border:"1px solid #6366F1",display:"inline-block"}}/>
+          <span style={{fontSize:10,color:C.muted,fontFamily:FB}}>Auto-filled</span>
+        </div>
+        <div style={{display:"flex",alignItems:"center",gap:5}}>
+          <span style={{width:9,height:9,borderRadius:2,background:"#F0FDF4",border:"1px solid #16A34A",display:"inline-block"}}/>
+          <span style={{fontSize:10,color:C.muted,fontFamily:FB}}>Manually set</span>
         </div>
       </div>
 
-      {/* Channel presence summary — always visible */}
-      {presence && (
-        <div style={{ marginBottom: expanded ? 16 : 0 }}>
-          <div style={{ fontSize:12, color:C.muted, fontFamily:FB, lineHeight:1.65, marginBottom:8 }}>{presence.summary}</div>
-          {connectedChannels.length > 0 && (
-            <div style={{ display:"flex", gap:8, flexWrap:"wrap", marginBottom:8 }}>
-              {connectedChannels.map(ch => (
-                <div key={ch.name} style={{ display:"flex", alignItems:"center", gap:5, background:C.surface, border:`1px solid ${C.border}`, borderRadius:20, padding:"3px 10px" }}>
-                  <span style={{ width:7, height:7, borderRadius:"50%", background:STATUS_CLR[ch.status] || C.muted, flexShrink:0 }} />
-                  <span style={{ fontSize:11, fontFamily:FB, fontWeight:600 }}>{ch.name}</span>
-                  <span style={{ fontSize:11, color:C.muted, fontFamily:FB }}>{ch.strength}</span>
-                </div>
-              ))}
-            </div>
-          )}
-          {presence.topOpportunity && (
-            <div style={{ background:C.primaryBg, border:`1px solid ${C.primary}20`, borderRadius:8, padding:"6px 10px", fontSize:12, color:C.primary, fontFamily:FB }}>
-              Opportunity: {presence.topOpportunity}
-            </div>
-          )}
-        </div>
-      )}
+      {/* Fields */}
+      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12,marginBottom:12}}>
+        {F("voice","Brand Voice","e.g. educational, direct, no-fluff")}
+        {F("tone","Tone","e.g. warm but professional, confidence-first")}
+      </div>
+      {F("targetAudience","Target Audience","Who is your ideal customer? What's their main pain point?","textarea")}
+      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12,marginTop:12}}>
+        {F("colorPalette","Color Palette","e.g. deep purple, warm gold, white")}
+        {F("visualStyle","Visual Style","","select")}
+      </div>
+      <div style={{marginTop:12}}>
+        {F("uniqueAngle","Unique Angle","What makes your content stand out from competitors?")}
+      </div>
+      <div style={{marginTop:12}}>
+        {F("competitorAccounts","Competitor / Inspiration Accounts","@handle1, @handle2 — accounts to study and learn from")}
+      </div>
 
-      {/* Editable fields — collapsed by default */}
-      {expanded && (
-        <div style={{ marginTop:16 }}>
-          <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:12, marginBottom:12 }}>
-            {field("voice", "Brand voice", "e.g. educational, direct, no-fluff")}
-            {field("tone", "Tone", "e.g. warm but professional, confidence-first")}
-          </div>
-          {field("targetAudience", "Target audience", "Who is your ideal customer? What's their main pain point?", true)}
-          <div style={{ marginTop:12, marginBottom:4 }}>
-            <label style={lbl}>Content pillars (select up to 4)</label>
-            <div style={{ display:"flex", gap:6, flexWrap:"wrap", marginTop:4 }}>
-              {PILLAR_SUGGESTIONS.map(p => {
-                const active = (identity?.contentPillars || []).includes(p);
-                return (
-                  <button key={p} onClick={() => {
-                    const cur = identity?.contentPillars || [];
-                    const next = active ? cur.filter(x=>x!==p) : cur.length<4 ? [...cur,p] : cur;
-                    setIdentity(id => ({...id, contentPillars: next}));
-                  }} style={{ ...( active ? btn(C.primary,"#fff",11) : btnO(C.muted,11) ), padding:"3px 10px" }}>{p}</button>
-                );
-              })}
-            </div>
-          </div>
-          <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:12, marginTop:12 }}>
-            {field("colorPalette", "Color palette", "e.g. deep purple, warm gold, white")}
-            {field("uniqueAngle", "Unique angle", "What makes your content different from competitors?")}
-          </div>
-          {field("visualStyle", "Visual style", "Describe the aesthetic — clean, bold, minimal, warm, dark…", true)}
-          {field("competitorAccounts", "Competitor / inspiration accounts", "@handle1, @handle2 — accounts to study")}
-          {field("postingRecommendation", "Posting recommendation", "e.g. 4x/week: 60% tips, 30% social proof, 10% offers")}
-
-          <div style={{ display:"flex", justifyContent:"flex-end", marginTop:16 }}>
-            <button onClick={save} disabled={saving}
-              style={{ ...btn(saving ? "#9CA3AF" : C.primary, "#fff", 13), padding:"8px 20px" }}>
-              {saved ? "Saved ✓" : saving ? "Saving…" : "Save changes"}
-            </button>
-          </div>
+      {/* Marketing Strategy — large field with marketing agent link */}
+      <div style={{marginTop:12}}>
+        <label style={lbl}>Marketing Strategy{srcTag("postingRecommendation")}</label>
+        <textarea
+          style={{...inp(),minHeight:90,resize:"vertical",...srcStyle("postingRecommendation")}}
+          value={identity?.postingRecommendation||""}
+          onChange={e=>setField("postingRecommendation",e.target.value)}
+          placeholder="Overview of channels in use, posting frequency and times, content mix. Auto-filled from marketing analysis."
+        />
+        <div
+          onClick={onGoToMarketing}
+          style={{fontSize:11,color:C.primary,fontFamily:FB,marginTop:4,cursor:onGoToMarketing?"pointer":"default",display:"inline-block"}}
+        >
+          View full analysis in Marketing Agent →
         </div>
-      )}
+      </div>
+
+      {/* Save */}
+      <div style={{display:"flex",justifyContent:"flex-end",marginTop:18}}>
+        <button onClick={save} disabled={saving} style={{...btn(saving?"#9CA3AF":C.primary,"#fff",13),padding:"8px 20px"}}>
+          {saved?"Saved ✓":saving?"Saving…":"Save changes"}
+        </button>
+      </div>
     </div>
   );
 }
@@ -2142,14 +2171,13 @@ function ProductsSection({ metrics, saveM }) {
 }
 
 // ── Business Info Panel (new tab) ─────────────────────────────────────────────
-function BusinessInfoPanel({ businessId, metrics, saveM, prefs, savePrefs, business }) {
+function BusinessInfoPanel({ businessId, metrics, saveM, prefs, savePrefs, business, isPro, refreshTasks, onGoToMarketing }) {
   return (
     <div>
-      <div style={{ fontFamily:FH, fontWeight:700, fontSize:24, letterSpacing:"-0.04em", marginBottom:4 }}>{business?.name}</div>
-      <p style={{ color:C.muted, fontSize:14, marginBottom:24, fontFamily:FB }}>Brand, profile, and products — referenced by all agents</p>
-      <BrandIdentityPanel businessId={businessId} />
+      <div style={{ fontFamily:FH, fontWeight:700, fontSize:24, letterSpacing:"-0.04em", marginBottom:24 }}>{business?.name}</div>
       <BusinessProfileSection prefs={prefs} savePrefs={savePrefs} metrics={metrics} saveM={saveM} business={business} />
       <ProductsSection metrics={metrics} saveM={saveM} />
+      <BrandIdentityPanel businessId={businessId} isPro={isPro} refreshTasks={refreshTasks} onGoToMarketing={onGoToMarketing} />
     </div>
   );
 }
@@ -5249,7 +5277,7 @@ export default function Hub() {
                     <span style={{ fontSize:12, color:C.primary, fontFamily:FB }}>Edit →</span>
                   </div>
                   <div style={{ fontSize:12, color:C.muted, fontFamily:FB, lineHeight:1.5 }}>
-                    {metrics.businessProfile?.uniqueValueProp || prefs.targetMarket || idea.why?.slice(0,80) || "Brand, profile, and products"}
+                    {metrics.businessProfile?.uniqueValueProp || prefs.targetMarket || idea.why?.slice(0,80) || "Business profile, products, and social presence"}
                   </div>
                   {(metrics.products||[]).length>0 && <div style={{ fontSize:11, color:C.muted, fontFamily:FB, marginTop:6 }}>{(metrics.products||[]).length} product{(metrics.products||[]).length!==1?"s":""} · {(metrics.products||[]).filter(p=>p.status==="active").length} active</div>}
                 </div>
@@ -5281,6 +5309,9 @@ export default function Hub() {
               prefs={prefs}
               savePrefs={savePrefs}
               business={business}
+              isPro={planInfo?.plan==="pro"||planInfo?.plan==="pro_autopilot"||planInfo?.isAdmin}
+              refreshTasks={refreshTasks}
+              onGoToMarketing={()=>setTab("marketing")}
             />
           )}
 
