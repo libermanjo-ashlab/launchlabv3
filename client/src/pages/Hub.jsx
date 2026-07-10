@@ -2066,6 +2066,8 @@ function AutopilotCard({ businessId, planInfo, navigate }) {
 const LINK_FIELDS = [
   { id:"revenue",     label:"Revenue",        path:"revenue.this_month",        snapKey:"revenue",     prefix:"$" },
   { id:"costs",       label:"Costs",          path:"costs.this_month",          snapKey:"costs",       prefix:"$" },
+  { id:"profit",      label:"Profit",         path:"",                          snapKey:"profit",      prefix:"$" },
+  { id:"loss",        label:"Loss",           path:"",                          snapKey:"loss",        prefix:"$" },
   { id:"leads",       label:"Leads",          path:"leads.this_month",          snapKey:"leads",       prefix:""  },
   { id:"clients",     label:"Active Clients", path:"clients.active",            snapKey:"clients",     prefix:""  },
   { id:"bookings",    label:"Bookings",       path:"bookings.this_month",       snapKey:"bookings",    prefix:""  },
@@ -3186,7 +3188,7 @@ const WIDGET_DEFS = {
   eq:    { label:"Equation",     icon:"", desc:"Link channel values" },
 };
 
-function EmbeddedWidget({ widget, onUpdateConfig, onRemove, metrics, snapshots, saveM, businessId, globalRange=null, globalCStart="", globalCEnd="" }) {
+function EmbeddedWidget({ widget, onUpdateConfig, onRemove, metrics, snapshots, saveM, businessId, globalRange=null, globalCStart="", globalCEnd="", standalone=false }) {
   const needsCfg = { graph:c=>!c.fieldId, pie:c=>!c.source, draw:()=>false, corr:c=>!c.fieldA||!c.fieldB, field:c=>!c.title, eq:c=>!c.source||!c.target };
   const [editing, setEditing] = useState(()=>needsCfg[widget.type]?.(widget.config||{})||false);
   const [cfg, setCfg] = useState(widget.config||{});
@@ -3240,9 +3242,10 @@ function EmbeddedWidget({ widget, onUpdateConfig, onRemove, metrics, snapshots, 
 
   const showRange = !globalRange && !editing && (widget.type==="graph"||widget.type==="pie");
   return (
-    <div style={{ marginTop:8, paddingTop:8, borderTop:`1px solid ${C.border}` }}>
+    <div style={{ marginTop:standalone?0:8, paddingTop:standalone?0:8, borderTop:standalone?"none":`1px solid ${C.border}` }}>
       <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:4 }}>
-        <span style={{ fontSize:10, fontFamily:FB, fontWeight:700, color:C.muted }}>{widget.title||def.label}</span>
+        {!standalone&&<span style={{ fontSize:10, fontFamily:FB, fontWeight:700, color:C.muted }}>{widget.title||def.label}</span>}
+        {standalone&&<span style={{ fontSize:11, fontFamily:FB, fontWeight:700, color:C.text }}>{widget.title||def.label}</span>}
         <div style={{ display:"flex", gap:4, alignItems:"center" }}>
           {showRange&&(
             <select value={ownMode} onChange={e=>{setOwnMode(e.target.value);if(e.target.value!=="custom"){setOwnCStart("");setOwnCEnd("");}}}
@@ -3256,7 +3259,7 @@ function EmbeddedWidget({ widget, onUpdateConfig, onRemove, metrics, snapshots, 
             </select>
           )}
           {!editing&&widget.type!=="draw"&&<button onClick={()=>setEditing(true)} style={{ background:"none", border:`1px solid ${C.border}`, borderRadius:5, cursor:"pointer", color:C.muted, fontSize:11, padding:"1px 6px" }}>cfg</button>}
-          <button onClick={onRemove} style={{ background:"none", border:"none", cursor:"pointer", color:C.muted, fontSize:13, padding:0, lineHeight:1 }}>×</button>
+          {!standalone&&<button onClick={onRemove} style={{ background:"none", border:"none", cursor:"pointer", color:C.muted, fontSize:13, padding:0, lineHeight:1 }}>×</button>}
         </div>
       </div>
       {showRange&&ownMode==="custom"&&(
@@ -3316,7 +3319,8 @@ function buildTimeSeries(items, mode, cStart="", cEnd="", aggregation="sum") {
     items.forEach(x=>{ const m=normDate(x.date).slice(0,7); if(!m) return; if(!mm[m]) mm[m]=[]; mm[m].push(x); });
     const sorted=Object.entries(mm).sort(([a],[b])=>a<b?-1:1);
     if(!sorted.length) return [];
-    return sorted.map(([m,b])=>({label:m.slice(5),value:agg(b)}));
+    const ML=["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+    return sorted.map(([m,b])=>{const[yr,mo]=m.split("-");return{label:`${ML[parseInt(mo)-1]} ${yr.slice(2)}`,value:agg(b)};});
   }
   if(mode==="custom"&&cStart&&cEnd){
     const s=new Date(cStart), e=new Date(cEnd);
@@ -3338,8 +3342,12 @@ function LineChart({data=[],color=C.primary,yPrefix="",w=290,h=130}){
   const canvasRef=useRef(null);
   useEffect(()=>{
     const canvas=canvasRef.current; if(!canvas) return;
+    const dpr=window.devicePixelRatio||1;
+    canvas.width=w*dpr; canvas.height=h*dpr;
+    canvas.style.width=w+"px"; canvas.style.height=h+"px";
     const ctx=canvas.getContext("2d");
-    const W=canvas.width, H=canvas.height;
+    ctx.scale(dpr,dpr);
+    const W=w, H=h;
     const pad={top:12,right:8,bottom:30,left:46};
     const cw=W-pad.left-pad.right, ch=H-pad.top-pad.bottom;
     ctx.clearRect(0,0,W,H);
@@ -3347,24 +3355,27 @@ function LineChart({data=[],color=C.primary,yPrefix="",w=290,h=130}){
     const maxV=vals.length?Math.max(...vals,1):10;
     for(let i=0;i<=4;i++){
       const y=pad.top+ch-(i/4)*ch;
-      ctx.strokeStyle="#E2E8F0"; ctx.lineWidth=1;
+      ctx.strokeStyle="#E2E8F0"; ctx.lineWidth=0.5;
       ctx.beginPath(); ctx.moveTo(pad.left,y); ctx.lineTo(pad.left+cw,y); ctx.stroke();
-      const val=Math.round((i/4)*maxV);
-      ctx.fillStyle="#94A3B8"; ctx.font="9px sans-serif"; ctx.textAlign="right";
-      ctx.fillText(`${yPrefix}${val>999?(val/1000).toFixed(1)+"k":val}`,pad.left-3,y+3);
+      const val=(i/4)*maxV;
+      const valStr=val>=1000?`${yPrefix}${(val/1000).toFixed(val%1000===0?0:1)}k`:`${yPrefix}${Math.round(val)}`;
+      ctx.fillStyle="#94A3B8"; ctx.font="9px system-ui,sans-serif"; ctx.textAlign="right";
+      ctx.fillText(valStr,pad.left-3,y+3);
     }
-    ctx.strokeStyle="#CBD5E1"; ctx.lineWidth=1;
+    ctx.strokeStyle="#CBD5E1"; ctx.lineWidth=0.5;
     ctx.beginPath(); ctx.moveTo(pad.left,pad.top+ch); ctx.lineTo(pad.left+cw,pad.top+ch); ctx.stroke();
     if(!data.length) return;
-    const step=Math.max(1,Math.ceil(data.length/8));
-    ctx.fillStyle="#94A3B8"; ctx.font="8px sans-serif"; ctx.textAlign="center";
+    const maxLabels=7;
+    const step=data.length<=maxLabels?1:Math.ceil(data.length/maxLabels);
+    ctx.fillStyle="#94A3B8"; ctx.font="8px system-ui,sans-serif"; ctx.textAlign="center";
     data.forEach((d,i)=>{
-      if(i%step!==0&&i!==data.length-1) return;
+      const isFirst=i===0, isLast=i===data.length-1;
+      if(!isFirst&&!isLast&&i%step!==0) return;
       const x=data.length===1?pad.left+cw/2:pad.left+(i/(data.length-1))*cw;
       ctx.fillText(d.label,x,pad.top+ch+14);
     });
     if(data.length===1){
-      const bw=20; const bh=Math.max(data[0].value/maxV*ch,2);
+      const bw=Math.min(20,cw*0.4); const bh=Math.max(data[0].value/maxV*ch,2);
       ctx.fillStyle=color+"90";
       ctx.fillRect(pad.left+cw/2-bw/2,pad.top+ch-bh,bw,bh);
       return;
@@ -3375,49 +3386,73 @@ function LineChart({data=[],color=C.primary,yPrefix="",w=290,h=130}){
       const y=pad.top+ch-Math.max(d.value/maxV,0)*ch;
       i===0?ctx.moveTo(x,y):ctx.lineTo(x,y);
     });
-    ctx.strokeStyle=color; ctx.lineWidth=2; ctx.lineJoin="round"; ctx.stroke();
+    ctx.strokeStyle=color; ctx.lineWidth=1.5; ctx.lineJoin="round"; ctx.stroke();
     ctx.lineTo(pad.left+cw,pad.top+ch); ctx.lineTo(pad.left,pad.top+ch); ctx.closePath();
     ctx.fillStyle=color+"18"; ctx.fill();
-    data.forEach((d,i)=>{
+    const dotR=data.length>30?0:data.length>15?1.5:2.5;
+    if(dotR>0) data.forEach((d,i)=>{
       const x=pad.left+(i/(data.length-1))*cw;
       const y=pad.top+ch-Math.max(d.value/maxV,0)*ch;
-      ctx.beginPath(); ctx.arc(x,y,3,0,Math.PI*2);
+      ctx.beginPath(); ctx.arc(x,y,dotR,0,Math.PI*2);
       ctx.fillStyle=color; ctx.fill();
-      ctx.strokeStyle="#fff"; ctx.lineWidth=1.5; ctx.stroke();
+      ctx.strokeStyle="#fff"; ctx.lineWidth=1; ctx.stroke();
     });
   },[data,color,yPrefix,w,h]); // eslint-disable-line react-hooks/exhaustive-deps
-  return <canvas ref={canvasRef} width={w} height={h} style={{display:"block",width:"100%",maxWidth:w}}/>;
+  return <canvas ref={canvasRef} style={{display:"block",width:w+"px",height:h+"px"}}/>;
 }
 
 function GraphWidget({ config, snapshots, metrics, businessId, cardRange }) {
   const field = LINK_FIELDS.find(f=>f.id===config.fieldId)||LINK_FIELDS[0];
   const {mode="month",cStart="",cEnd=""}=cardRange||{};
 
-  let items=null, aggregation="sum";
-  if(field.id==="revenue")     items=metrics?.revenue?.sources||[];
-  else if(field.id==="costs")  items=metrics?.costs?.causes||[];
-  else if(field.id==="investments") items=metrics?.investments?.initial||[];
-  else if(field.id==="leads"){
-    try{ items=JSON.parse(localStorage.getItem(`earnedlab_leads_${businessId}`)||"[]"); }catch{ items=[]; }
-    aggregation="count";
-  } else if(field.id==="clients"){
-    try{ items=JSON.parse(localStorage.getItem(`earnedlab_clients_${businessId}`)||"[]"); }catch{ items=[]; }
-    aggregation="count";
-  }
+  let data, aggregation="sum";
 
-  const data = items!==null
-    ? buildTimeSeries(items, mode, cStart, cEnd, aggregation)
-    : snapshots.map(s=>({label:s.month||"",value:s[field.snapKey||field.id]||0}));
+  if(field.id==="loss"||field.id==="profit"){
+    const revItems = metrics?.revenue?.sources||[];
+    const costItems = [
+      ...(metrics?.costs?.causes||[]),
+      ...(metrics?.investments?.initial||[]),
+      ...(metrics?.investments?.ongoing||[]),
+    ];
+    const revSeries  = buildTimeSeries(revItems,  mode, cStart, cEnd, "sum");
+    const costSeries = buildTimeSeries(costItems, mode, cStart, cEnd, "sum");
+    const allLabels  = [...new Set([...revSeries.map(x=>x.label),...costSeries.map(x=>x.label)])].sort();
+    data = allLabels.map(label=>{
+      const rev  = revSeries.find(x=>x.label===label)?.value||0;
+      const cost = costSeries.find(x=>x.label===label)?.value||0;
+      return {label, value: field.id==="profit"?Math.max(0,rev-cost):Math.max(0,cost-rev)};
+    });
+  } else {
+    let items=null;
+    if(field.id==="revenue")     items=metrics?.revenue?.sources||[];
+    else if(field.id==="costs")  items=[
+      ...(metrics?.costs?.causes||[]),
+      ...(metrics?.investments?.initial||[]),
+      ...(metrics?.investments?.ongoing||[]),
+    ];
+    else if(field.id==="investments") items=metrics?.investments?.initial||[];
+    else if(field.id==="leads"){
+      try{ items=JSON.parse(localStorage.getItem(`earnedlab_leads_${businessId}`)||"[]"); }catch{ items=[]; }
+      aggregation="count";
+    } else if(field.id==="clients"){
+      try{ items=JSON.parse(localStorage.getItem(`earnedlab_clients_${businessId}`)||"[]"); }catch{ items=[]; }
+      aggregation="count";
+    }
+    data = items!==null
+      ? buildTimeSeries(items, mode, cStart, cEnd, aggregation)
+      : snapshots.map(s=>({label:s.month||"",value:s[field.snapKey||field.id]||0}));
+  }
 
   const total = data.reduce((a,x)=>a+x.value,0);
   const yP = aggregation==="count"?"":field.prefix;
+  const color = field.id==="profit"?"#22C55E":field.id==="loss"?"#EF4444":C.primary;
   return (
     <div>
       <div style={{ display:"flex", justifyContent:"space-between", alignItems:"baseline", marginBottom:4 }}>
         <div style={{ fontSize:10, color:C.muted, fontFamily:FB }}>{field.label}</div>
-        <div style={{ fontFamily:FH, fontWeight:700, fontSize:16, color:C.text }}>{field.prefix}{total.toLocaleString()}</div>
+        <div style={{ fontFamily:FH, fontWeight:700, fontSize:16, color }}>{field.prefix}{total.toLocaleString()}</div>
       </div>
-      <LineChart data={data} color={C.primary} yPrefix={yP} w={290} h={130}/>
+      <LineChart data={data} color={color} yPrefix={yP} w={290} h={130}/>
     </div>
   );
 }
@@ -3428,7 +3463,12 @@ function PieWidget({ config, metrics, businessId, cardRange }) {
 
   let rawItems=[], groupBy="category", isCount=false;
   if(src==="revenue")            rawItems=metrics?.revenue?.sources||[];
-  else if(src==="costs")         rawItems=metrics?.costs?.causes||[];
+  else if(src==="costs"){
+    const causes=metrics?.costs?.causes||[];
+    const ii=(metrics?.investments?.initial||[]).map(x=>({...x,category:`Initial: ${x.category||"General"}`}));
+    const io=(metrics?.investments?.ongoing||[]).map(x=>({...x,category:`Ongoing: ${x.category||"General"}`}));
+    rawItems=[...causes,...ii,...io];
+  }
   else if(src==="investments.initial") rawItems=metrics?.investments?.initial||[];
   else if(src==="investments.ongoing") rawItems=metrics?.investments?.ongoing||[];
   else if(src==="leads"){
@@ -3451,12 +3491,16 @@ function PieWidget({ config, metrics, businessId, cardRange }) {
   const total=items.reduce((a,x)=>a+x.value,0);
 
   const COLORS=["#7C3AED","#3B82F6","#22C55E","#F59E0B","#EF4444","#EC4899","#14B8A6","#F97316"];
+  const PIE_W=200, PIE_H=140;
   const canvasRef=useRef(null);
   useEffect(()=>{
     const canvas=canvasRef.current; if(!canvas) return;
-    const ctx=canvas.getContext("2d");
-    const cw=canvas.width, ch=canvas.height, cx=cw/2, cy=ch/2, r=Math.min(cx,cy)-8;
-    ctx.clearRect(0,0,cw,ch);
+    const dpr=window.devicePixelRatio||1;
+    canvas.width=PIE_W*dpr; canvas.height=PIE_H*dpr;
+    canvas.style.width=PIE_W+"px"; canvas.style.height=PIE_H+"px";
+    const ctx=canvas.getContext("2d"); ctx.scale(dpr,dpr);
+    const cx=PIE_W/2, cy=PIE_H/2, r=Math.min(cx,cy)-8;
+    ctx.clearRect(0,0,PIE_W,PIE_H);
     if(!items.length){ ctx.fillStyle=C.border; ctx.beginPath(); ctx.arc(cx,cy,r,0,Math.PI*2); ctx.fill(); return; }
     let angle=-Math.PI/2;
     items.forEach((item,i)=>{
@@ -3471,7 +3515,7 @@ function PieWidget({ config, metrics, businessId, cardRange }) {
   const valFmt = v => isCount?v.toLocaleString():("$"+v.toLocaleString());
   return (
     <div>
-      <canvas ref={canvasRef} width={200} height={140} style={{ display:"block", margin:"0 auto 6px" }}/>
+      <canvas ref={canvasRef} style={{ display:"block", margin:"0 auto 6px", width:PIE_W+"px", height:PIE_H+"px" }}/>
       {!items.length&&<div style={{ fontSize:11, color:C.muted, fontFamily:FB, textAlign:"center" }}>Add items to see breakdown.</div>}
       <div style={{ maxHeight:90, overflowY:"auto" }}>
         {items.map((item,i)=>(
@@ -3703,7 +3747,7 @@ function MgmtSidebar({ open, onToggle, hubNotes, setHubNotes, businessId, mgmtNo
                     <div style={{ flex:1, minWidth:0 }}>
                       <div style={{ fontSize:12, color:"#374151", fontFamily:FB, lineHeight:1.5, wordBreak:"break-word" }}>{n.text}</div>
                       {asgn&&(<div style={{ display:"flex", alignItems:"center", gap:4, marginTop:3 }}>
-                        <span style={{ fontSize:10, color:"#6B7280", fontFamily:FB }}>📌 {asgn.targetLabel||"Card"}</span>
+                        <span style={{ fontSize:10, color:"#6B7280", fontFamily:FB }}>pinned: {asgn.targetLabel||"Card"}</span>
                         <button onClick={()=>onUnstickNote(n.id)} style={{ background:"none", border:"none", cursor:"pointer", color:"#D1D5DB", fontSize:10, padding:0 }}>✕</button>
                       </div>)}
                     </div>
@@ -3723,7 +3767,6 @@ function MgmtSidebar({ open, onToggle, hubNotes, setHubNotes, businessId, mgmtNo
                       <div key={t} draggable onDragStart={e=>{e.dataTransfer.setData("text/widgetType",t);}}
                         onClick={()=>startTool(t)}
                         style={{ display:"flex", alignItems:"center", gap:10, padding:"10px 12px", background:C.surface, border:`1px solid ${C.border}`, borderRadius:10, cursor:"grab", userSelect:"none" }}>
-                        <span style={{ fontSize:22 }}>{d.icon}</span>
                         <div style={{ flex:1 }}><div style={{ fontSize:12, fontFamily:FB, fontWeight:700, color:C.text }}>{d.label}</div><div style={{ fontSize:10, color:C.muted, fontFamily:FB }}>{d.desc}</div></div>
                         <span style={{ fontSize:10, color:C.subtle, fontFamily:FB }}>⠿</span>
                       </div>
@@ -3743,7 +3786,6 @@ function MgmtSidebar({ open, onToggle, hubNotes, setHubNotes, businessId, mgmtNo
                       <div key={t} draggable onDragStart={e=>{e.dataTransfer.setData("text/widgetType",t);}}
                         onClick={()=>startTool(t)}
                         style={{ display:"flex", alignItems:"center", gap:10, padding:"10px 12px", background:C.surface, border:`1px solid ${C.border}`, borderRadius:10, cursor:"grab", userSelect:"none" }}>
-                        <span style={{ fontSize:22 }}>{d.icon}</span>
                         <div style={{ flex:1 }}><div style={{ fontSize:12, fontFamily:FB, fontWeight:700, color:C.text }}>{d.label}</div><div style={{ fontSize:10, color:C.muted, fontFamily:FB }}>{d.desc}</div></div>
                         <span style={{ fontSize:10, color:C.subtle, fontFamily:FB }}>⠿</span>
                       </div>
@@ -3785,10 +3827,14 @@ function ManagementCanvas({ businessId, metrics, saveM, integs, hubNotes, setHub
   useEffect(()=>{
     if(!metrics||!metrics.revenue) return;
     const monthKey=new Date().toISOString().slice(0,7);
+    const snapRev  = metrics.revenue?.this_month||0;
+    const snapCost = (metrics.costs?.this_month||0)+(metrics.investments?.total_ongoing||0);
     const snap={
       month:monthKey,
-      revenue:metrics.revenue?.this_month||0,
-      costs:metrics.costs?.this_month||0,
+      revenue:snapRev,
+      costs:snapCost,
+      profit:Math.max(0,snapRev-snapCost),
+      loss:Math.max(0,snapCost-snapRev),
       leads:metrics.leads?.this_month||0,
       clients:metrics.clients?.active||0,
       bookings:metrics.bookings?.this_month||0,
@@ -3870,12 +3916,13 @@ function ManagementCanvas({ businessId, metrics, saveM, integs, hubNotes, setHub
   const removeCard = id=>saveVisible(visible.filter(c=>c!==id));
   const resetLayout = ()=>{ savePos({...MGMT_DEFAULTS}); saveVisible(["leads","clients","revenue","costs","profit"]); };
 
-  const addWidget = (type, config, title) => {
+  const addWidget = (type, config, title, pos) => {
     const id = `w_${Date.now()}`;
     const w = { id, type, config, title };
-    const defaultPos = { x: 20, y: 20, w: type==="draw"?340:300 };
+    const defaultPos = pos||{ x: 20, y: 20, w: type==="draw"?340:300 };
     setWidgets(p=>{ const n=[...p,w]; try{localStorage.setItem(WIDGETS_KEY,JSON.stringify(n));}catch{} return n; });
     setPositions(p=>{ const n={...p,[id]:defaultPos}; try{localStorage.setItem(POS_KEY,JSON.stringify(n));}catch{} return n; });
+    return id;
   };
   const removeWidget = (id) => {
     setWidgets(p=>{ const n=p.filter(w=>w.id!==id); try{localStorage.setItem(WIDGETS_KEY,JSON.stringify(n));}catch{} return n; });
@@ -3884,6 +3931,8 @@ function ManagementCanvas({ businessId, metrics, saveM, integs, hubNotes, setHub
   const CARD_AUTO_CFG = {
     revenue:     { graph:{ fieldId:"revenue" },     pie:{ source:"revenue" },             corr:{ fieldA:"revenue" } },
     costs:       { graph:{ fieldId:"costs"   },     pie:{ source:"costs"   },             corr:{ fieldA:"costs"   } },
+    loss:        { graph:{ fieldId:"loss"    },     pie:{ source:"costs"   },             corr:{ fieldA:"loss"    } },
+    profit:      { graph:{ fieldId:"profit"  },     pie:{ source:"revenue" },             corr:{ fieldA:"profit"  } },
     leads:       { graph:{ fieldId:"leads"   },     pie:{ source:"leads"   },             corr:{ fieldA:"leads"   } },
     clients:     { graph:{ fieldId:"clients" },     pie:{ source:"clients" },             corr:{ fieldA:"clients" } },
     bookings:    { graph:{ fieldId:"bookings"},                                           corr:{ fieldA:"bookings"} },
@@ -3945,20 +3994,22 @@ function ManagementCanvas({ businessId, metrics, saveM, integs, hubNotes, setHub
     }
   };
 
-  const widgetContent = (w) => {
-    const cardRange = globalRange
-      ? {mode:globalRange,cStart:globalCStart,cEnd:globalCEnd}
-      : {mode:"month",cStart:"",cEnd:""};
-    switch(w.type){
-      case "graph": return <GraphWidget config={w.config} snapshots={snapshots} metrics={metrics} businessId={businessId} cardRange={cardRange}/>;
-      case "pie":   return <PieWidget   config={w.config} metrics={metrics} businessId={businessId} cardRange={cardRange}/>;
-      case "draw":  return <DrawingWidget widgetId={w.id}/>;
-      case "corr":  return <IntraCorrelWidget config={w.config} snapshots={snapshots} metrics={metrics}/>;
-      case "field": return <CustomFieldWidget config={w.config} metrics={metrics}/>;
-      case "eq":    return <EquationWidget config={w.config} metrics={metrics} saveM={saveM}/>;
-      default: return null;
-    }
+  const updateStandaloneWidgetConfig = (wid, cfg) => {
+    setWidgets(prev=>{
+      const next=prev.map(x=>x.id===wid?{...x,config:cfg}:x);
+      try{localStorage.setItem(WIDGETS_KEY,JSON.stringify(next));}catch{}
+      return next;
+    });
   };
+
+  const widgetContent = (w) => (
+    <EmbeddedWidget widget={w}
+      onUpdateConfig={cfg=>updateStandaloneWidgetConfig(w.id,cfg)}
+      onRemove={()=>removeWidget(w.id)}
+      metrics={metrics} snapshots={snapshots} saveM={saveM}
+      businessId={businessId} globalRange={globalRange} globalCStart={globalCStart} globalCEnd={globalCEnd}
+      standalone={true}/>
+  );
 
   return (
     <div style={{ paddingRight: sidebarOpen?300:0, transition:"padding-right 0.25s ease" }}>
@@ -3982,7 +4033,16 @@ function ManagementCanvas({ businessId, metrics, saveM, integs, hubNotes, setHub
         {globalRange&&globalRange!=="custom"&&<span style={{ fontSize:10, color:C.primary, fontFamily:FB }}>← Applied to all cards</span>}
       </div>
 
-      <div style={{ position:"relative", minHeight:canvasH, marginBottom:64 }}>
+      <div style={{ position:"relative", minHeight:canvasH, marginBottom:64 }}
+        onDragOver={e=>{ if(e.dataTransfer.types.includes("text/widgetType")) e.preventDefault(); }}
+        onDrop={e=>{
+          const wt=e.dataTransfer.getData("text/widgetType"); if(!wt) return;
+          e.preventDefault();
+          const rect=e.currentTarget.getBoundingClientRect();
+          const x=Math.max(0,e.clientX-rect.left-150);
+          const y=Math.max(0,e.clientY-rect.top-20);
+          addWidget(wt,{},WIDGET_DEFS[wt]?.label||wt,{x,y,w:wt==="draw"?340:300});
+        }}>
         {/* Regular channel cards */}
         {visible.map(id=>{
           const pos=positions[id]||MGMT_DEFAULTS[id]||{x:0,y:0,w:340};
@@ -4024,13 +4084,20 @@ function ManagementCanvas({ businessId, metrics, saveM, integs, hubNotes, setHub
 
       <div style={{ display:"flex", justifyContent:"center" }}>
         {toolbar ? (
-          <div style={{ background:C.bg, border:`1px solid ${C.border}`, borderRadius:16, padding:"10px 14px", boxShadow:"0 8px 32px rgba(0,0,0,0.10)", display:"flex", gap:8, alignItems:"center", flexWrap:"wrap" }}>
+          <div style={{ background:C.bg, border:`1px solid ${C.border}`, borderRadius:16, padding:"10px 14px", boxShadow:"0 8px 32px rgba(0,0,0,0.10)", display:"flex", gap:8, alignItems:"center", flexWrap:"wrap", maxWidth:640 }}>
             {addable.map(id=>(
-              <button key={id} onClick={()=>addCard(id)} style={{ ...btnO(C.primary,12), display:"flex", alignItems:"center", gap:5 }}>
-                Add {MGMT_META[id].label}
+              <button key={id} onClick={()=>addCard(id)} style={{ ...btnO(C.primary,12) }}>
+                + {MGMT_META[id].label}
               </button>
             ))}
-            {addable.length===0&&<span style={{ fontSize:12, color:C.muted, fontFamily:FB }}>All cards on canvas</span>}
+            {addable.length===0&&<span style={{ fontSize:11, color:C.muted, fontFamily:FB }}>All channel cards on canvas</span>}
+            <div style={{ width:1, alignSelf:"stretch", background:C.border, margin:"0 4px" }}/>
+            {["corr","field","eq"].map(t=>(
+              <button key={t} onClick={()=>{ addWidget(t,{},WIDGET_DEFS[t]?.label||t); setToolbar(false); }} style={{ ...btnO("#7C3AED",11) }}>
+                + {WIDGET_DEFS[t].label}
+              </button>
+            ))}
+            <div style={{ width:1, alignSelf:"stretch", background:C.border, margin:"0 4px" }}/>
             <button onClick={resetLayout} style={{ ...btnO(C.muted,11) }}>Reset layout</button>
             <button onClick={()=>setToolbar(false)} style={{ background:"none", border:"none", color:C.muted, cursor:"pointer", fontSize:16, padding:"0 4px" }}>×</button>
           </div>
