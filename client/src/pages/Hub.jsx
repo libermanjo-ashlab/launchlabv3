@@ -1768,6 +1768,238 @@ function BusinessPrefsCard({ prefs, onSave, compact }) {
   );
 }
 
+// ── Business Profile Section (expanded prefs) ────────────────────────────────
+function BusinessProfileSection({ prefs, savePrefs, metrics, saveM, business }) {
+  const [expanded, setExpanded] = useState(true);
+  const profile = metrics.businessProfile || {};
+  const idea = business?.idea || {};
+  const saveProfile = patch => saveM("businessProfile", { ...profile, ...patch });
+
+  return (
+    <div style={{ ...card("16px 18px"), marginBottom:20 }}>
+      <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", cursor:"pointer", marginBottom:expanded?16:0 }} onClick={()=>setExpanded(e=>!e)}>
+        <div>
+          <div style={{ fontFamily:FH, fontWeight:700, fontSize:15 }}>Business Profile</div>
+          <div style={{ fontSize:12, color:C.muted, fontFamily:FB, marginTop:2 }}>Core context used by all agents for accurate advice and output</div>
+        </div>
+        <span style={{ color:C.muted, fontSize:14, transform:expanded?"rotate(180deg)":"none", transition:"transform 0.15s", display:"inline-block" }}>▾</span>
+      </div>
+      {expanded && (
+        <div>
+          <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:12, marginBottom:12 }}>
+            <div>
+              <label style={lbl}>Target audience</label>
+              <select style={{ ...inp(), appearance:"none" }} value={prefs.audience} onChange={e=>savePrefs({...prefs,audience:e.target.value})}>
+                <option value="local">Local (city / region)</option>
+                <option value="national">National</option>
+                <option value="global">Global / online</option>
+                <option value="niche">Niche community</option>
+              </select>
+            </div>
+            <div>
+              <label style={lbl}>Business stage</label>
+              <select style={{ ...inp(), appearance:"none" }} value={prefs.stage} onChange={e=>savePrefs({...prefs,stage:e.target.value})}>
+                <option value="starting">Just starting out</option>
+                <option value="growing">Growing — have first clients</option>
+                <option value="scaling">Scaling up</option>
+                <option value="established">Established</option>
+              </select>
+            </div>
+          </div>
+          <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:12, marginBottom:12 }}>
+            <div>
+              <label style={lbl}>Pricing model</label>
+              <select style={{ ...inp(), appearance:"none" }} value={profile.pricingModel||""} onChange={e=>saveProfile({pricingModel:e.target.value})}>
+                <option value="">Select…</option>
+                <option value="hourly">Hourly</option>
+                <option value="project">Per project</option>
+                <option value="subscription">Subscription / recurring</option>
+                <option value="product">Product sales</option>
+                <option value="service">Service packages</option>
+                <option value="mixed">Mixed</option>
+              </select>
+            </div>
+            <div>
+              <label style={lbl}>Monthly revenue target ($)</label>
+              <input type="number" style={inp()} value={profile.revenueTarget||idea.revenue||""} onChange={e=>saveProfile({revenueTarget:Number(e.target.value)})} placeholder="e.g. 5000" />
+            </div>
+          </div>
+          <div style={{ marginBottom:12 }}>
+            <label style={lbl}>Ideal customer / target market</label>
+            <input style={inp()} value={prefs.targetMarket||""} onChange={e=>savePrefs({...prefs,targetMarket:e.target.value})} placeholder="e.g. small business owners in the US, fitness enthusiasts aged 25–40" />
+          </div>
+          <div style={{ marginBottom:12 }}>
+            <label style={lbl}>Unique value proposition</label>
+            <input style={inp()} value={profile.uniqueValueProp||""} onChange={e=>saveProfile({uniqueValueProp:e.target.value})} placeholder="What makes your business different or better than alternatives?" />
+          </div>
+          <div style={{ marginBottom:12 }}>
+            <label style={lbl}>Current goals</label>
+            <input style={inp()} value={prefs.goals||""} onChange={e=>savePrefs({...prefs,goals:e.target.value})} placeholder="e.g. reach 100 clients by Q3, launch a course, expand to second city" />
+          </div>
+          <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:12, marginBottom:12 }}>
+            <div>
+              <label style={lbl}>Main competitors</label>
+              <input style={inp()} value={profile.competitors||""} onChange={e=>saveProfile({competitors:e.target.value})} placeholder="e.g. Competitor A, Competitor B" />
+            </div>
+            <div>
+              <label style={lbl}>Top challenges</label>
+              <input style={inp()} value={profile.challenges||idea.biggestRisk||""} onChange={e=>saveProfile({challenges:e.target.value})} placeholder="e.g. getting consistent leads, pricing competitively" />
+            </div>
+          </div>
+          <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:12, marginBottom:12 }}>
+            <div>
+              <label style={lbl}>Available monthly growth budget ($)</label>
+              <input type="number" style={inp()} value={profile.monthlyGrowthBudget||""} onChange={e=>saveProfile({monthlyGrowthBudget:Number(e.target.value)})} placeholder="Budget for ads, tools, services" />
+            </div>
+            <div>
+              <label style={lbl}>Startup / initial investment ($)</label>
+              <input type="number" style={inp()} value={profile.startupCost||idea.startupCost||""} onChange={e=>saveProfile({startupCost:Number(e.target.value)})} placeholder="e.g. 2000" />
+            </div>
+          </div>
+          <div>
+            <label style={lbl}>Business summary</label>
+            <textarea style={{ ...inp(), minHeight:80, resize:"vertical" }} value={profile.summary||idea.why||""} onChange={e=>saveProfile({summary:e.target.value})} placeholder="Describe your business, what you offer, and why you started it…" />
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── Products & Services Section ───────────────────────────────────────────────
+const PRODUCT_TYPE_OPTS = [
+  { v:"digital",  label:"Digital",  bg:"#EFF6FF", fg:"#2563EB" },
+  { v:"physical", label:"Physical", bg:"#FFF7ED", fg:"#D97706" },
+  { v:"service",  label:"Service",  bg:"#F0FDF4", fg:"#16A34A" },
+];
+const PRODUCT_STATUS_OPTS = [
+  { v:"idea",         label:"Idea",           bg:"#F9FAFB", fg:"#6B7280" },
+  { v:"development",  label:"In Development", bg:"#FFFBEB", fg:"#D97706" },
+  { v:"active",       label:"Active / Live",  bg:"#F0FDF4", fg:"#16A34A" },
+  { v:"discontinued", label:"Discontinued",   bg:"#FFF1F2", fg:"#EF4444" },
+];
+
+function ProductsSection({ metrics, saveM }) {
+  const [expanded, setExpanded]   = useState(true);
+  const [editingId, setEditingId] = useState(null);
+  const products = metrics.products || [];
+  const saveProducts = next => saveM("products", next);
+
+  const addProduct = () => {
+    const p = { id:`prod_${Date.now()}`, name:"", type:"digital", description:"", price:"", status:"active", features:"", url:"", notes:"" };
+    saveProducts([...products, p]);
+    setEditingId(p.id);
+  };
+  const updateProduct = (id, patch) => saveProducts(products.map(p=>p.id===id?{...p,...patch}:p));
+  const removeProduct = id => { saveProducts(products.filter(p=>p.id!==id)); if(editingId===id) setEditingId(null); };
+
+  const activeCount = products.filter(p=>p.status==="active").length;
+
+  return (
+    <div style={{ ...card("16px 18px"), marginBottom:20 }}>
+      <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", cursor:"pointer", marginBottom:expanded?16:0 }} onClick={()=>setExpanded(e=>!e)}>
+        <div>
+          <div style={{ fontFamily:FH, fontWeight:700, fontSize:15 }}>Products &amp; Services</div>
+          <div style={{ fontSize:12, color:C.muted, fontFamily:FB, marginTop:2 }}>
+            {products.length===0 ? "Add your products or services — agents use this for strategy and content" : `${products.length} product${products.length!==1?"s":""}${activeCount>0?` · ${activeCount} active`:""}`}
+          </div>
+        </div>
+        <span style={{ color:C.muted, fontSize:14, transform:expanded?"rotate(180deg)":"none", transition:"transform 0.15s", display:"inline-block" }}>▾</span>
+      </div>
+
+      {expanded && (
+        <div>
+          {products.length===0 && (
+            <div style={{ textAlign:"center", padding:"16px 0 8px", color:C.muted, fontSize:13, fontFamily:FB }}>
+              No products yet.
+            </div>
+          )}
+          {products.map(p=>{
+            const tOpt = PRODUCT_TYPE_OPTS.find(t=>t.v===p.type)||PRODUCT_TYPE_OPTS[0];
+            const sOpt = PRODUCT_STATUS_OPTS.find(s=>s.v===p.status)||PRODUCT_STATUS_OPTS[0];
+            return (
+              <div key={p.id} style={{ background:C.surface, borderRadius:12, border:`1px solid ${C.border}`, marginBottom:10, overflow:"hidden" }}>
+                <div style={{ display:"flex", alignItems:"center", padding:"10px 14px", cursor:"pointer", gap:10 }} onClick={()=>setEditingId(editingId===p.id?null:p.id)}>
+                  <div style={{ flex:1 }}>
+                    <div style={{ fontFamily:FB, fontWeight:700, fontSize:13, color:C.text }}>{p.name||"Unnamed"}</div>
+                    <div style={{ display:"flex", gap:6, marginTop:3, flexWrap:"wrap" }}>
+                      <span style={{ fontSize:10, background:tOpt.bg, color:tOpt.fg, padding:"1px 8px", borderRadius:20, fontFamily:FB, fontWeight:600 }}>{tOpt.label}</span>
+                      <span style={{ fontSize:10, background:sOpt.bg, color:sOpt.fg, padding:"1px 8px", borderRadius:20, fontFamily:FB, fontWeight:600 }}>{sOpt.label}</span>
+                      {p.price&&<span style={{ fontSize:10, color:C.muted, fontFamily:FB, padding:"1px 4px" }}>${p.price}</span>}
+                    </div>
+                  </div>
+                  <button onClick={e=>{e.stopPropagation();removeProduct(p.id);}} style={{ background:"none", border:"none", color:C.muted, cursor:"pointer", fontSize:16, padding:"2px 6px", flexShrink:0 }}>×</button>
+                  <span style={{ color:C.muted, fontSize:11, flexShrink:0 }}>{editingId===p.id?"▴":"▾"}</span>
+                </div>
+                {editingId===p.id && (
+                  <div style={{ padding:"14px 16px", borderTop:`1px solid ${C.border}` }}>
+                    <div style={{ display:"grid", gridTemplateColumns:"2fr 1fr", gap:10, marginBottom:10 }}>
+                      <div>
+                        <label style={lbl}>Name</label>
+                        <input style={inp()} value={p.name} onChange={e=>updateProduct(p.id,{name:e.target.value})} placeholder="Product or service name" />
+                      </div>
+                      <div>
+                        <label style={lbl}>Price / rate</label>
+                        <input style={inp()} value={p.price} onChange={e=>updateProduct(p.id,{price:e.target.value})} placeholder="e.g. 49, 149/mo" />
+                      </div>
+                    </div>
+                    <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10, marginBottom:10 }}>
+                      <div>
+                        <label style={lbl}>Type</label>
+                        <select style={{ ...inp(), appearance:"none" }} value={p.type} onChange={e=>updateProduct(p.id,{type:e.target.value})}>
+                          {PRODUCT_TYPE_OPTS.map(t=><option key={t.v} value={t.v}>{t.label}</option>)}
+                        </select>
+                      </div>
+                      <div>
+                        <label style={lbl}>Status</label>
+                        <select style={{ ...inp(), appearance:"none" }} value={p.status} onChange={e=>updateProduct(p.id,{status:e.target.value})}>
+                          {PRODUCT_STATUS_OPTS.map(s=><option key={s.v} value={s.v}>{s.label}</option>)}
+                        </select>
+                      </div>
+                    </div>
+                    <div style={{ marginBottom:10 }}>
+                      <label style={lbl}>Description</label>
+                      <textarea style={{ ...inp(), minHeight:60, resize:"vertical" }} value={p.description} onChange={e=>updateProduct(p.id,{description:e.target.value})} placeholder="What does this offer? Who is it for? What problem does it solve?" />
+                    </div>
+                    <div style={{ marginBottom:10 }}>
+                      <label style={lbl}>Key features / deliverables</label>
+                      <textarea style={{ ...inp(), minHeight:52, resize:"vertical" }} value={p.features} onChange={e=>updateProduct(p.id,{features:e.target.value})} placeholder="List main features or what's included, one per line" />
+                    </div>
+                    {p.type==="digital" && (
+                      <div style={{ marginBottom:10 }}>
+                        <label style={lbl}>URL (if live)</label>
+                        <input style={inp()} value={p.url||""} onChange={e=>updateProduct(p.id,{url:e.target.value})} placeholder="https://…" />
+                      </div>
+                    )}
+                    <div>
+                      <label style={lbl}>Notes for agents</label>
+                      <input style={inp()} value={p.notes||""} onChange={e=>updateProduct(p.id,{notes:e.target.value})} placeholder="Context that should influence marketing or management strategy" />
+                    </div>
+                  </div>
+                )}
+              </div>
+            );
+          })}
+          <button onClick={addProduct} style={{ ...btnO(C.primary,12), width:"100%", textAlign:"center", marginTop:products.length>0?4:0 }}>+ Add product or service</button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── Business Info Panel (new tab) ─────────────────────────────────────────────
+function BusinessInfoPanel({ businessId, metrics, saveM, prefs, savePrefs, business }) {
+  return (
+    <div>
+      <div style={{ fontFamily:FH, fontWeight:700, fontSize:24, letterSpacing:"-0.04em", marginBottom:4 }}>{business?.name}</div>
+      <p style={{ color:C.muted, fontSize:14, marginBottom:24, fontFamily:FB }}>Brand, profile, and products — referenced by all agents</p>
+      <BrandIdentityPanel businessId={businessId} />
+      <BusinessProfileSection prefs={prefs} savePrefs={savePrefs} metrics={metrics} saveM={saveM} business={business} />
+      <ProductsSection metrics={metrics} saveM={saveM} />
+    </div>
+  );
+}
+
 function InstagramPanel({ businessId, businessName, integs }) {
   const igMeta = (() => { try { const i=integs.find(x=>x.provider==="instagram"); return i?.metadata?JSON.parse(i.metadata):{};} catch{return {};} })();
   const hasToken = !!(igMeta.accessToken && igMeta.businessAccountId);
@@ -4369,11 +4601,12 @@ export default function Hub() {
   );
 
   const navItems = [
-    { id:"overview",   label:"Overview"         },
-    { id:"hub",        label:"Hub"              },
-    { id:"marketing",  label:"Marketing Agent"  },
-    { id:"management", label:"Management Agent" },
-    { id:"tasks",      label:"Tasks"            },
+    { id:"overview",      label:"Overview"         },
+    { id:"business_info", label:"Business Info"    },
+    { id:"hub",           label:"Hub"              },
+    { id:"marketing",     label:"Marketing Agent"  },
+    { id:"management",    label:"Management Agent" },
+    { id:"tasks",         label:"Tasks"            },
   ];
 
   const regularTasks = tasks.filter(t => t.category !== "notes");
@@ -4515,45 +4748,47 @@ export default function Hub() {
                 ))}
               </div>
 
-              {/* Brand & Social Identity */}
-              <BrandIdentityPanel businessId={businessId} />
-
-              {/* Business preferences */}
-              <BusinessPrefsCard prefs={prefs} onSave={savePrefs} compact />
-
-              {/* Business summary */}
-              <div style={{ display:"grid", gridTemplateColumns:"2fr 1fr", gap:14 }}>
-                <div style={card()}>
-                  <div style={{ fontFamily:FH, fontWeight:600, fontSize:15, marginBottom:10 }}>Business summary</div>
-                  <p style={{ fontSize:13, color:C.muted, lineHeight:1.75, marginBottom:16, fontFamily:FB }}>{idea.why||"Your business overview will appear here."}</p>
-                  <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:12 }}>
-                    {[["Revenue target",idea.revenue||"—"],["Time to first revenue",idea.timeToFirstRevenue||"—"],["Startup cost",idea.startupCost||"—"],["Risk level",idea.biggestRisk?.slice(0,40)||"—"]].map(([l,v])=>(
-                      <div key={l}>
-                        <div style={{ fontSize:10, color:C.muted, fontWeight:600, textTransform:"uppercase", letterSpacing:"0.05em", marginBottom:3, fontFamily:FB }}>{l}</div>
-                        <div style={{ fontSize:13, color:C.text, fontFamily:FB, lineHeight:1.4 }}>{v}</div>
-                      </div>
-                    ))}
+              {/* Quick-access row */}
+              <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:14, marginBottom:20 }}>
+                <div onClick={()=>setTab("business_info")} style={{ ...card("14px 16px"), cursor:"pointer", border:`1px solid ${C.border}` }}>
+                  <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:6 }}>
+                    <div style={{ fontFamily:FH, fontWeight:700, fontSize:14 }}>Business Info</div>
+                    <span style={{ fontSize:12, color:C.primary, fontFamily:FB }}>Edit →</span>
                   </div>
+                  <div style={{ fontSize:12, color:C.muted, fontFamily:FB, lineHeight:1.5 }}>
+                    {metrics.businessProfile?.uniqueValueProp || prefs.targetMarket || idea.why?.slice(0,80) || "Brand, profile, and products"}
+                  </div>
+                  {(metrics.products||[]).length>0 && <div style={{ fontSize:11, color:C.muted, fontFamily:FB, marginTop:6 }}>{(metrics.products||[]).length} product{(metrics.products||[]).length!==1?"s":""} · {(metrics.products||[]).filter(p=>p.status==="active").length} active</div>}
                 </div>
-                <div style={card()}>
-                  <div style={{ fontFamily:FH, fontWeight:600, fontSize:15, marginBottom:12 }}>All stats</div>
+                <div style={card("14px 16px")}>
+                  <div style={{ fontFamily:FH, fontWeight:600, fontSize:14, marginBottom:8 }}>All stats</div>
                   {[
-                    ["Bookings this week",  metrics.bookings.this_week],
-                    ["Bookings this month", metrics.bookings.this_month],
-                    ["Google reviews",      metrics.social.google_reviews],
-                    ["Google rating",       metrics.social.google_rating>0?metrics.social.google_rating+"":"—"],
-                    ["TikTok",              Number(metrics.social.tiktok).toLocaleString()||"0"],
-                    ["Facebook",            Number(metrics.social.facebook).toLocaleString()||"0"],
+                    ["Bookings / week",  metrics.bookings.this_week],
+                    ["Bookings / month", metrics.bookings.this_month],
+                    ["Google reviews",   metrics.social.google_reviews],
+                    ["Google rating",    metrics.social.google_rating>0?metrics.social.google_rating+"":"—"],
                   ].map(([l,v])=>(
-                    <div key={l} style={{ display:"flex", justifyContent:"space-between", padding:"6px 0", borderBottom:`1px solid ${C.border}` }}>
-                      <span style={{ fontSize:12, color:C.muted, fontFamily:FB }}>{l}</span>
-                      <span style={{ fontSize:12, fontWeight:600, fontFamily:FB }}>{v||"0"}</span>
+                    <div key={l} style={{ display:"flex", justifyContent:"space-between", padding:"4px 0", borderBottom:`1px solid ${C.border}` }}>
+                      <span style={{ fontSize:11, color:C.muted, fontFamily:FB }}>{l}</span>
+                      <span style={{ fontSize:11, fontWeight:600, fontFamily:FB }}>{v||"0"}</span>
                     </div>
                   ))}
-                  <button onClick={()=>setTab("management")} style={{ ...btnO(C.primary,11), width:"100%", textAlign:"center", marginTop:10 }}>Update stats</button>
+                  <button onClick={()=>setTab("management")} style={{ ...btnO(C.primary,11), width:"100%", textAlign:"center", marginTop:8 }}>Update stats</button>
                 </div>
               </div>
             </div>
+          )}
+
+          {/* BUSINESS INFO */}
+          {tab==="business_info" && (
+            <BusinessInfoPanel
+              businessId={businessId}
+              metrics={metrics}
+              saveM={saveM}
+              prefs={prefs}
+              savePrefs={savePrefs}
+              business={business}
+            />
           )}
 
           {/* TASKS */}
