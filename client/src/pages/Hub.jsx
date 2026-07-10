@@ -2436,43 +2436,110 @@ const CHANNEL_OPTIONS = ["instagram","email","website","google","calendly","twit
 
 // ── Marketing Agent components → see MarketingAgent.jsx (imported above as AgentPanel) ──
 
-function AutopilotCard({ businessId, planInfo, navigate }) {
-  const [enabled, setEnabled] = useState(null);
-  const [busy,    setBusy]    = useState(false);
-  const isAutopilotPlan = planInfo?.plan === "pro_autopilot";
+function MgmtModeToggle({ businessId, planInfo, navigate }) {
+  const [apEnabled, setApEnabled] = useState(null);
+  const [apBusy,    setApBusy]    = useState(false);
+  const [showPlans, setShowPlans] = useState(false);
+  const plan = planInfo?.plan;
+  const isAdmin = planInfo?.isAdmin;
+  const isAutopilotPlan = plan === "pro_autopilot" || isAdmin;
 
   useEffect(()=>{
-    api.agents.getAutopilot(businessId).then(d=>setEnabled(!!d.autopilotEnabled)).catch(()=>setEnabled(false));
-  },[businessId]);
+    if (!isAutopilotPlan) return;
+    api.agents.getAutopilot(businessId).then(d=>setApEnabled(!!d.autopilotEnabled)).catch(()=>setApEnabled(false));
+  },[businessId, isAutopilotPlan]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const toggle = async () => {
-    if (!isAutopilotPlan) return navigate("/pricing");
-    setBusy(true);
-    try { const { autopilotEnabled } = await api.agents.setAutopilot(businessId, !enabled); setEnabled(autopilotEnabled); }
+  const toggleAp = async (e) => {
+    e.stopPropagation();
+    setApBusy(true);
+    try { const { autopilotEnabled } = await api.agents.setAutopilot(businessId, !apEnabled); setApEnabled(autopilotEnabled); }
     catch {}
-    setBusy(false);
+    setApBusy(false);
   };
 
+  const currentMode = isAdmin || plan === "pro_autopilot" ? "autopilot"
+                    : plan === "pro" ? "insights"
+                    : "correlation";
+
+  const MODES = [
+    {
+      id: "correlation",
+      label: "Correlation Analysis",
+      planLabel: "Starter",
+      features: ["Metric pair correlations","Pearson r-value scoring","Historical trend charts","Purely algorithmic — no AI"],
+    },
+    {
+      id: "insights",
+      label: "Business Insights",
+      planLabel: "Pro",
+      features: ["AI strategy generation","Manual generate & review","Insight cards + task creation","Sync strategy to Marketing"],
+    },
+    {
+      id: "autopilot",
+      label: "Operations Autopilot",
+      planLabel: "Pro Autopilot",
+      features: ["Weekly auto-strategy runs","Auto-sync to Marketing Agent","Auto-complete insight actions","Fully scheduled operations"],
+    },
+  ];
+
   return (
-    <div style={{ ...card("16px 18px"), marginBottom:24, background:isAutopilotPlan?(enabled?C.okBg:C.surface):"#F4F4F5", border:`1px solid ${isAutopilotPlan&&enabled?C.ok+"30":C.border}` }}>
-      <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start" }}>
-        <div style={{ flex:1 }}>
-          <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:6 }}>
-            <div style={{ fontFamily:FH, fontWeight:600, fontSize:14 }}>Autopilot mode</div>
-            {!isAutopilotPlan && <span style={{ background:"#F4F4F5", color:C.muted, fontSize:9, fontWeight:700, padding:"2px 8px", borderRadius:20, textTransform:"uppercase", letterSpacing:"0.04em" }}>Pro Autopilot only</span>}
-            {isAutopilotPlan && enabled && <span style={{ background:C.ok, color:"#fff", fontSize:9, fontWeight:700, padding:"2px 8px", borderRadius:20, textTransform:"uppercase", letterSpacing:"0.04em" }}>Running</span>}
-          </div>
-          {isAutopilotPlan && (
-            <p style={{ fontSize:13, color:C.muted, lineHeight:1.6, fontFamily:FB }}>
-              When enabled, your agents run on their own schedule — analyzing and implementing automatically.
-            </p>
-          )}
+    <>
+      {showPlans && <PlansModal highlightPlan="pro" onClose={()=>setShowPlans(false)} />}
+      <div style={{ ...card("16px 18px"), marginBottom:24 }}>
+        <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:12 }}>
+          <div style={{ fontFamily:FH, fontWeight:700, fontSize:13, color:C.text }}>Management Mode</div>
+          <span style={{ fontSize:10, color:C.muted, fontFamily:FB }}>Determined by your plan</span>
         </div>
-        <button onClick={toggle} disabled={busy||enabled===null} style={{ ...btn(isAutopilotPlan?(enabled?C.err:C.ok):"#D97706","#fff",12), flexShrink:0, marginLeft:16 }}>
-          {!isAutopilotPlan ? "Upgrade" : busy ? "…" : enabled ? "Turn off" : "Turn on"}
-        </button>
+        <div style={{ display:"flex", gap:8, flexWrap:"wrap" }}>
+          {MODES.map(m => {
+            const isActive = m.id === currentMode;
+            const isLocked = !isAdmin && (
+              (m.id === "insights"    && plan !== "pro" && plan !== "pro_autopilot") ||
+              (m.id === "autopilot"   && plan !== "pro_autopilot")
+            );
+            return (
+              <div
+                key={m.id}
+                onClick={() => isLocked ? setShowPlans(true) : null}
+                style={{
+                  flex: "1 1 0", minWidth: 148, maxWidth: 280,
+                  border: `1px solid ${isActive ? C.dark : C.border}`,
+                  borderRadius: 10, padding: "12px 14px",
+                  background: isActive ? C.dark : "#F8FAFC",
+                  cursor: isLocked ? "pointer" : "default",
+                  transition: "border-color 0.15s",
+                }}
+              >
+                <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", marginBottom:4 }}>
+                  <div style={{ fontFamily:FH, fontWeight:700, fontSize:12, color: isActive?"#fff":isLocked?"#94A3B8":C.text, lineHeight:1.3 }}>{m.label}</div>
+                  {isActive && <span style={{ fontSize:9, fontWeight:700, padding:"1px 6px", borderRadius:10, background:"rgba(255,255,255,0.18)", color:"rgba(255,255,255,0.9)", fontFamily:FB, textTransform:"uppercase", letterSpacing:"0.05em", flexShrink:0, marginLeft:4 }}>Active</span>}
+                  {isLocked && <span style={{ fontSize:9, fontWeight:700, padding:"1px 6px", borderRadius:10, background:"#E2E8F0", color:"#94A3B8", fontFamily:FB, textTransform:"uppercase", letterSpacing:"0.04em", flexShrink:0, marginLeft:4 }}>Upgrade</span>}
+                </div>
+                <div style={{ fontSize:10, color: isActive?"rgba(255,255,255,0.55)":"#94A3B8", fontFamily:FB, marginBottom:8 }}>{m.planLabel} plan</div>
+                <div style={{ display:"flex", flexDirection:"column", gap:3 }}>
+                  {m.features.map((f, i) => (
+                    <div key={i} style={{ fontSize:10, color: isActive?"rgba(255,255,255,0.7)":isLocked?"#CBD5E1":C.muted, fontFamily:FB, display:"flex", alignItems:"flex-start", gap:5 }}>
+                      <span style={{ flexShrink:0 }}>·</span><span>{f}</span>
+                    </div>
+                  ))}
+                </div>
+                {isLocked && <div style={{ marginTop:10, fontSize:10, fontWeight:700, color:C.dark, fontFamily:FB }}>Upgrade to {m.planLabel} →</div>}
+                {isActive && m.id==="autopilot" && isAutopilotPlan && apEnabled!==null && (
+                  <div style={{ marginTop:10, paddingTop:10, borderTop:"1px solid rgba(255,255,255,0.15)", display:"flex", alignItems:"center", justifyContent:"space-between" }}>
+                    <span style={{ fontSize:11, fontFamily:FB, color:apEnabled?"rgba(255,255,255,0.85)":"rgba(255,255,255,0.45)" }}>
+                      {apEnabled?"Autopilot running":"Autopilot paused"}
+                    </span>
+                    <button onClick={toggleAp} disabled={apBusy} style={{ ...btn(apEnabled?"#DC2626":"#22C55E","#fff",10), padding:"4px 12px", opacity:apBusy?0.7:1 }}>
+                      {apBusy?"…":apEnabled?"Pause":"Enable"}
+                    </button>
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
       </div>
-    </div>
+    </>
   );
 }
 
@@ -2560,10 +2627,12 @@ function CorrelationPair({ link, metrics, snapshots, applied, onApplyToStrategy,
         </div>
         {snapA.length<2&&<div style={{ fontSize:10, color:C.muted, fontFamily:FB, alignSelf:"center" }}>Visit monthly to build trend data.</div>}
       </div>
-      <button onClick={()=>onApplyToStrategy({ ...link, aLabel:aF.label, bLabel:bF.label, r, summary })}
-        style={{ ...applied?btn("#22C55E","#fff",11):btnO("#475569",11), padding:"5px 12px" }}>
-        {applied?"✓ Applied to strategy":"Apply to strategy"}
-      </button>
+      {onApplyToStrategy && (
+        <button onClick={()=>onApplyToStrategy({ ...link, aLabel:aF.label, bLabel:bF.label, r, summary })}
+          style={{ ...applied?btn("#22C55E","#fff",11):btnO("#475569",11), padding:"5px 12px" }}>
+          {applied?"✓ Applied to strategy":"Apply to strategy"}
+        </button>
+      )}
     </div>
   );
 }
@@ -2630,7 +2699,7 @@ function buildMarketingPayload(strategy, timeframe, metrics) {
   return lines.join("\n").trim();
 }
 
-function BusinessStrategySection({ businessId, metrics, snapshots, isPro, saveM, isAutopilot=false, onNotify, refreshTasks, insightsBudget, refreshBudget }) {
+function BusinessStrategySection({ businessId, metrics, snapshots, isPro, isStarter=false, saveM, isAutopilot=false, onNotify, refreshTasks, insightsBudget, refreshBudget }) {
   const LINKS_KEY         = `earnedlab_links_${businessId}`;
   const STRAT_KEY         = `earnedlab_strat_${businessId}`;
   const STRAT_AUTORUN_KEY = `earnedlab_strat_autorun_${businessId}`;
@@ -3008,103 +3077,181 @@ function BusinessStrategySection({ businessId, metrics, snapshots, isPro, saveM,
 
   return (
     <div style={{ ...card("0"), overflow:"hidden", marginBottom:28 }}>
+      {/* Header */}
       <div style={{ background:C.dark, padding:"18px 20px", display:"flex", justifyContent:"space-between", alignItems:"center", cursor:"pointer" }} onClick={()=>setExpanded(p=>!p)}>
         <div>
-          <div style={{ fontFamily:FH, fontWeight:700, fontSize:16, color:"#fff", marginBottom:2 }}>Business Strategy</div>
+          <div style={{ fontFamily:FH, fontWeight:700, fontSize:16, color:"#fff", marginBottom:2 }}>
+            {isStarter ? "Correlation Analysis" : "Business Strategy"}
+          </div>
+          {!isStarter && isAutopilot && (
+            <div style={{ fontSize:10, color:"rgba(255,255,255,0.5)", fontFamily:FB }}>Auto-runs weekly</div>
+          )}
         </div>
         <span style={{ color:"rgba(255,255,255,0.5)", fontSize:14, transform:expanded?"rotate(180deg)":"none", transition:"transform 0.15s", display:"inline-block" }}>▾</span>
       </div>
 
       {expanded&&(
-        <ProGate isPro={isPro} label="Upgrade to Pro">
         <div style={{ padding:"20px 22px" }}>
-          {/* Strategy generator */}
-          <div style={{ borderTop:`2px solid ${C.border}`, paddingTop:20 }}>
-            <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-end", marginBottom:12, flexWrap:"wrap", gap:10 }}>
+
+          {/* ── Correlation Analysis — available in all modes ── */}
+          <div style={{ marginBottom: isPro ? 0 : 0 }}>
+            <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:12 }}>
               <div>
-                <div style={{ fontFamily:FH, fontWeight:700, fontSize:14, marginBottom:2 }}>Suggested Strategy</div>
+                <div style={{ fontFamily:FH, fontWeight:700, fontSize:14, marginBottom:2 }}>Metric Correlations</div>
                 <div style={{ fontSize:11, color:C.muted, fontFamily:FB }}>
-                  {applied.length>0
-                    ? `Using ${applied.length} correlation${applied.length>1?"s":""}: ${applied.map(l=>l.aLabel+"→"+l.bLabel).join(", ")}`
-                    : ""}
+                  {isStarter
+                    ? "Discover statistical relationships between your business metrics"
+                    : applied.length>0
+                      ? `${applied.length} applied to strategy: ${applied.map(l=>l.aLabel+"→"+l.bLabel).join(", ")}`
+                      : "Apply correlations to influence your AI strategy generation"}
                 </div>
               </div>
-              <div style={{ display:"flex", gap:8, alignItems:"center" }}>
-                <select value={timeframe} onChange={e=>setTimeframe(e.target.value)} style={{ ...inp(), fontSize:12, padding:"8px 10px" }}>
-                  <option value="4 weeks">4 weeks</option>
-                  <option value="3 months">3 months</option>
-                  <option value="6 months">6 months</option>
-                  <option value="1 year">1 year</option>
-                </select>
-                <button onClick={generate} disabled={generating} style={{ ...btn(C.dark,"#fff",13), padding:"9px 20px", flexShrink:0 }}>
-                  {generating?"Generating…":"Generate Strategy"}
-                </button>
+              <button onClick={()=>setLinking(l=>!l)} style={{ ...btnO(C.muted,11), padding:"5px 12px", flexShrink:0 }}>
+                {linking?"Cancel":"+ Add Pair"}
+              </button>
+            </div>
+
+            {linking&&(
+              <div style={{ display:"flex", gap:8, alignItems:"flex-end", marginBottom:12, flexWrap:"wrap", background:"#F8FAFC", borderRadius:10, padding:"12px 14px", border:`1px solid ${C.border}` }}>
+                <div style={{ flex:1, minWidth:130 }}>
+                  <div style={{ fontSize:10, color:C.muted, fontFamily:FB, marginBottom:3 }}>Field A</div>
+                  <select value={linkA} onChange={e=>setLinkA(e.target.value)} style={{ ...inp(), fontSize:12, padding:"7px 10px" }}>
+                    <option value="">— select —</option>
+                    {LINK_FIELDS.map(f=><option key={f.id} value={f.id}>{f.label}</option>)}
+                  </select>
+                </div>
+                <span style={{ color:C.muted, fontSize:14, paddingBottom:8, flexShrink:0 }}>→</span>
+                <div style={{ flex:1, minWidth:130 }}>
+                  <div style={{ fontSize:10, color:C.muted, fontFamily:FB, marginBottom:3 }}>Field B</div>
+                  <select value={linkB} onChange={e=>setLinkB(e.target.value)} style={{ ...inp(), fontSize:12, padding:"7px 10px" }}>
+                    <option value="">— select —</option>
+                    {LINK_FIELDS.filter(f=>f.id!==linkA).map(f=><option key={f.id} value={f.id}>{f.label}</option>)}
+                  </select>
+                </div>
+                <button onClick={addLink} disabled={!linkA||!linkB||linkA===linkB} style={{ ...btn(C.dark,"#fff",12), padding:"8px 16px", flexShrink:0 }}>Add</button>
+              </div>
+            )}
+
+            {links.length===0&&!linking&&(
+              <div style={{ textAlign:"center", padding:"28px 0", color:C.muted, fontSize:12, fontFamily:FB, border:`1px dashed ${C.border}`, borderRadius:10, marginBottom:16 }}>
+                Add metric pairs to start tracking correlations
+              </div>
+            )}
+
+            <div style={{ marginBottom: links.length>0 ? 16 : 0 }}>
+              {links.map(link=>(
+                <CorrelationPair
+                  key={link.id}
+                  link={link}
+                  metrics={metrics}
+                  snapshots={snapshots}
+                  applied={!!applied.find(l=>l.id===link.id)}
+                  onApplyToStrategy={!isStarter ? (corr)=>toggleApply(corr) : null}
+                  onRemove={()=>removeLink(link.id)}
+                />
+              ))}
+            </div>
+          </div>
+
+          {/* ── AI Strategy Generator — Pro and Autopilot only ── */}
+          {isPro ? (
+            <div style={{ borderTop:`2px solid ${C.border}`, paddingTop:20 }}>
+              <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-end", marginBottom:12, flexWrap:"wrap", gap:10 }}>
+                <div>
+                  <div style={{ fontFamily:FH, fontWeight:700, fontSize:14, marginBottom:2 }}>Suggested Strategy</div>
+                  <div style={{ fontSize:11, color:C.muted, fontFamily:FB }}>
+                    {isAutopilot ? "Manually regenerate, or let autopilot handle weekly updates" : "Generate and review — all actions require your approval"}
+                  </div>
+                </div>
+                <div style={{ display:"flex", gap:8, alignItems:"center" }}>
+                  <select value={timeframe} onChange={e=>setTimeframe(e.target.value)} style={{ ...inp(), fontSize:12, padding:"8px 10px" }}>
+                    <option value="4 weeks">4 weeks</option>
+                    <option value="3 months">3 months</option>
+                    <option value="6 months">6 months</option>
+                    <option value="1 year">1 year</option>
+                  </select>
+                  <button onClick={generate} disabled={generating} style={{ ...btn(C.dark,"#fff",13), padding:"9px 20px", flexShrink:0 }}>
+                    {generating?"Generating…":"Generate Strategy"}
+                  </button>
+                </div>
+              </div>
+              {stratErr&&<div style={{ fontSize:12, color:C.err, fontFamily:FB, marginBottom:12 }}>{stratErr}</div>}
+
+              {strategy&&(
+                <div style={{ marginTop:16 }}>
+                  <div style={{ display:"flex", gap:0, marginBottom:16, borderBottom:`1px solid ${C.border}`, overflowX:"auto" }}>
+                    {TABS.map(t=>{
+                      const ps=PLAN_STYLE[t.id]||PLAN_STYLE.budget;
+                      const pa=PLAN_ACTIVATION[t.id]||{active:true};
+                      const isActive=stratTab===t.id;
+                      return (
+                        <button key={t.id} onClick={()=>setStratTab(t.id)} style={{ padding:"7px 13px", fontFamily:FB, fontSize:12, fontWeight:isActive?700:400, color:isActive?C.text:C.muted, background:"none", border:"none", borderBottom:isActive?`2px solid ${C.text}`:"2px solid transparent", cursor:"pointer", whiteSpace:"nowrap", marginBottom:-1, display:"flex", alignItems:"center", gap:5 }}>
+                          {pa.active&&<span style={{ width:5,height:5,borderRadius:"50%",background:ps.accent,flexShrink:0,opacity:isActive?1:0.6 }}/>}
+                          {t.label}
+                        </button>
+                      );
+                    })}
+                  </div>
+                  <div style={{ minHeight:100 }}>{renderTab()}</div>
+                  <div style={{ marginTop:18, paddingTop:16, borderTop:`1px solid ${C.border}` }}>
+                    <div style={{ display:"flex", gap:8, alignItems:"center", flexWrap:"wrap" }}>
+                      <button onClick={()=>syncToMarketing(strategy)} disabled={syncing||!strategy} style={{ ...btn(C.dark,"#fff",13) }}>
+                        {syncing?"Syncing…":"Sync to Marketing Agent"}
+                      </button>
+                      {strategy&&(
+                        <button onClick={()=>setShowMktgPrev(p=>!p)} style={{ ...btnO("#475569",12) }}>
+                          {showMktgPrev?"Hide Preview":"Preview"}
+                        </button>
+                      )}
+                      <button onClick={downloadStrategy} style={{ ...btnO(C.muted,12) }}>Download (.txt)</button>
+                      {isAutopilot&&<span style={{ fontSize:10, color:C.muted, fontFamily:FB, marginLeft:2 }}>Auto-syncs on generate</span>}
+                    </div>
+                    {syncedAt&&(
+                      <div style={{ fontSize:10, color:C.muted, fontFamily:FB, marginTop:5 }}>
+                        Last synced: {new Date(syncedAt).toLocaleString()}
+                      </div>
+                    )}
+                    {showMktgPrev&&strategy&&(
+                      <pre style={{ fontSize:11, fontFamily:"'Courier New',monospace", background:C.surface, border:`1px solid ${C.border}`, borderRadius:10, padding:"12px 14px", marginTop:10, overflowX:"auto", color:C.text, lineHeight:1.65, whiteSpace:"pre-wrap", wordBreak:"break-word" }}>
+                        {buildMarketingPayload(strategy, timeframe, metrics)}
+                      </pre>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* Insight cards */}
+              {insightCards.length>0&&(
+                <div style={{ borderTop:`1px solid ${C.border}`, marginTop:20, paddingTop:20 }}>
+                  <InsightCardsSection
+                    cards={insightCards}
+                    onUpdate={updateInsightCard}
+                    onArchive={archiveInsightCard}
+                    onPromoteToTask={promoteToTask}
+                    isAutopilot={isAutopilot}
+                    onAutoComplete={autoComplete}
+                    onRunAll={isAutopilot ? runAllAutoCards : undefined}
+                    insightsBudget={insightsBudget}
+                  />
+                </div>
+              )}
+            </div>
+          ) : (
+            /* Starter: upgrade prompt for AI strategy */
+            <div style={{ borderTop:`1px solid ${C.border}`, marginTop: links.length>0 ? 4 : 0, paddingTop:16 }}>
+              <div style={{ background:"#F8FAFC", borderRadius:10, padding:"16px 18px", border:`1px solid ${C.border}` }}>
+                <div style={{ fontFamily:FH, fontWeight:600, fontSize:13, marginBottom:4, color:C.text }}>AI Business Strategy</div>
+                <div style={{ fontSize:12, color:C.muted, fontFamily:FB, marginBottom:10, lineHeight:1.6 }}>
+                  Upgrade to Business Insights to generate AI-powered strategy reports using your correlation data.
+                </div>
+                <ProGate isPro={false} label="Upgrade to Business Insights">
+                  <div style={{ height:48 }}/>
+                </ProGate>
               </div>
             </div>
-            {stratErr&&<div style={{ fontSize:12, color:C.err, fontFamily:FB, marginBottom:12 }}>{stratErr}</div>}
+          )}
 
-            {strategy&&(
-              <div style={{ marginTop:16 }}>
-                <div style={{ display:"flex", gap:0, marginBottom:16, borderBottom:`1px solid ${C.border}`, overflowX:"auto" }}>
-                  {TABS.map(t=>{
-                    const ps=PLAN_STYLE[t.id]||PLAN_STYLE.budget;
-                    const pa=PLAN_ACTIVATION[t.id]||{active:true};
-                    const isActive=stratTab===t.id;
-                    return (
-                      <button key={t.id} onClick={()=>setStratTab(t.id)} style={{ padding:"7px 13px", fontFamily:FB, fontSize:12, fontWeight:isActive?700:400, color:isActive?C.text:C.muted, background:"none", border:"none", borderBottom:isActive?`2px solid ${C.text}`:"2px solid transparent", cursor:"pointer", whiteSpace:"nowrap", marginBottom:-1, display:"flex", alignItems:"center", gap:5 }}>
-                        {pa.active&&<span style={{ width:5,height:5,borderRadius:"50%",background:ps.accent,flexShrink:0,opacity:isActive?1:0.6 }}/>}
-                        {t.label}
-                      </button>
-                    );
-                  })}
-                </div>
-                <div style={{ minHeight:100 }}>{renderTab()}</div>
-                <div style={{ marginTop:18, paddingTop:16, borderTop:`1px solid ${C.border}` }}>
-                  <div style={{ display:"flex", gap:8, alignItems:"center", flexWrap:"wrap" }}>
-                    <button onClick={()=>syncToMarketing(strategy)} disabled={syncing||!strategy} style={{ ...btn(C.dark,"#fff",13) }}>
-                      {syncing?"Syncing…":"Sync to Marketing Agent"}
-                    </button>
-                    {strategy&&(
-                      <button onClick={()=>setShowMktgPrev(p=>!p)} style={{ ...btnO("#475569",12) }}>
-                        {showMktgPrev?"Hide Preview":"Preview"}
-                      </button>
-                    )}
-                    <button onClick={downloadStrategy} style={{ ...btnO(C.muted,12) }}>Download (.txt)</button>
-                    {isAutopilot&&<span style={{ fontSize:10, color:C.muted, fontFamily:FB, marginLeft:2 }}>Auto-syncs on generate</span>}
-                  </div>
-                  {syncedAt&&(
-                    <div style={{ fontSize:10, color:C.muted, fontFamily:FB, marginTop:5 }}>
-                      Last synced: {new Date(syncedAt).toLocaleString()}
-                    </div>
-                  )}
-                  {showMktgPrev&&strategy&&(
-                    <pre style={{ fontSize:11, fontFamily:"'Courier New',monospace", background:C.surface, border:`1px solid ${C.border}`, borderRadius:10, padding:"12px 14px", marginTop:10, overflowX:"auto", color:C.text, lineHeight:1.65, whiteSpace:"pre-wrap", wordBreak:"break-word" }}>
-                      {buildMarketingPayload(strategy, timeframe, metrics)}
-                    </pre>
-                  )}
-                </div>
-              </div>
-            )}
-
-            {/* Insight cards — shown whenever cards exist, regardless of strategy tab */}
-            {insightCards.length>0&&(
-              <div style={{ borderTop:`1px solid ${C.border}`, marginTop:20, paddingTop:20 }}>
-                <InsightCardsSection
-                  cards={insightCards}
-                  onUpdate={updateInsightCard}
-                  onArchive={archiveInsightCard}
-                  onPromoteToTask={promoteToTask}
-                  isAutopilot={isAutopilot}
-                  onAutoComplete={autoComplete}
-                  onRunAll={isAutopilot ? runAllAutoCards : undefined}
-                  insightsBudget={insightsBudget}
-                />
-              </div>
-            )}
-
-          </div>
         </div>
-        </ProGate>
       )}
     </div>
   );
@@ -4506,7 +4653,7 @@ function MgmtSidebar({ open, onToggle, hubNotes, setHubNotes, businessId, mgmtNo
   );
 }
 
-function ManagementCanvas({ businessId, metrics, saveM, integs, hubNotes, setHubNotes, stickyAssignments, assignSticky, unstickNote, mgmtNoteAssignments, mgmtAssignNote, mgmtUnstickNote, sidebarOpen, setSidebarOpen, deleteNote, isPro, isAutopilot, onNotify, refreshTasks, insightsBudget, refreshBudget }) {
+function ManagementCanvas({ businessId, metrics, saveM, integs, hubNotes, setHubNotes, stickyAssignments, assignSticky, unstickNote, mgmtNoteAssignments, mgmtAssignNote, mgmtUnstickNote, sidebarOpen, setSidebarOpen, deleteNote, isPro, isStarter, isAutopilot, onNotify, refreshTasks, insightsBudget, refreshBudget }) {
   const POS_KEY     = `earnedlab_mgmt_pos_${businessId}`;
   const CARDS_KEY   = `earnedlab_mgmt_cards_${businessId}`;
   const SNAP_KEY    = `earnedlab_snaps_${businessId}`;
@@ -4705,7 +4852,7 @@ function ManagementCanvas({ businessId, metrics, saveM, integs, hubNotes, setHub
   return (
     <div style={{ paddingRight: sidebarOpen?300:0, transition:"padding-right 0.25s ease" }}>
       {showProGate && <PlansModal highlightPlan="pro" onClose={()=>setShowProGate(false)} />}
-      <BusinessStrategySection businessId={businessId} metrics={metrics} snapshots={snapshots} isPro={isPro} saveM={saveM} isAutopilot={isAutopilot} onNotify={onNotify} refreshTasks={refreshTasks} insightsBudget={insightsBudget} refreshBudget={refreshBudget} />
+      <BusinessStrategySection businessId={businessId} metrics={metrics} snapshots={snapshots} isPro={isPro} isStarter={isStarter} saveM={saveM} isAutopilot={isAutopilot} onNotify={onNotify} refreshTasks={refreshTasks} insightsBudget={insightsBudget} refreshBudget={refreshBudget} />
 
       {/* Global time range bar */}
       <div style={{ padding:"10px 22px", display:"flex", alignItems:"center", gap:10, flexWrap:"wrap", background:C.surface, borderBottom:`1px solid ${C.border}`, marginBottom:16 }}>
@@ -5571,7 +5718,7 @@ export default function Hub() {
                 </div>
               </div>
               <MissingFieldsBar prefs={prefs} metrics={metrics} onGo={()=>setTab("business_info")} agent="management" />
-              <AutopilotCard businessId={businessId} planInfo={planInfo} navigate={navigate} />
+              <MgmtModeToggle businessId={businessId} planInfo={planInfo} navigate={navigate} />
 
               <div style={{ ...card("16px 18px"), marginBottom:24, background:"#F8FAFC", border:`1px solid ${C.border}` }}>
                 <div style={{ fontFamily:FH, fontWeight:600, fontSize:14, marginBottom:8 }}>Ask your management agent</div>
@@ -5599,6 +5746,7 @@ export default function Hub() {
                 setSidebarOpen={setMgmtSidebarOpen}
                 deleteNote={deleteHubNote}
                 isPro={planInfo?.plan==="pro"||planInfo?.plan==="pro_autopilot"||planInfo?.isAdmin}
+                isStarter={!planInfo?.isAdmin&&planInfo?.plan!=="pro"&&planInfo?.plan!=="pro_autopilot"}
                 isAutopilot={planInfo?.plan==="pro_autopilot"||planInfo?.isAdmin}
                 onNotify={pushNotif}
                 refreshTasks={refreshTasks}
