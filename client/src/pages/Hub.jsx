@@ -2298,8 +2298,7 @@ function BusinessStrategySection({ businessId, metrics, snapshots }) {
         <div>
           {(strategy.predictedOutcomes||[]).map((o,i)=>(
             <div key={i} style={{ display:"flex", gap:10, padding:"10px 0", borderBottom:i<strategy.predictedOutcomes.length-1?`1px solid ${C.border}`:"none" }}>
-              <span style={{ fontSize:16, flexShrink:0 }}>📈</span>
-              <div style={{ fontSize:13, fontFamily:FB, color:C.text, lineHeight:1.6 }}>{o}</div>
+                  <div style={{ fontSize:13, fontFamily:FB, color:C.text, lineHeight:1.6 }}>{o}</div>
             </div>
           ))}
         </div>
@@ -2312,8 +2311,7 @@ function BusinessStrategySection({ businessId, metrics, snapshots }) {
     <div style={{ ...card("0"), overflow:"hidden", marginBottom:28 }}>
       <div style={{ background:"linear-gradient(135deg,#1E1B4B,#4338CA)", padding:"18px 20px", display:"flex", justifyContent:"space-between", alignItems:"center", cursor:"pointer" }} onClick={()=>setExpanded(p=>!p)}>
         <div>
-          <div style={{ fontFamily:FH, fontWeight:700, fontSize:16, color:"#fff", marginBottom:2 }}>🧭 Business Strategy</div>
-          <div style={{ fontSize:12, color:"rgba(255,255,255,0.55)", fontFamily:FB }}>Link revenue channels → run correlation analysis → generate data-driven strategy</div>
+          <div style={{ fontFamily:FH, fontWeight:700, fontSize:16, color:"#fff", marginBottom:2 }}>Business Strategy</div>
         </div>
         <span style={{ color:"rgba(255,255,255,0.5)", fontSize:14, transform:expanded?"rotate(180deg)":"none", transition:"transform 0.15s", display:"inline-block" }}>▾</span>
       </div>
@@ -2325,7 +2323,6 @@ function BusinessStrategySection({ businessId, metrics, snapshots }) {
             <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:12 }}>
               <div>
                 <div style={{ fontFamily:FH, fontWeight:700, fontSize:14 }}>Correlations</div>
-                <div style={{ fontSize:11, color:C.muted, fontFamily:FB }}>Link two revenue channel fields to see how they influence each other</div>
               </div>
               <button onClick={()=>setLinking(p=>!p)} style={{ ...btnO(C.primary,12) }}>
                 {linking?"Cancel":"+ Link fields"}
@@ -2355,7 +2352,7 @@ function BusinessStrategySection({ businessId, metrics, snapshots }) {
 
             {links.length===0&&!linking&&(
               <div style={{ background:C.surface, borderRadius:10, padding:"14px 16px", textAlign:"center" }}>
-                <div style={{ fontSize:12, color:C.muted, fontFamily:FB }}>No correlations yet. Example: link Leads → Revenue to see how lead volume affects revenue.</div>
+                <div style={{ fontSize:12, color:C.muted, fontFamily:FB }}>No correlations yet. Link fields above to get started.</div>
               </div>
             )}
 
@@ -2376,7 +2373,7 @@ function BusinessStrategySection({ businessId, metrics, snapshots }) {
                 <div style={{ fontSize:11, color:C.muted, fontFamily:FB }}>
                   {applied.length>0
                     ? `Using ${applied.length} correlation${applied.length>1?"s":""}: ${applied.map(l=>l.aLabel+"→"+l.bLabel).join(", ")}`
-                    : "Using current metrics — apply correlations above for deeper analysis"}
+                    : ""}
                 </div>
               </div>
               <div style={{ display:"flex", gap:8, alignItems:"center" }}>
@@ -2791,7 +2788,7 @@ function SourceList({ items, onAdd, onRemove, onUpdateCategory, prefix="$", note
             </NoteDropItem>
           );
         })}
-        {filtered.length===0&&<div style={{ fontSize:12, color:C.muted, textAlign:"center", padding:"10px 0", fontFamily:FB }}>No {filter!=="all"?filter+" ":""}items yet</div>}
+        {filtered.length===0&&<div style={{ fontSize:12, color:C.muted, textAlign:"center", padding:"10px 0", fontFamily:FB }}></div>}
       </div>
       {adding?(
         <div style={{ marginTop:8, display:"flex", gap:5, flexWrap:"wrap" }}>
@@ -2870,7 +2867,7 @@ function CostsContent({ metrics, saveM, cardId="costs", globalRange=null, global
         notesByTarget={notesByTarget} onDropNote={onDropNote} onUnstickNote={onUnstickNote} cardId={cardId} />
       {investRows.length>0&&(
         <div style={{ marginTop:8 }}>
-          <div style={{ fontSize:10, color:"#7C3AED", fontFamily:FB, fontWeight:700, textTransform:"uppercase", letterSpacing:"0.05em", marginBottom:4 }}>From Investments (read-only)</div>
+          <div style={{ fontSize:10, color:"#7C3AED", fontFamily:FB, fontWeight:700, textTransform:"uppercase", letterSpacing:"0.05em", marginBottom:4 }}>From Investments</div>
           {investRows.map((x,i)=>(
             <div key={x.id||i} style={{ display:"flex", justifyContent:"space-between", alignItems:"center", fontSize:11, fontFamily:FB, padding:"4px 6px", background:"#F5F3FF", borderRadius:6, marginBottom:3 }}>
               <span style={{ color:"#7C3AED" }}>{x._label}{x.name?` — ${x.name}`:""}</span>
@@ -2903,7 +2900,7 @@ function LossContent({ metrics, globalRange=null, globalCStart="", globalCEnd=""
       <div style={{ background:loss>0?"#FFF1F2":C.surface, borderRadius:12, padding:"12px 14px", border:`1px solid ${loss>0?"#FECDD3":C.border}` }}>
         <div style={{ fontSize:9, color:loss>0?"#EF4444":C.muted, fontWeight:700, textTransform:"uppercase", letterSpacing:"0.07em", fontFamily:FB, marginBottom:4 }}>Loss — {label}</div>
         <div style={{ fontFamily:FH, fontWeight:700, fontSize:28, color:loss>0?"#EF4444":C.muted }}>{loss>0?`-$${loss.toLocaleString()}`:"$0"}</div>
-        {loss===0&&<div style={{ fontSize:11, color:"#22C55E", fontFamily:FB, marginTop:4 }}>No loss — profitable ✓</div>}
+        {loss===0&&<div style={{ fontSize:11, color:"#22C55E", fontFamily:FB, marginTop:4 }}>$0</div>}
       </div>
       <div style={{ display:"flex", gap:8, marginTop:8 }}>
         <div style={{ flex:1, background:C.surface, borderRadius:8, padding:"8px 10px" }}>
@@ -2939,7 +2936,7 @@ function ProfitContent({ metrics, globalRange=null, globalCStart="", globalCEnd=
       <div style={{ background:profit>0?"#F0FDF4":C.surface, borderRadius:12, padding:"12px 14px", border:`1px solid ${profit>0?"#BBF7D0":C.border}` }}>
         <div style={{ fontSize:9, color:profit>0?"#16A34A":C.muted, fontWeight:700, textTransform:"uppercase", letterSpacing:"0.07em", fontFamily:FB, marginBottom:4 }}>Profit — {label}</div>
         <div style={{ fontFamily:FH, fontWeight:700, fontSize:28, color:profit>0?"#16A34A":C.muted }}>{profit>0?`+$${profit.toLocaleString()}`:"$0"}</div>
-        {profit===0&&<div style={{ fontSize:11, color:"#EF4444", fontFamily:FB, marginTop:4 }}>At a loss or break-even</div>}
+        {profit===0&&<div style={{ fontSize:11, color:"#EF4444", fontFamily:FB, marginTop:4 }}>$0</div>}
       </div>
       <div style={{ display:"flex", gap:8, marginTop:8 }}>
         <div style={{ flex:1, background:C.surface, borderRadius:8, padding:"8px 10px" }}>
@@ -2989,14 +2986,13 @@ function InvestmentsContent({ metrics, saveM, cardId="investments", globalRange=
   return (
     <div>
       {globalRange ? <GlobalRangeLabel mode={globalRange} count={displayAmt} prefix="$" /> : <RangeDropdown mode={rangeMode} setMode={setRangeMode} cStart={cStart} setCStart={setCStart} cEnd={cEnd} setCEnd={setCEnd} count={displayAmt} prefix="$" />}
-      <div style={{ fontSize:10, color:"#7C3AED", fontFamily:FB, marginBottom:10 }}>Counts toward Costs · Ongoing: ${totalOngoing.toLocaleString()}/mo</div>
       <div style={{ marginBottom:12 }}>
-        <div style={{ fontSize:11, color:C.text, fontFamily:FB, fontWeight:700, marginBottom:6 }}>Initial (One-Time) — ${totalInitial.toLocaleString()}</div>
+        <div style={{ fontSize:11, color:C.text, fontFamily:FB, fontWeight:700, marginBottom:6 }}>Initial — ${totalInitial.toLocaleString()}</div>
         <SourceList items={initial} onAdd={addInitial} onRemove={removeInitial} onUpdateCategory={updateInitialCat} prefix="$"
           cardId={`${cardId}:initial`} {...noteProps} />
       </div>
       <div>
-        <div style={{ fontSize:11, color:C.text, fontFamily:FB, fontWeight:700, marginBottom:6 }}>Ongoing (Recurring/Mo) — ${totalOngoing.toLocaleString()}</div>
+        <div style={{ fontSize:11, color:C.text, fontFamily:FB, fontWeight:700, marginBottom:6 }}>Ongoing — ${totalOngoing.toLocaleString()}</div>
         <SourceList items={ongoing} onAdd={addOngoing} onRemove={removeOngoing} onUpdateCategory={updateOngoingCat} prefix="$"
           cardId={`${cardId}:ongoing`} {...noteProps} />
       </div>
@@ -3004,36 +3000,44 @@ function InvestmentsContent({ metrics, saveM, cardId="investments", globalRange=
   );
 }
 
-function BookingsContent({ metrics, saveM, integs }) {
+function BookingsContent({ metrics, saveM, integs, globalRange=null, globalCStart="", globalCEnd="" }) {
   const meta = (()=>{ try{const i=integs.find(x=>x.provider==="calendly");return i?.metadata?JSON.parse(i.metadata):{};}catch{return {};} })();
   const hasLink = !!meta.bookingUrl;
+  const isConn = integs.find(i=>i.provider==="calendly")?.status==="connected";
+  const [rangeMode, setRangeMode] = useState("month");
+  const [cStart, setCStart] = useState(""); const [cEnd, setCEnd] = useState("");
+  const effectiveMode = globalRange || rangeMode;
+  const effectiveCStart = globalRange==="custom"?globalCStart:cStart;
+  const effectiveCEnd   = globalRange==="custom"?globalCEnd:cEnd;
+  const val = effectiveMode==="week"?metrics.bookings?.this_week||0:metrics.bookings?.this_month||0;
   return (
     <div>
-      {hasLink ? (
-        <div style={{ background:C.surface, borderRadius:10, padding:"8px 12px", marginBottom:12, display:"flex", justifyContent:"space-between", alignItems:"center" }}>
-          <span style={{ fontSize:11, color:C.muted, fontFamily:FB }}>📅 Calendly linked</span>
-          <a href={`https://${(meta.bookingUrl||"").replace(/^https?:\/\//,"")}`} target="_blank" rel="noopener noreferrer" style={{ fontSize:11, color:C.primary, fontFamily:FB, textDecoration:"none" }}>View page →</a>
-        </div>
-      ) : (
-        <div style={{ background:"#FFFBEB", borderRadius:10, padding:"8px 12px", marginBottom:12, fontSize:11, color:"#92400E", fontFamily:FB }}>
-          Connect Calendly in Hub → Integrations for auto-sync, or log counts below.
-        </div>
-      )}
+      <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:10 }}>
+        <span style={{ fontSize:10, padding:"2px 8px", borderRadius:12, background:isConn?"#F0FDF4":"#F1F5F9", color:isConn?"#22C55E":C.muted, fontFamily:FB, fontWeight:600 }}>{isConn?"Connected":hasLink?"Linked":"Not connected"}</span>
+        {hasLink&&<a href={`https://${(meta.bookingUrl||"").replace(/^https?:\/\//,"")}`} target="_blank" rel="noopener noreferrer" style={{ fontSize:11, color:C.primary, fontFamily:FB, textDecoration:"none" }}>View page →</a>}
+      </div>
+      {globalRange ? <GlobalRangeLabel mode={globalRange} count={val} /> : <RangeDropdown mode={rangeMode} setMode={setRangeMode} cStart={cStart} setCStart={setCStart} cEnd={cEnd} setCEnd={setCEnd} count={val} />}
       <div style={{ display:"flex", gap:8 }}>
-        <MCell label="This week"  value={metrics.bookings.this_week}  onChange={v=>saveM("bookings.this_week",v)} />
-        <MCell label="This month" value={metrics.bookings.this_month} onChange={v=>saveM("bookings.this_month",v)} />
+        <MCell label="This week"  value={metrics.bookings?.this_week||0}  onChange={v=>saveM("bookings.this_week",v)} />
+        <MCell label="This month" value={metrics.bookings?.this_month||0} onChange={v=>saveM("bookings.this_month",v)} />
       </div>
     </div>
   );
 }
 
-function GoogleContent({ metrics, saveM, integs }) {
+function GoogleContent({ metrics, saveM, integs, globalRange=null, globalCStart="", globalCEnd="" }) {
   const meta = (()=>{ try{const i=integs.find(x=>x.provider==="google");return i?.metadata?JSON.parse(i.metadata):{};}catch{return {};} })();
   const isConn = integs.find(i=>i.provider==="google")?.status==="connected";
   const viewable = meta._viewableStatus==="viewable";
   const statusLabel = isConn?"Connected":viewable?"Viewable":"Not connected";
   const statusClr   = isConn?"#22C55E":viewable?"#3B82F6":C.muted;
-  const rating = metrics.social.google_rating||0;
+  const [rangeMode, setRangeMode] = useState("month");
+  const [cStart, setCStart] = useState(""); const [cEnd, setCEnd] = useState("");
+  const effectiveMode = globalRange || rangeMode;
+  const effectiveCStart = globalRange==="custom"?globalCStart:cStart;
+  const effectiveCEnd   = globalRange==="custom"?globalCEnd:cEnd;
+  const reviewCount = metrics.social?.google_reviews||0;
+  const rating = metrics.social?.google_rating||0;
   const stars  = Math.round(rating);
   return (
     <div>
@@ -3043,9 +3047,10 @@ function GoogleContent({ metrics, saveM, integs }) {
           <a href={meta.profileUrl} target="_blank" rel="noopener noreferrer" style={{ fontSize:11, color:C.primary, fontFamily:FB, textDecoration:"none" }}>View listing →</a>
         )}
       </div>
+      {globalRange ? <GlobalRangeLabel mode={globalRange} count={reviewCount} /> : <RangeDropdown mode={rangeMode} setMode={setRangeMode} cStart={cStart} setCStart={setCStart} cEnd={cEnd} setCEnd={setCEnd} count={reviewCount} />}
       <div style={{ display:"flex", gap:8, marginBottom:stars>0?10:0 }}>
-        <MCell label="Reviews" value={metrics.social.google_reviews} onChange={v=>saveM("social.google_reviews",v)} />
-        <MCell label="Rating"  value={metrics.social.google_rating}  onChange={v=>saveM("social.google_rating",v)} />
+        <MCell label="Reviews" value={metrics.social?.google_reviews||0} onChange={v=>saveM("social.google_reviews",v)} />
+        <MCell label="Rating"  value={metrics.social?.google_rating||0}  onChange={v=>saveM("social.google_rating",v)} />
       </div>
       {stars>0&&(
         <div style={{ display:"flex", gap:2, alignItems:"center" }}>
@@ -3053,49 +3058,44 @@ function GoogleContent({ metrics, saveM, integs }) {
           <span style={{ fontSize:11, color:C.muted, marginLeft:6, fontFamily:FB }}>{rating}/5</span>
         </div>
       )}
-      {!isConn&&!viewable&&(
-        <div style={{ fontSize:11, color:C.muted, fontFamily:FB, marginTop:8 }}>Log review count and rating above, or connect Google in Hub → Integrations.</div>
-      )}
     </div>
   );
 }
 
-function EmailContent({ integs, businessId }) {
+function EmailContent({ integs, businessId, globalRange=null, globalCStart="", globalCEnd="" }) {
   const KEY = `earnedlab_email_${businessId}`;
   const emailInteg = integs.find(x=>x.provider==="email");
   const meta = (()=>{ try{return emailInteg?.metadata?JSON.parse(emailInteg.metadata):{};}catch{return {};} })();
   const isConnected = emailInteg?.status==="connected";
   const isViewable  = !!meta.address;
+  const [rangeMode, setRangeMode] = useState("month");
+  const [cStart, setCStart] = useState(""); const [cEnd, setCEnd] = useState("");
+  const effectiveMode = globalRange || rangeMode;
   const [counts, setCounts] = useState(()=>{ try{return JSON.parse(localStorage.getItem(KEY)||"null")||{ inbox:0,starred:0,saved:0,archive:0 };}catch{return { inbox:0,starred:0,saved:0,archive:0 };} });
   const updateCount = (field,val)=>{
     const next={ ...counts,[field]:Number(val)||0 };
     setCounts(next); try{localStorage.setItem(KEY,JSON.stringify(next));}catch{}
   };
   const SECTIONS=[
-    { label:"Inbox",   field:"inbox",   icon:"📥" },
-    { label:"Starred", field:"starred", icon:"⭐" },
-    { label:"Saved",   field:"saved",   icon:"🔖" },
-    { label:"Archive", field:"archive", icon:"📦" },
+    { label:"Inbox",   field:"inbox" },
+    { label:"Starred", field:"starred" },
+    { label:"Saved",   field:"saved" },
+    { label:"Archive", field:"archive" },
   ];
-  if(!isViewable) return (
-    <div style={{ textAlign:"center", padding:"12px 0" }}>
-      <div style={{ fontSize:12, color:C.muted, fontFamily:FB }}>Add your email address in Hub → Integrations to track inbox stats here.</div>
-    </div>
-  );
-  const statusLabel = isConnected?"Connected":"Viewable";
-  const statusClr   = isConnected?"#22C55E":"#3B82F6";
-  const statusBg    = isConnected?"#F0FDF4":"#EFF6FF";
+  const statusLabel = isConnected?"Connected":isViewable?"Viewable":"Not connected";
+  const statusClr   = isConnected?"#22C55E":isViewable?"#3B82F6":C.muted;
+  const total = counts.inbox||0;
   return (
     <div>
-      <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:12 }}>
-        <span style={{ fontSize:10, padding:"2px 8px", borderRadius:12, background:statusBg, color:statusClr, fontFamily:FB, fontWeight:600 }}>{statusLabel}</span>
-        <span style={{ fontSize:11, color:C.muted, fontFamily:FB }}>{meta.address}</span>
-        {!isConnected&&<span style={{ fontSize:10, color:C.muted, fontFamily:FB }}>(Connect API key for full access)</span>}
+      <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:10 }}>
+        <span style={{ fontSize:10, padding:"2px 8px", borderRadius:12, background:statusClr+"18", color:statusClr, fontFamily:FB, fontWeight:600 }}>{statusLabel}</span>
+        {isViewable&&<span style={{ fontSize:11, color:C.muted, fontFamily:FB }}>{meta.address}</span>}
       </div>
+      {globalRange ? <GlobalRangeLabel mode={globalRange} count={total} /> : <RangeDropdown mode={rangeMode} setMode={setRangeMode} cStart={cStart} setCStart={setCStart} cEnd={cEnd} setCEnd={setCEnd} count={total} />}
       <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:8 }}>
         {SECTIONS.map(s=>(
           <div key={s.field} style={{ background:C.surface, borderRadius:10, padding:"8px 10px" }}>
-            <div style={{ fontSize:11, color:C.muted, fontFamily:FB, marginBottom:4 }}>{s.icon} {s.label}</div>
+            <div style={{ fontSize:11, color:C.muted, fontFamily:FB, marginBottom:4 }}>{s.label}</div>
             <input type="number" value={counts[s.field]||0} onChange={e=>updateCount(s.field,e.target.value)} style={{ width:"100%", fontSize:20, fontFamily:FH, fontWeight:700, padding:"2px 4px", border:"none", background:"transparent", color:C.text, outline:"none" }} />
           </div>
         ))}
@@ -3180,12 +3180,12 @@ function DraggableCard({ id, pos, meta, notes=[], isDragging, onDragStart, onRem
 
 // ── WIDGET TYPES ──────────────────────────────────────────────────
 const WIDGET_DEFS = {
-  graph: { label:"Line Graph",   icon:"", desc:"Metric over time" },
-  pie:   { label:"Pie Chart",    icon:"", desc:"Sources breakdown" },
-  draw:  { label:"Drawing",      icon:"", desc:"Freehand sketch" },
-  corr:  { label:"Correlation",  icon:"", desc:"Compare two metrics" },
-  field: { label:"Custom Field", icon:"", desc:"Equation of values" },
-  eq:    { label:"Equation",     icon:"", desc:"Link channel values" },
+  graph: { label:"Line Graph",   icon:"", desc:"" },
+  pie:   { label:"Pie Chart",    icon:"", desc:"" },
+  draw:  { label:"Drawing",      icon:"", desc:"" },
+  corr:  { label:"Correlation",  icon:"", desc:"" },
+  field: { label:"Custom Field", icon:"", desc:"" },
+  eq:    { label:"Equation",     icon:"", desc:"" },
 };
 
 function EmbeddedWidget({ widget, onUpdateConfig, onRemove, metrics, snapshots, saveM, businessId, globalRange=null, globalCStart="", globalCEnd="", standalone=false }) {
@@ -3205,7 +3205,7 @@ function EmbeddedWidget({ widget, onUpdateConfig, onRemove, metrics, snapshots, 
 
   const ConfigForm = ()=>{
     if(widget.type==="graph") return(<div>
-      <select value={cfg.fieldId||""} onChange={e=>setCfg(p=>({...p,fieldId:e.target.value}))} style={s}><option value="">-- Metric --</option>{fldOpts}</select>
+      <select value={cfg.fieldId||""} onChange={e=>setCfg(p=>({...p,fieldId:e.target.value}))} style={s}><option value="">-- Select metric --</option>{fldOpts}</select>
       <div style={{ display:"flex", gap:4 }}><button onClick={saveConfig} disabled={!cfg.fieldId} style={{ ...btn(C.primary,"#fff",10), padding:"4px 10px" }}>Save</button><button onClick={onRemove} style={{ ...btnO(C.muted,10), padding:"4px 8px" }}>Remove</button></div>
     </div>);
     if(widget.type==="pie") return(<div>
@@ -3258,7 +3258,7 @@ function EmbeddedWidget({ widget, onUpdateConfig, onRemove, metrics, snapshots, 
               <option value="custom">Custom</option>
             </select>
           )}
-          {!editing&&widget.type!=="draw"&&<button onClick={()=>setEditing(true)} style={{ background:"none", border:`1px solid ${C.border}`, borderRadius:5, cursor:"pointer", color:C.muted, fontSize:11, padding:"1px 6px" }}>cfg</button>}
+          {!editing&&widget.type!=="draw"&&<button onClick={()=>setEditing(true)} style={{ background:"none", border:`1px solid ${C.border}`, borderRadius:5, cursor:"pointer", color:C.muted, fontSize:13, padding:"0px 5px", lineHeight:"18px" }}>⚙</button>}
           {!standalone&&<button onClick={onRemove} style={{ background:"none", border:"none", cursor:"pointer", color:C.muted, fontSize:13, padding:0, lineHeight:1 }}>×</button>}
         </div>
       </div>
@@ -3516,7 +3516,7 @@ function PieWidget({ config, metrics, businessId, cardRange }) {
   return (
     <div>
       <canvas ref={canvasRef} style={{ display:"block", margin:"0 auto 6px", width:PIE_W+"px", height:PIE_H+"px" }}/>
-      {!items.length&&<div style={{ fontSize:11, color:C.muted, fontFamily:FB, textAlign:"center" }}>Add items to see breakdown.</div>}
+      {!items.length&&<div style={{ fontSize:11, color:C.muted, fontFamily:FB, textAlign:"center" }}></div>}
       <div style={{ maxHeight:90, overflowY:"auto" }}>
         {items.map((item,i)=>(
           <div key={item.name} style={{ display:"flex", justifyContent:"space-between", fontSize:11, fontFamily:FB, padding:"2px 0" }}>
@@ -3561,7 +3561,7 @@ function DrawingWidget({ widgetId }) {
 function IntraCorrelWidget({ config, snapshots, metrics }) {
   const aF=LINK_FIELDS.find(f=>f.id===config.fieldA);
   const bF=LINK_FIELDS.find(f=>f.id===config.fieldB);
-  if(!aF||!bF) return <div style={{ fontSize:11, color:C.muted, fontFamily:FB }}>Select two fields in sidebar.</div>;
+  if(!aF||!bF) return <div style={{ fontSize:11, color:C.muted, fontFamily:FB }}>Configure fields above.</div>;
   const snapA=snapshots.map(s=>s[aF.snapKey||aF.id]||0);
   const snapB=snapshots.map(s=>s[bF.snapKey||bF.id]||0);
   const r=_pearson(snapA,snapB);
@@ -3615,7 +3615,7 @@ function CustomFieldWidget({ config, metrics }) {
 function EquationWidget({ config, metrics, saveM }) {
   const srcF=LINK_FIELDS.find(f=>f.id===config.source);
   const tgtF=LINK_FIELDS.find(f=>f.id===config.target);
-  if(!srcF||!tgtF) return <div style={{ fontSize:11, color:C.muted, fontFamily:FB }}>Configure channel equation in sidebar.</div>;
+  if(!srcF||!tgtF) return <div style={{ fontSize:11, color:C.muted, fontFamily:FB }}>Configure fields above.</div>;
   const srcVal=_getFieldVal(metrics,srcF.path)||0;
   const tgtVal=_getFieldVal(metrics,tgtF.path)||0;
   const sync=()=>saveM(tgtF.path,srcVal);
@@ -3666,12 +3666,10 @@ function MgmtSidebar({ open, onToggle, hubNotes, setHubNotes, businessId, mgmtNo
     const s={ ...inp(), fontSize:12, marginBottom:6 };
     const fldOpts=LINK_FIELDS.map(f=><option key={f.id} value={f.id}>{f.label}</option>);
     if(activeTool==="graph") return (<div>
-      <div style={{ fontSize:11, fontFamily:FB, fontWeight:700, color:C.text, marginBottom:8 }}>Line Graph — select metric</div>
-      <select value={cfg.fieldId||""} onChange={e=>setCfg(p=>({...p,fieldId:e.target.value}))} style={s}><option value="">-- field --</option>{fldOpts}</select>
+      <select value={cfg.fieldId||""} onChange={e=>setCfg(p=>({...p,fieldId:e.target.value}))} style={s}><option value="">-- Select metric --</option>{fldOpts}</select>
       <div style={{ display:"flex", gap:6 }}><button onClick={confirmTool} disabled={!cfg.fieldId} style={{ ...btn(C.primary,"#fff",11), padding:"5px 14px" }}>Add</button><button onClick={cancelTool} style={{ ...btnO(C.muted,11), padding:"5px 10px" }}>Cancel</button></div>
     </div>);
     if(activeTool==="pie") return (<div>
-      <div style={{ fontSize:11, fontFamily:FB, fontWeight:700, color:C.text, marginBottom:8 }}>Pie Chart — select source list</div>
       <select value={cfg.source||""} onChange={e=>setCfg(p=>({...p,source:e.target.value}))} style={s}>
         <option value="">-- source --</option>
         <option value="revenue">Revenue Sources</option>
@@ -3684,13 +3682,11 @@ function MgmtSidebar({ open, onToggle, hubNotes, setHubNotes, businessId, mgmtNo
       <div style={{ display:"flex", gap:6 }}><button onClick={confirmTool} disabled={!cfg.source} style={{ ...btn(C.primary,"#fff",11), padding:"5px 14px" }}>Add</button><button onClick={cancelTool} style={{ ...btnO(C.muted,11), padding:"5px 10px" }}>Cancel</button></div>
     </div>);
     if(activeTool==="corr") return (<div>
-      <div style={{ fontSize:11, fontFamily:FB, fontWeight:700, color:C.text, marginBottom:8 }}>Correlation — compare two metrics</div>
       <select value={cfg.fieldA||""} onChange={e=>setCfg(p=>({...p,fieldA:e.target.value}))} style={s}><option value="">-- Field A --</option>{fldOpts}</select>
       <select value={cfg.fieldB||""} onChange={e=>setCfg(p=>({...p,fieldB:e.target.value}))} style={s}><option value="">-- Field B --</option>{LINK_FIELDS.filter(f=>f.id!==cfg.fieldA).map(f=><option key={f.id} value={f.id}>{f.label}</option>)}</select>
       <div style={{ display:"flex", gap:6 }}><button onClick={confirmTool} disabled={!cfg.fieldA||!cfg.fieldB} style={{ ...btn(C.primary,"#fff",11), padding:"5px 14px" }}>Add</button><button onClick={cancelTool} style={{ ...btnO(C.muted,11), padding:"5px 10px" }}>Cancel</button></div>
     </div>);
     if(activeTool==="field") return (<div>
-      <div style={{ fontSize:11, fontFamily:FB, fontWeight:700, color:C.text, marginBottom:8 }}>Custom Field — equation</div>
       <input value={cfg.title||""} onChange={e=>setCfg(p=>({...p,title:e.target.value}))} placeholder="Field name" style={s}/>
       <select value={(cfg.formula||[])[0]?.value||""} onChange={e=>setCfg(p=>({...p,formula:[{type:"field",value:e.target.value},...(p.formula||[]).slice(1)]}))} style={s}><option value="">-- Field A --</option>{fldOpts}</select>
       <select value={(cfg.formula||[null,{}])[1]?.value||""} onChange={e=>setCfg(p=>({...p,formula:[(p.formula||[{}])[0],{type:"op",value:e.target.value},(p.formula||[{},{},{}])[2]||{}]}))} style={s}>
@@ -3701,8 +3697,6 @@ function MgmtSidebar({ open, onToggle, hubNotes, setHubNotes, businessId, mgmtNo
       <div style={{ display:"flex", gap:6 }}><button onClick={confirmTool} disabled={!cfg.title} style={{ ...btn(C.primary,"#fff",11), padding:"5px 14px" }}>Add</button><button onClick={cancelTool} style={{ ...btnO(C.muted,11), padding:"5px 10px" }}>Cancel</button></div>
     </div>);
     if(activeTool==="eq") return (<div>
-      <div style={{ fontSize:11, fontFamily:FB, fontWeight:700, color:C.text, marginBottom:8 }}>Equation — link channels</div>
-      <div style={{ fontSize:10, color:C.muted, fontFamily:FB, marginBottom:6 }}>Source value syncs to target on button click.</div>
       <select value={cfg.source||""} onChange={e=>setCfg(p=>({...p,source:e.target.value}))} style={s}><option value="">-- Source field --</option>{fldOpts}</select>
       <select value={cfg.target||""} onChange={e=>setCfg(p=>({...p,target:e.target.value}))} style={s}><option value="">-- Target field --</option>{LINK_FIELDS.filter(f=>f.id!==cfg.source).map(f=><option key={f.id} value={f.id}>{f.label}</option>)}</select>
       <input value={cfg.label||""} onChange={e=>setCfg(p=>({...p,label:e.target.value}))} placeholder="Label (optional)" style={s}/>
@@ -3734,7 +3728,6 @@ function MgmtSidebar({ open, onToggle, hubNotes, setHubNotes, businessId, mgmtNo
           <div style={{ flex:1, overflowY:"auto", padding:"12px" }}>
             {/* Notes */}
             {section==="notes" && (<>
-              <div style={{ fontSize:10, color:C.muted, fontFamily:FB, fontWeight:700, textTransform:"uppercase", letterSpacing:"0.06em", marginBottom:8 }}>Drag to a canvas card to pin</div>
               {hubNotes.length===0&&<div style={{ fontSize:11, color:C.muted, fontFamily:FB, textAlign:"center", padding:"16px 0" }}>No notes yet.</div>}
               {hubNotes.map(n=>{
                 const asgn=mgmtNoteAssignments[n.id];
@@ -3761,13 +3754,12 @@ function MgmtSidebar({ open, onToggle, hubNotes, setHubNotes, businessId, mgmtNo
             {section==="visuals" && (<>
               {activeTool?configForm():(
                 <>
-                  <div style={{ fontSize:10, color:C.muted, fontFamily:FB, marginBottom:6 }}>Drag onto a card — or click to add to canvas</div>
                   <div style={{ display:"flex", flexDirection:"column", gap:6 }}>
                     {["graph","pie","draw"].map(t=>{const d=WIDGET_DEFS[t];return(
                       <div key={t} draggable onDragStart={e=>{e.dataTransfer.setData("text/widgetType",t);}}
                         onClick={()=>startTool(t)}
                         style={{ display:"flex", alignItems:"center", gap:10, padding:"10px 12px", background:C.surface, border:`1px solid ${C.border}`, borderRadius:10, cursor:"grab", userSelect:"none" }}>
-                        <div style={{ flex:1 }}><div style={{ fontSize:12, fontFamily:FB, fontWeight:700, color:C.text }}>{d.label}</div><div style={{ fontSize:10, color:C.muted, fontFamily:FB }}>{d.desc}</div></div>
+                        <div style={{ flex:1 }}><div style={{ fontSize:12, fontFamily:FB, fontWeight:700, color:C.text }}>{d.label}</div></div>
                         <span style={{ fontSize:10, color:C.subtle, fontFamily:FB }}>⠿</span>
                       </div>
                     );})}
@@ -3780,13 +3772,12 @@ function MgmtSidebar({ open, onToggle, hubNotes, setHubNotes, businessId, mgmtNo
             {section==="analysis" && (<>
               {activeTool?configForm():(
                 <>
-                  <div style={{ fontSize:10, color:C.muted, fontFamily:FB, marginBottom:6 }}>Drag onto a card — or click to add to canvas</div>
                   <div style={{ display:"flex", flexDirection:"column", gap:6 }}>
                     {["corr","field","eq"].map(t=>{const d=WIDGET_DEFS[t];return(
                       <div key={t} draggable onDragStart={e=>{e.dataTransfer.setData("text/widgetType",t);}}
                         onClick={()=>startTool(t)}
                         style={{ display:"flex", alignItems:"center", gap:10, padding:"10px 12px", background:C.surface, border:`1px solid ${C.border}`, borderRadius:10, cursor:"grab", userSelect:"none" }}>
-                        <div style={{ flex:1 }}><div style={{ fontSize:12, fontFamily:FB, fontWeight:700, color:C.text }}>{d.label}</div><div style={{ fontSize:10, color:C.muted, fontFamily:FB }}>{d.desc}</div></div>
+                        <div style={{ flex:1 }}><div style={{ fontSize:12, fontFamily:FB, fontWeight:700, color:C.text }}>{d.label}</div></div>
                         <span style={{ fontSize:10, color:C.subtle, fontFamily:FB }}>⠿</span>
                       </div>
                     );})}
@@ -3987,9 +3978,9 @@ function ManagementCanvas({ businessId, metrics, saveM, integs, hubNotes, setHub
       case "loss":        return <LossContent        metrics={metrics} globalRange={gr} globalCStart={gc[0]} globalCEnd={gc[1]}/>;
       case "profit":      return <ProfitContent      metrics={metrics} globalRange={gr} globalCStart={gc[0]} globalCEnd={gc[1]}/>;
       case "investments": return <InvestmentsContent metrics={metrics} saveM={saveM} cardId="investments" globalRange={gr} globalCStart={gc[0]} globalCEnd={gc[1]} {...noteProps}/>;
-      case "bookings":    return <BookingsContent    metrics={metrics} saveM={saveM} integs={integs}/>;
-      case "google":      return <GoogleContent      metrics={metrics} saveM={saveM} integs={integs}/>;
-      case "email":       return <EmailContent       integs={integs} businessId={businessId}/>;
+      case "bookings":    return <BookingsContent    metrics={metrics} saveM={saveM} integs={integs} globalRange={gr} globalCStart={gc[0]} globalCEnd={gc[1]}/>;
+      case "google":      return <GoogleContent      metrics={metrics} saveM={saveM} integs={integs} globalRange={gr} globalCStart={gc[0]} globalCEnd={gc[1]}/>;
+      case "email":       return <EmailContent       integs={integs} businessId={businessId} globalRange={gr} globalCStart={gc[0]} globalCEnd={gc[1]}/>;
       default:            return null;
     }
   };
@@ -4017,7 +4008,7 @@ function ManagementCanvas({ businessId, metrics, saveM, integs, hubNotes, setHub
 
       {/* Global time range bar */}
       <div style={{ padding:"10px 22px", display:"flex", alignItems:"center", gap:10, flexWrap:"wrap", background:C.surface, borderBottom:`1px solid ${C.border}`, marginBottom:16 }}>
-        <span style={{ fontSize:11, color:C.muted, fontFamily:FB, fontWeight:600 }}>Time range (all cards):</span>
+        <span style={{ fontSize:11, color:C.muted, fontFamily:FB, fontWeight:600 }}>Time range:</span>
         <div style={{ display:"flex", gap:4, flexWrap:"wrap" }}>
           {[[null,"Per-card"],["day","Day"],["week","Week"],["month","Month"],["year","Year"],["all","All Time"],["custom","Custom"]].map(([v,l])=>(
             <button key={String(v)} onClick={()=>setGlobalRange(v)} style={{ fontSize:10, padding:"3px 10px", borderRadius:20, border:`1px solid ${globalRange===v?C.primary:C.border}`, background:globalRange===v?C.primaryBg:"transparent", color:globalRange===v?C.primary:C.muted, fontFamily:FB, fontWeight:600, cursor:"pointer" }}>{l}</button>
@@ -4030,7 +4021,6 @@ function ManagementCanvas({ businessId, metrics, saveM, integs, hubNotes, setHub
             <input type="date" value={globalCEnd} onChange={e=>setGlobalCEnd(e.target.value)} style={{ ...inp(), fontSize:11, padding:"3px 8px", width:"auto" }}/>
           </div>
         )}
-        {globalRange&&globalRange!=="custom"&&<span style={{ fontSize:10, color:C.primary, fontFamily:FB }}>← Applied to all cards</span>}
       </div>
 
       <div style={{ position:"relative", minHeight:canvasH, marginBottom:64 }}
