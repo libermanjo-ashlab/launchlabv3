@@ -66,7 +66,7 @@ export default function Dashboard() {
         <div style={{ display:"flex", alignItems:"center", gap:14 }}>
           <span style={{ fontSize:13, color:C.muted }}>{user?.name}</span>
           {user?.age && <span style={{ fontSize:11, color:C.muted, background:C.bg, borderRadius:20, padding:"3px 10px", border:`1px solid ${C.border}` }}>Age {user.age}</span>}
-          <button onClick={()=>navigate("/pricing")} style={{ ...btnO(C.primary,12), padding:"5px 12px" }}>Plans</button>
+          <button onClick={()=>navigate("/pricing")} style={{ ...btnO(C.muted,12), padding:"5px 12px" }}>Plans</button>
           <button onClick={logout} style={{ ...btnO(C.muted,12), padding:"5px 12px" }}>Sign out</button>
         </div>
       </div>
@@ -96,16 +96,16 @@ export default function Dashboard() {
         )}
 
         {planInfo && (planInfo.isTrial || planInfo.locked) && (
-          <div style={{ ...card("14px 18px"), marginBottom:24, background:planInfo.locked?"#FEF2F2":C.primaryBg, border:`1px solid ${planInfo.locked?"#DC262625":C.primary+"20"}`, display:"flex", justifyContent:"space-between", alignItems:"center" }}>
+          <div style={{ ...card("14px 18px"), marginBottom:24, background:planInfo.locked?"#FEF2F2":"#F8FAFC", border:`1px solid ${planInfo.locked?"#DC262625":C.border}`, display:"flex", justifyContent:"space-between", alignItems:"center" }}>
             <div>
-              <div style={{ fontSize:13, fontWeight:600, color:planInfo.locked?C.err:C.primary, fontFamily:FB, marginBottom:2 }}>
+              <div style={{ fontSize:13, fontWeight:600, color:planInfo.locked?C.err:C.text, fontFamily:FB, marginBottom:2 }}>
                 {planInfo.locked ? "Your free trial has ended" : `${planInfo.trialDaysLeft} day${planInfo.trialDaysLeft!==1?"s":""} left on your free trial`}
               </div>
               <div style={{ fontSize:12, color:C.muted, fontFamily:FB }}>
                 {planInfo.locked ? "Choose a plan to keep using the marketing and management agents." : "Upgrade anytime to unlock unlimited agent runs."}
               </div>
             </div>
-            <button onClick={()=>navigate("/pricing")} style={{ ...btn(planInfo.locked?C.err:C.primary,"#fff",12), flexShrink:0 }}>View plans</button>
+            <button onClick={()=>navigate("/pricing")} style={{ ...btn(planInfo.locked?C.err:C.dark,"#fff",12), flexShrink:0 }}>View plans</button>
           </div>
         )}
 
@@ -115,7 +115,7 @@ export default function Dashboard() {
         <p style={{ color:C.muted, fontSize:15, marginBottom:36 }}>What would you like to work on?</p>
 
         {/* New business CTA */}
-        <div onClick={()=>navigate("/discovery")} style={{ ...card("28px"), background:C.grad, border:"none", cursor:"pointer", marginBottom:28, boxShadow:`0 8px 32px rgba(124,58,237,0.25)`, transition:"transform 0.15s" }}>
+        <div onClick={()=>navigate("/discovery")} style={{ ...card("28px"), background:C.dark, border:"none", cursor:"pointer", marginBottom:28, boxShadow:"0 8px 32px rgba(0,0,0,0.18)", transition:"transform 0.15s" }}>
           <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center" }}>
             <div>
               <div style={{ fontFamily:FH, fontWeight:700, fontSize:20, color:"#fff", marginBottom:6 }}>Start a new business</div>
@@ -148,7 +148,7 @@ export default function Dashboard() {
                     <div style={{ flex:1 }}>
                       <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:4 }}>
                         <span style={{ fontFamily:FH, fontWeight:600, fontSize:16 }}>{b.name}</span>
-                        <span style={{ background:b.status==="live"?C.okBg:C.primaryBg, color:b.status==="live"?C.ok:C.primary, fontSize:10, fontWeight:600, padding:"2px 8px", borderRadius:20, textTransform:"uppercase", letterSpacing:"0.3px" }}>
+                        <span style={{ background:b.status==="live"?C.okBg:"#F4F4F5", color:b.status==="live"?C.ok:C.muted, fontSize:10, fontWeight:600, padding:"2px 8px", borderRadius:20, textTransform:"uppercase", letterSpacing:"0.3px" }}>
                           {b.status==="live"?"Live":"Setup"}
                         </span>
                       </div>
@@ -156,7 +156,7 @@ export default function Dashboard() {
                       {pct<100&&(
                         <div style={{ marginTop:10, display:"flex", gap:8, alignItems:"center" }}>
                           <div style={{ width:100, height:4, borderRadius:2, background:C.border }}>
-                            <div style={{ height:"100%", width:`${pct}%`, background:C.primary, borderRadius:2 }}/>
+                            <div style={{ height:"100%", width:`${pct}%`, background:C.dark, borderRadius:2 }}/>
                           </div>
                           <span style={{ fontSize:11, color:C.muted }}>{done}/{tasks.length} tasks</span>
                         </div>

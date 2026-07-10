@@ -26,7 +26,7 @@ const CH_LABELS = {
   tiktok:"TikTok", general:"General", linkedin:"LinkedIn", facebook:"Facebook",
 };
 const PRI_CLR  = { high:"#EF4444", medium:C.warn, low:C.muted };
-const STAT_CLR = { planned:C.primary, active:C.warn, monitoring:"#8B5CF6", archived:C.ok };
+const STAT_CLR = { planned:C.dark, active:C.warn, monitoring:"#64748B", archived:C.ok };
 const NOTE_COLORS = ["#FEF9C3","#FCE7F3","#DBEAFE","#D1FAE5","#FEE2E2"];
 const CH_OPTIONS  = ["instagram","email","website","google","twitter","tiktok","general"];
 
@@ -398,7 +398,7 @@ function VideoSlideTaskBlock({ content, businessName, backgroundUrl }) {
   };
 
   return (
-    <div style={{ background:"#EFF6FF", border:`1px solid ${C.primary}30`, borderRadius:8, padding:"10px 12px", marginTop:8 }}>
+    <div style={{ background:"#F8FAFC", border:`1px solid ${C.border}`, borderRadius:8, padding:"10px 12px", marginTop:8 }}>
       <div style={{ fontSize:11, fontWeight:700, color:"#92400E", textTransform:"uppercase", letterSpacing:"0.05em", marginBottom:8, fontFamily:FB }}>
         Video Reel — {content.slides?.length || 0} slides
       </div>
@@ -1016,15 +1016,28 @@ function CampaignCard({ campaign:c, onUpdate, onDelete, businessId, businessName
 
 // ── Manual Campaign Card (user-added, no AI task generation) ─────────────────
 
-function ManualCampaignCard({ campaign:c, onUpdate, onDelete }) {
+function ManualCampaignCard({ campaign:c, onUpdate, onDelete, stickyNote, onAssignSticky, onUnstickNote }) {
+  const [dropOver, setDropOver] = useState(false);
   const statusColor = STAT_CLR[c.status] || C.muted;
   return (
-    <div style={{ ...card("12px 14px"), marginBottom:10, border:`1px solid ${statusColor}25` }}>
+    <div
+      onDragOver={e=>{ e.preventDefault(); setDropOver(true); }}
+      onDragLeave={()=>setDropOver(false)}
+      onDrop={e=>{ e.preventDefault(); setDropOver(false); const noteId=e.dataTransfer.getData("text/noteId"); if(noteId&&onAssignSticky) onAssignSticky(noteId, c.id, c.title); }}
+      style={{ ...card("12px 14px"), marginBottom:10, border:`1px solid ${statusColor}25` }}>
+      {stickyNote && (
+        <div style={{ display:"flex", alignItems:"center", gap:5, background:stickyNote.color||"#FEF9C3", borderRadius:6, padding:"4px 8px", marginBottom:8, fontSize:11, color:"#374151", fontFamily:FB }}>
+          <span>📌</span>
+          <span style={{ flex:1, wordBreak:"break-word" }}>{stickyNote.text}</span>
+          <button onClick={()=>onUnstickNote?.(c.id)} style={{ background:"none", border:"none", cursor:"pointer", color:"#9CA3AF", fontSize:12, padding:0 }}>✕</button>
+        </div>
+      )}
+      {dropOver && !stickyNote && <div style={{ height:2, background:C.border, borderRadius:2, marginBottom:6 }} />}
       <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", marginBottom:6 }}>
         <div style={{ flex:1, paddingRight:8 }}>
           <div style={{ display:"flex", gap:5, marginBottom:4, flexWrap:"wrap", alignItems:"center" }}>
             <span style={{ fontSize:9, fontWeight:700, fontFamily:FB, padding:"2px 7px", borderRadius:20, textTransform:"uppercase", letterSpacing:"0.05em", background:statusColor+"18", color:statusColor }}>{c.status}</span>
-            {c.channel && <span style={{ fontSize:9, fontWeight:600, fontFamily:FB, padding:"2px 7px", borderRadius:20, background:C.primaryBg, color:C.primary, textTransform:"uppercase" }}>{CH_LABELS[c.channel]||c.channel}</span>}
+            {c.channel && <span style={{ fontSize:9, fontWeight:600, fontFamily:FB, padding:"2px 7px", borderRadius:20, background:"#F1F5F9", color:C.muted, textTransform:"uppercase" }}>{CH_LABELS[c.channel]||c.channel}</span>}
             <span style={{ fontSize:9, fontWeight:600, fontFamily:FB, padding:"2px 7px", borderRadius:20, background:"#F4F4F5", color:C.muted, textTransform:"uppercase" }}>manual</span>
           </div>
           <div style={{ fontSize:13, fontWeight:600, fontFamily:FH, lineHeight:1.4 }}>{c.title}</div>
@@ -1378,7 +1391,7 @@ function SuggestedContentCard({ item, onAddToQueue }) {
 
 // ── Suggested Campaign Card (right side — content generation for suggested items) ──
 
-function SuggestedCampaignCard({ campaign:c, agentMode, businessId, businessName, onUpdate, onDelete }) {
+function SuggestedCampaignCard({ campaign:c, agentMode, businessId, businessName, onUpdate, onDelete, stickyNote, onAssignSticky, onUnstickNote }) {
   const [loading,       setLoading]       = useState(false);
   const [result,        setResult]        = useState(c.generatedContent || null);
   const [composedBlob,  setComposedBlob]  = useState(null);
@@ -1427,8 +1440,21 @@ function SuggestedCampaignCard({ campaign:c, agentMode, businessId, businessName
     URL.revokeObjectURL(url);
   };
 
+  const [dropOver2, setDropOver2] = useState(false);
   return (
-    <div style={{ ...card("12px 14px"), marginBottom:10, border:`1px solid ${clr}20` }}>
+    <div
+      onDragOver={e=>{ e.preventDefault(); setDropOver2(true); }}
+      onDragLeave={()=>setDropOver2(false)}
+      onDrop={e=>{ e.preventDefault(); setDropOver2(false); const noteId=e.dataTransfer.getData("text/noteId"); if(noteId&&onAssignSticky) onAssignSticky(noteId, c.id, c.title); }}
+      style={{ ...card("12px 14px"), marginBottom:10, border:`1px solid ${clr}20` }}>
+      {stickyNote && (
+        <div style={{ display:"flex", alignItems:"center", gap:5, background:stickyNote.color||"#FEF9C3", borderRadius:6, padding:"4px 8px", marginBottom:8, fontSize:11, color:"#374151", fontFamily:FB }}>
+          <span>📌</span>
+          <span style={{ flex:1, wordBreak:"break-word" }}>{stickyNote.text}</span>
+          <button onClick={()=>onUnstickNote?.(c.id)} style={{ background:"none", border:"none", cursor:"pointer", color:"#9CA3AF", fontSize:12, padding:0 }}>✕</button>
+        </div>
+      )}
+      {dropOver2 && !stickyNote && <div style={{ height:2, background:C.border, borderRadius:2, marginBottom:6 }} />}
       <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", marginBottom:6 }}>
         <div style={{ flex:1, paddingRight:8 }}>
           <div style={{ display:"flex", gap:5, marginBottom:4, flexWrap:"wrap", alignItems:"center" }}>
@@ -1650,7 +1676,7 @@ function ContentLab({ businessId, businessName, plan }) {
       {/* Header */}
       <button onClick={() => isStarter ? setShowPlans(true) : setOpen(o => !o)} style={{
         width:"100%", border:"none", cursor:"pointer",
-        background: open ? "#FAFAFA" : "linear-gradient(135deg,#EFF6FF 0%,#F0F9FF 100%)",
+        background: open ? "#FAFAFA" : "#F8FAFC",
         display:"flex", alignItems:"center", justifyContent:"space-between",
         padding:"14px 18px", borderBottom: open ? `1px solid ${C.border}` : "none",
       }}>
@@ -1663,7 +1689,7 @@ function ContentLab({ businessId, businessName, plan }) {
           </div>
         </div>
         <div style={{ display:"flex", alignItems:"center", gap:8 }}>
-          {isStarter && <span style={{ fontSize:9, fontWeight:700, background:"#2563EB", color:"#fff", borderRadius:8, padding:"2px 8px", fontFamily:FB }}>PRO</span>}
+          {isStarter && <span style={{ fontSize:9, fontWeight:700, background:C.dark, color:"#fff", borderRadius:8, padding:"2px 8px", fontFamily:FB }}>PRO</span>}
           {!isStarter && <span style={{ fontSize:11, color:C.muted, fontFamily:FB }}>{open ? "▲" : "▼"}</span>}
         </div>
       </button>
@@ -2227,7 +2253,7 @@ function QuickCreatePanel({ businessId, businessName, plan, agentMode }) {
 
       {/* Generator for post / update / article / newsletter */}
       {activeType && activeType!=="schedule" && typeConfig && (
-        <div style={{ ...card("14px 16px"), border:`1px solid ${C.primary}20`, marginTop:4 }}>
+        <div style={{ ...card("14px 16px"), border:`1px solid ${C.border}`, marginTop:4 }}>
           {isStarter ? (
             <div style={{ textAlign:"center", padding:"8px 0" }}>
               <div style={{ fontSize:13, color:C.muted, fontFamily:FB, marginBottom:10 }}>Quick Create requires a Pro plan.</div>
@@ -2289,7 +2315,7 @@ function QuickCreatePanel({ businessId, businessName, plan, agentMode }) {
                             </button>
                           </>
                         ) : (
-                          <div style={{ ...card("14px"), background:"#EFF6FF", textAlign:"center" }}>
+                          <div style={{ ...card("14px"), background:"#F8FAFC", textAlign:"center" }}>
                             <div style={{ fontSize:20, marginBottom:6 }}>🎬</div>
                             <div style={{ fontSize:11, color:C.muted, fontFamily:FB, marginBottom:10 }}>{result.slides.length} slides ready</div>
                             <button onClick={createVideo} disabled={videoLoading}
@@ -2902,9 +2928,9 @@ export default function AgentPanel({ businessId, businessName, metrics, planInfo
               </p>
               {plannedCampaigns.map(c=>(
                 c.isManual
-                  ? <ManualCampaignCard key={c.id} campaign={c} onUpdate={updateCampaign} onDelete={deleteCampaign} />
+                  ? <ManualCampaignCard key={c.id} campaign={c} onUpdate={updateCampaign} onDelete={deleteCampaign} stickyNote={stickyAssignments?.[c.id] ? hubNotes?.find(n=>n.id===stickyAssignments[c.id]?.noteId) : null} onAssignSticky={onAssignSticky} onUnstickNote={onUnstickNote} />
                   : c.topic && c.tone
-                    ? <SuggestedCampaignCard key={c.id} campaign={c} agentMode={agentMode} businessId={businessId} businessName={businessName} onUpdate={updateCampaign} onDelete={deleteCampaign} />
+                    ? <SuggestedCampaignCard key={c.id} campaign={c} agentMode={agentMode} businessId={businessId} businessName={businessName} onUpdate={updateCampaign} onDelete={deleteCampaign} stickyNote={stickyAssignments?.[c.id] ? hubNotes?.find(n=>n.id===stickyAssignments[c.id]?.noteId) : null} onAssignSticky={onAssignSticky} onUnstickNote={onUnstickNote} />
                     : <CampaignCard key={c.id} campaign={c} onUpdate={updateCampaign} onDelete={deleteCampaign} businessId={businessId} businessName={businessName} setTab={setTab} activeCampaignCount={activeCampaigns.length} refreshTasks={refreshTasks} stickyNote={stickyAssignments?.[c.id] ? hubNotes?.find(n=>n.id===stickyAssignments[c.id]?.noteId) : null} onAssignSticky={onAssignSticky} onUnstickNote={onUnstickNote} />
               ))}
             </div>
@@ -2918,9 +2944,9 @@ export default function AgentPanel({ businessId, businessName, metrics, planInfo
               </p>
               {activeCampaigns.map(c=>(
                 c.isManual
-                  ? <ManualCampaignCard key={c.id} campaign={c} onUpdate={updateCampaign} onDelete={deleteCampaign} />
+                  ? <ManualCampaignCard key={c.id} campaign={c} onUpdate={updateCampaign} onDelete={deleteCampaign} stickyNote={stickyAssignments?.[c.id] ? hubNotes?.find(n=>n.id===stickyAssignments[c.id]?.noteId) : null} onAssignSticky={onAssignSticky} onUnstickNote={onUnstickNote} />
                   : c.topic && c.tone
-                    ? <SuggestedCampaignCard key={c.id} campaign={c} agentMode={agentMode} businessId={businessId} businessName={businessName} onUpdate={updateCampaign} onDelete={deleteCampaign} />
+                    ? <SuggestedCampaignCard key={c.id} campaign={c} agentMode={agentMode} businessId={businessId} businessName={businessName} onUpdate={updateCampaign} onDelete={deleteCampaign} stickyNote={stickyAssignments?.[c.id] ? hubNotes?.find(n=>n.id===stickyAssignments[c.id]?.noteId) : null} onAssignSticky={onAssignSticky} onUnstickNote={onUnstickNote} />
                     : <CampaignCard key={c.id} campaign={c} onUpdate={updateCampaign} onDelete={deleteCampaign} businessId={businessId} businessName={businessName} setTab={setTab} activeCampaignCount={activeCampaigns.length} refreshTasks={refreshTasks} stickyNote={stickyAssignments?.[c.id] ? hubNotes?.find(n=>n.id===stickyAssignments[c.id]?.noteId) : null} onAssignSticky={onAssignSticky} onUnstickNote={onUnstickNote} />
               ))}
             </div>
@@ -2944,9 +2970,9 @@ export default function AgentPanel({ businessId, businessName, metrics, planInfo
                 c.type==="market_insight"
                   ? <MarketInsightCard key={c.id} campaign={c} businessId={businessId} onUpdate={updateCampaign} onDelete={deleteCampaign} />
                   : c.isManual
-                    ? <ManualCampaignCard key={c.id} campaign={c} onUpdate={updateCampaign} onDelete={deleteCampaign} />
+                    ? <ManualCampaignCard key={c.id} campaign={c} onUpdate={updateCampaign} onDelete={deleteCampaign} stickyNote={stickyAssignments?.[c.id] ? hubNotes?.find(n=>n.id===stickyAssignments[c.id]?.noteId) : null} onAssignSticky={onAssignSticky} onUnstickNote={onUnstickNote} />
                     : c.topic && c.tone
-                      ? <SuggestedCampaignCard key={c.id} campaign={c} agentMode={agentMode} businessId={businessId} businessName={businessName} onUpdate={updateCampaign} onDelete={deleteCampaign} />
+                      ? <SuggestedCampaignCard key={c.id} campaign={c} agentMode={agentMode} businessId={businessId} businessName={businessName} onUpdate={updateCampaign} onDelete={deleteCampaign} stickyNote={stickyAssignments?.[c.id] ? hubNotes?.find(n=>n.id===stickyAssignments[c.id]?.noteId) : null} onAssignSticky={onAssignSticky} onUnstickNote={onUnstickNote} />
                       : <CampaignCard key={c.id} campaign={c} onUpdate={updateCampaign} onDelete={deleteCampaign} businessId={businessId} businessName={businessName} setTab={setTab} activeCampaignCount={activeCampaigns.length} refreshTasks={refreshTasks} stickyNote={stickyAssignments?.[c.id] ? hubNotes?.find(n=>n.id===stickyAssignments[c.id]?.noteId) : null} onAssignSticky={onAssignSticky} onUnstickNote={onUnstickNote} />
               ))}
             </div>
@@ -2978,9 +3004,9 @@ export default function AgentPanel({ businessId, businessName, metrics, planInfo
                 c.type==="market_insight"
                   ? <MarketInsightCard key={c.id} campaign={c} businessId={businessId} onUpdate={updateCampaign} onDelete={deleteCampaign} />
                   : c.isManual
-                    ? <ManualCampaignCard key={c.id} campaign={c} onUpdate={updateCampaign} onDelete={deleteCampaign} />
+                    ? <ManualCampaignCard key={c.id} campaign={c} onUpdate={updateCampaign} onDelete={deleteCampaign} stickyNote={stickyAssignments?.[c.id] ? hubNotes?.find(n=>n.id===stickyAssignments[c.id]?.noteId) : null} onAssignSticky={onAssignSticky} onUnstickNote={onUnstickNote} />
                     : c.topic && c.tone
-                      ? <SuggestedCampaignCard key={c.id} campaign={c} agentMode={agentMode} businessId={businessId} businessName={businessName} onUpdate={updateCampaign} onDelete={deleteCampaign} />
+                      ? <SuggestedCampaignCard key={c.id} campaign={c} agentMode={agentMode} businessId={businessId} businessName={businessName} onUpdate={updateCampaign} onDelete={deleteCampaign} stickyNote={stickyAssignments?.[c.id] ? hubNotes?.find(n=>n.id===stickyAssignments[c.id]?.noteId) : null} onAssignSticky={onAssignSticky} onUnstickNote={onUnstickNote} />
                       : <CampaignCard key={c.id} campaign={c} onUpdate={updateCampaign} onDelete={deleteCampaign} businessId={businessId} businessName={businessName} setTab={setTab} activeCampaignCount={activeCampaigns.length} refreshTasks={refreshTasks} stickyNote={stickyAssignments?.[c.id] ? hubNotes?.find(n=>n.id===stickyAssignments[c.id]?.noteId) : null} onAssignSticky={onAssignSticky} onUnstickNote={onUnstickNote} />
               ))}
             </div>
@@ -2997,7 +3023,7 @@ export default function AgentPanel({ businessId, businessName, metrics, planInfo
                 <div style={{ ...card("12px 14px"), background:C.dark }}>
                   {activity.slice(0,8).map((e,i)=>(
                     <div key={i} style={{ display:"flex", gap:8, padding:"4px 0", borderBottom:i<7?"1px solid rgba(255,255,255,0.05)":"none" }}>
-                      <div style={{ width:5,height:5,borderRadius:"50%",background:e.agent==="marketing"?C.primary:"#4ADE80",flexShrink:0,marginTop:5 }} />
+                      <div style={{ width:5,height:5,borderRadius:"50%",background:e.agent==="marketing"?"#94A3B8":"#4ADE80",flexShrink:0,marginTop:5 }} />
                       <div style={{ flex:1 }}>
                         <div style={{ fontSize:11,color:"rgba(255,255,255,0.8)",fontFamily:FB,fontWeight:500 }}>{e.action}</div>
                         <div style={{ fontSize:10,color:"rgba(255,255,255,0.3)",fontFamily:FB }}>{e.detail}</div>

@@ -64,7 +64,7 @@ function GuidedTour({ business, user, onDone }) {
       <div style={{ background:C.surface, borderRadius:20, padding:"32px 36px", maxWidth:500, width:"100%", boxShadow:"0 24px 80px rgba(0,0,0,0.35)" }}>
         <div style={{ display:"flex", gap:4, marginBottom:28 }}>
           {steps.map((_,i) => (
-            <div key={i} style={{ height:3, flex:1, borderRadius:2, background:i<=step?C.primary:"#E5E7EB", transition:"background 0.25s" }} />
+            <div key={i} style={{ height:3, flex:1, borderRadius:2, background:i<=step?C.dark:"#E5E7EB", transition:"background 0.25s" }} />
           ))}
         </div>
         <div style={{ fontSize:38, marginBottom:14, lineHeight:1 }}>{s.emoji}</div>
@@ -75,7 +75,7 @@ function GuidedTour({ business, user, onDone }) {
           <button onClick={() => step > 0 && setStep(p => p - 1)} style={{ ...btnO(C.muted, 13), opacity:step===0?0.3:1, cursor:step===0?"default":"pointer" }} disabled={step===0}>Back</button>
           <div style={{ display:"flex", gap:8 }}>
             <button onClick={onDone} style={{ ...btnO(C.muted, 12) }}>Skip</button>
-            <button onClick={() => isLast ? onDone() : setStep(p => p + 1)} style={{ ...btn(C.primary, "#fff", 13) }}>
+            <button onClick={() => isLast ? onDone() : setStep(p => p + 1)} style={{ ...btn(C.dark, "#fff", 13) }}>
               {isLast ? "Let's go" : "Next"}
             </button>
           </div>
@@ -130,7 +130,7 @@ function AddTaskModal({ businessId, onAdd, onClose, isStarterPlan }) {
         </div>
         <div style={{ display:"flex", gap:6, marginBottom:20 }}>
           {[["templates","From templates"],["custom","Custom task"]].map(([id,label]) => (
-            <button key={id} onClick={()=>setTab(id)} style={{ ...btn(tab===id?C.primary:"#F4F4F5", tab===id?"#fff":C.muted, 12), padding:"7px 14px" }}>{label}</button>
+            <button key={id} onClick={()=>setTab(id)} style={{ ...btn(tab===id?C.dark:"#F4F4F5", tab===id?"#fff":C.muted, 12), padding:"7px 14px" }}>{label}</button>
           ))}
         </div>
 
@@ -449,7 +449,7 @@ function TaskCard({ task, businessId, outputs, onUpdate, onDelete, isStarterPlan
     }
   };
 
-  const statusColor = { done:C.ok, running:C.primary, "in-progress":C.warn, pending:C.muted };
+  const statusColor = { done:C.ok, running:C.muted, "in-progress":C.warn, pending:C.muted };
   const statusLabel = { done:"Done", running:"Generating…", "in-progress":"In progress", pending:"To do" };
   const status = task.status === "running" ? "running" : task.status;
 
@@ -663,13 +663,13 @@ function TaskRowWrapper({ task, businessId, businessName, outputs, onUpdate, onD
       onDragLeave={()=>setDropOver(false)}
       onDrop={e=>{ e.preventDefault(); setDropOver(false); const noteId=e.dataTransfer.getData("text/noteId"); if(noteId&&onAssignSticky) onAssignSticky(noteId, task.id, task.name); }}>
       {stickyNote && <StickyNoteChip note={stickyNote} onUnstick={()=>onUnstickNote(task.id)} />}
-      {dropOver && !stickyNote && <div style={{ height:2, background:C.primary, borderRadius:2, marginBottom:4 }} />}
-      <div style={{ display:"flex", gap:8, alignItems:"flex-start", border:dropOver?`1px dashed ${C.primary}`:"1px solid transparent", borderRadius:8, padding:dropOver?"2px":"0" }}>
+      {dropOver && !stickyNote && <div style={{ height:2, background:C.border, borderRadius:2, marginBottom:4 }} />}
+      <div style={{ display:"flex", gap:8, alignItems:"flex-start", border:dropOver?`1px dashed ${C.border}`:"1px solid transparent", borderRadius:8, padding:dropOver?"2px":"0" }}>
       {/* Checkbox for bulk select */}
       {selectable && (
         <div style={{ paddingTop:16, flexShrink:0 }}>
           <input type="checkbox" checked={selected} onChange={()=>onToggleSelect(task.id)}
-            style={{ width:16, height:16, cursor:"pointer", accentColor:C.primary }} />
+            style={{ width:16, height:16, cursor:"pointer", accentColor:C.dark }} />
         </div>
       )}
 
@@ -846,7 +846,7 @@ function TasksPanel({ businessId, businessName, businessOutputs, hubNotes, stick
         <div style={{ display:"flex", gap:8 }}>
           {!isNoteTab && (
             <button onClick={()=>{ setSelectMode(p=>!p); setSelected(new Set()); }}
-              style={{ ...btnO(selectMode?C.primary:C.muted,12), padding:"6px 12px" }}>
+              style={{ ...btnO(selectMode?C.text:C.muted,12), padding:"6px 12px" }}>
               {selectMode ? "Done selecting" : "Select"}
             </button>
           )}
@@ -856,7 +856,7 @@ function TasksPanel({ businessId, businessName, businessOutputs, hubNotes, stick
 
       {total > 0 && !isNoteTab && (
         <div style={{ marginBottom:10, height:4, borderRadius:2, background:C.border }}>
-          <div style={{ height:"100%", width:`${total ? (done/total*100) : 0}%`, background:C.primary, borderRadius:2, transition:"width 0.3s" }} />
+          <div style={{ height:"100%", width:`${total ? (done/total*100) : 0}%`, background:C.dark, borderRadius:2, transition:"width 0.3s" }} />
         </div>
       )}
 
@@ -866,7 +866,7 @@ function TasksPanel({ businessId, businessName, businessOutputs, hubNotes, stick
           <input type="checkbox"
             checked={visibleIds.length>0 && visibleIds.every(id=>selected.has(id))}
             onChange={()=>toggleSelectAll(visibleIds)}
-            style={{ width:16, height:16, cursor:"pointer", accentColor:C.primary }} />
+            style={{ width:16, height:16, cursor:"pointer", accentColor:C.dark }} />
           <span style={{ fontSize:12, color:C.muted, fontFamily:FB }}>
             {selected.size > 0 ? `${selected.size} selected` : "Select all"}
           </span>
@@ -895,14 +895,14 @@ function TasksPanel({ businessId, businessName, businessOutputs, hubNotes, stick
         <div style={{ display:"flex", gap:6, flexWrap:"wrap", marginBottom:16 }}>
           {categories.map(c => (
             <button key={c} onClick={()=>setFilter(c)}
-              style={{ ...btn(filter===c?(c==="notes"?"#D97706":C.primary):"#F4F4F5", filter===c?"#fff":C.muted, 11), padding:"5px 12px", textTransform:"capitalize" }}>
+              style={{ ...btn(filter===c?(c==="notes"?"#D97706":C.dark):"#F4F4F5", filter===c?"#fff":C.muted, 11), padding:"5px 12px", textTransform:"capitalize" }}>
               {c==="notes"?"📝 Notes":c}
               {c==="notes"&&noteTasks.length>0&&<span style={{ marginLeft:4, background:"rgba(255,255,255,0.3)", borderRadius:10, padding:"0 5px", fontSize:9 }}>{noteTasks.length}</span>}
             </button>
           ))}
           {campaignTasks.length > 0 && (
             <button onClick={()=>setFilter("campaign")}
-              style={{ ...btn(filter==="campaign"?C.primary:"#F4F4F5", filter==="campaign"?"#fff":C.muted, 11), padding:"5px 12px" }}>
+              style={{ ...btn(filter==="campaign"?C.dark:"#F4F4F5", filter==="campaign"?"#fff":C.muted, 11), padding:"5px 12px" }}>
               Campaigns
               <span style={{ marginLeft:4, background:"rgba(255,255,255,0.3)", borderRadius:10, padding:"0 5px", fontSize:9 }}>{campaignTasks.length}</span>
             </button>
@@ -1103,12 +1103,12 @@ function AutoNotifications({ notifications, onDismiss }) {
 // ── Insight card constants & helpers ──────────────────────────────────────────
 const INSIGHT_CATS = {
   profile:      { label:"Profile Update", color:"#64748B", bg:"#F8FAFC" },
-  marketing:    { label:"Marketing",      color:"#2563EB", bg:"#EFF6FF" },
+  marketing:    { label:"Marketing",      color:"#64748B", bg:"#F8FAFC" },
   tasks:        { label:"Tasks",          color:"#64748B", bg:"#F8FAFC" },
   outreach:     { label:"Outreach",       color:"#64748B", bg:"#F8FAFC" },
   scaling:      { label:"Scaling",        color:"#059669", bg:"#F0FDF4" },
   conservation: { label:"Conservation",   color:"#DC2626", bg:"#FEF2F2" },
-  building:     { label:"Building",       color:"#2563EB", bg:"#EFF6FF" },
+  building:     { label:"Building",       color:"#64748B", bg:"#F8FAFC" },
   outcomes:     { label:"Outcomes",       color:"#059669", bg:"#F0FDF4" },
   budget:       { label:"Budget",         color:"#64748B", bg:"#F8FAFC" },
   schedule:     { label:"Schedule",       color:"#64748B", bg:"#F8FAFC" },
@@ -1161,7 +1161,7 @@ function InsightCardsSection({ cards, onUpdate, onArchive, onPromoteToTask, isAu
       <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:12, flexWrap:"wrap", gap:8 }}>
         <div style={{ display:"flex", alignItems:"center", gap:8 }}>
           <div style={{ fontFamily:FH, fontWeight:700, fontSize:14 }}>Insights</div>
-          {pending.length>0&&<span style={{ background:C.primary,color:"#fff",fontSize:9,fontWeight:700,padding:"2px 7px",borderRadius:20,fontFamily:FB }}>{pending.length}</span>}
+          {pending.length>0&&<span style={{ background:C.dark,color:"#fff",fontSize:9,fontWeight:700,padding:"2px 7px",borderRadius:20,fontFamily:FB }}>{pending.length}</span>}
           {isAutopilot&&autoPending.length>0&&(
             <span style={{ fontSize:9,color:C.muted,fontFamily:FB }}>
               {autoPending.length} auto · sorted by priority
@@ -1176,7 +1176,7 @@ function InsightCardsSection({ cards, onUpdate, onArchive, onPromoteToTask, isAu
                 onClick={()=>onRunAll ? onRunAll(autoPending) : autoPending.forEach(c=>onAutoComplete(c))}
                 disabled={budgetNearLimit}
                 title={budgetNearLimit?"Daily budget near limit — auto tasks paused":"Run all auto tasks in priority order"}
-                style={{ ...btn(budgetNearLimit?"#9CA3AF":"#7C3AED","#fff",11), padding:"5px 12px" }}>
+                style={{ ...btn(budgetNearLimit?"#9CA3AF":C.dark,"#fff",11), padding:"5px 12px" }}>
                 {budgetNearLimit?"Budget limit":"Run all auto ("+autoPending.length+")"}
               </button>
               {budgetNearLimit&&<span style={{ fontSize:9,color:"#EF4444",fontFamily:FB }}>Daily budget at {budgetPct}%</span>}
@@ -1194,7 +1194,7 @@ function InsightCardsSection({ cards, onUpdate, onArchive, onPromoteToTask, isAu
                 <div style={{ flex:1, minWidth:0 }}>
                   <div style={{ display:"flex", gap:5, flexWrap:"wrap", marginBottom:4 }}>
                     <span style={{ fontSize:9,fontWeight:700,color:cat.color,background:cat.bg,padding:"1px 8px",borderRadius:20,fontFamily:FB,border:`1px solid ${cat.color}28` }}>{cat.label}</span>
-                    {c.autoComplete&&<span style={{ fontSize:9,fontWeight:700,color:"#7C3AED",background:"#F5F3FF",padding:"1px 8px",borderRadius:20,fontFamily:FB,border:"1px solid #DDD6FE" }}>Auto</span>}
+                    {c.autoComplete&&<span style={{ fontSize:9,fontWeight:700,color:C.muted,background:"#F1F5F9",padding:"1px 8px",borderRadius:20,fontFamily:FB,border:`1px solid ${C.border}` }}>Auto</span>}
                     {c.priority==="high"&&<span style={{ fontSize:9,fontWeight:700,color:"#DC2626",background:"#FEF2F2",padding:"1px 8px",borderRadius:20,fontFamily:FB }}>High priority</span>}
                   </div>
                   <div style={{ fontSize:13,fontFamily:FB,fontWeight:600,color:C.text,marginBottom:c.description?3:0 }}>{c.title}</div>
@@ -1202,7 +1202,7 @@ function InsightCardsSection({ cards, onUpdate, onArchive, onPromoteToTask, isAu
                 </div>
                 <div style={{ display:"flex", gap:4, flexShrink:0, flexWrap:"wrap", justifyContent:"flex-end", marginTop:2 }}>
                   {c.autoComplete&&isAutopilot
-                    ? <button onClick={()=>onAutoComplete(c)} style={{ ...btn("#7C3AED","#fff",10), padding:"4px 10px" }}>Auto</button>
+                    ? <button onClick={()=>onAutoComplete(c)} style={{ ...btn(C.dark,"#fff",10), padding:"4px 10px" }}>Auto</button>
                     : <button onClick={()=>onUpdate(c.id,{status:"done"})} style={{ ...btnO(C.muted,10), padding:"4px 10px" }}>Done</button>
                   }
                   <button onClick={()=>onPromoteToTask(c)} style={{ ...btnO("#475569",10), padding:"4px 10px" }}>+ Task</button>
@@ -1241,7 +1241,7 @@ function AutopilotToggle({ on, onToggle, label, disabled }) {
           <div style={{ fontSize:12, fontWeight:600, fontFamily:FB, color:disabled?C.muted:on?C.ok:C.muted }}>Autopilot {disabled?"— Pro Autopilot":on?"ON":"OFF"}</div>
           {label && <div style={{ fontSize:11, color:C.muted, fontFamily:FB, marginTop:1 }}>{label}</div>}
         </div>
-        {disabled && <span style={{ fontSize:10, color:"#2563EB", background:"#EFF6FF", border:"1px solid #BFDBFE", padding:"2px 8px", borderRadius:20, fontFamily:FB, fontWeight:600, marginLeft:"auto", cursor:"pointer" }}>Upgrade</span>}
+        {disabled && <span style={{ fontSize:10, color:C.muted, background:"#F4F4F5", border:`1px solid ${C.border}`, padding:"2px 8px", borderRadius:20, fontFamily:FB, fontWeight:600, marginLeft:"auto", cursor:"pointer" }}>Upgrade</span>}
       </div>
       {showPlans && <PlansModal highlightPlan="pro_autopilot" onClose={()=>setShowPlans(false)} />}
     </>
@@ -1251,16 +1251,16 @@ function AutopilotToggle({ on, onToggle, label, disabled }) {
 function SetupGuide({ steps }) {
   const [open, setOpen] = useState(false);
   return (
-    <div style={{ marginBottom:14, borderRadius:10, border:`1px solid ${C.primary}20`, overflow:"hidden" }}>
-      <div onClick={()=>setOpen(o=>!o)} style={{ display:"flex", justifyContent:"space-between", alignItems:"center", padding:"10px 14px", background:"#EFF6FF", cursor:"pointer" }}>
+    <div style={{ marginBottom:14, borderRadius:10, border:`1px solid ${C.border}`, overflow:"hidden" }}>
+      <div onClick={()=>setOpen(o=>!o)} style={{ display:"flex", justifyContent:"space-between", alignItems:"center", padding:"10px 14px", background:"#F8FAFC", cursor:"pointer" }}>
         <span style={{ fontSize:12, fontWeight:700, color:C.muted, fontFamily:FB }}>Step-by-step setup guide</span>
         <span style={{ fontSize:13, color:C.muted, transform:open?"rotate(180deg)":"none", transition:"transform 0.15s", display:"inline-block" }}>▾</span>
       </div>
       {open && (
         <div style={{ background:"#FDFCFF", padding:"12px 14px" }}>
           {steps.map((s,i)=>(
-            <div key={i} style={{ display:"flex", gap:10, padding:"7px 0", borderBottom:i<steps.length-1?`1px solid ${C.primary}10`:"none" }}>
-              <div style={{ width:20, height:20, borderRadius:"50%", background:C.primary, color:"#fff", fontSize:10, fontWeight:700, fontFamily:FB, display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0, marginTop:2 }}>{i+1}</div>
+            <div key={i} style={{ display:"flex", gap:10, padding:"7px 0", borderBottom:i<steps.length-1?`1px solid ${C.border}`:"none" }}>
+              <div style={{ width:20, height:20, borderRadius:"50%", background:C.dark, color:"#fff", fontSize:10, fontWeight:700, fontFamily:FB, display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0, marginTop:2 }}>{i+1}</div>
               <div style={{ fontSize:12.5, color:C.text, lineHeight:1.65, fontFamily:FB }}>
                 {s.text}
                 {s.link && <>{" "}<a href={s.link} target="_blank" rel="noopener noreferrer" style={{ color:C.text, fontWeight:600, textDecoration:"underline" }}>Open ↗</a></>}
@@ -1314,7 +1314,7 @@ function IntegrationCard({ provider, label, desc, fields, savedMeta, onSave, isC
           {(isConn||autopilotOn) && <div style={{ width:7, height:7, borderRadius:"50%", background:autopilotOn?C.ok:"#94A3B8", flexShrink:0 }} />}
           <div style={{ minWidth:0 }}>
             <div style={{ fontSize:14, fontWeight:600, fontFamily:FB }}>{label}</div>
-            <div style={{ fontSize:12, color:hasSavedData?C.primary:C.muted, fontFamily:FB }}>{hasSavedData?"Details saved — tap to edit":desc}</div>
+            <div style={{ fontSize:12, color:hasSavedData?C.text:C.muted, fontFamily:FB }}>{hasSavedData?"Details saved — tap to edit":desc}</div>
           </div>
         </div>
         <div style={{ display:"flex", gap:8, alignItems:"center", flexShrink:0, marginLeft:12 }}>
@@ -1382,7 +1382,7 @@ function IntegrationCard({ provider, label, desc, fields, savedMeta, onSave, isC
               {testMsg && <div style={{ fontSize:11, fontFamily:FB, marginTop:6, color: testMsg.startsWith("✓") ? C.ok : C.err }}>{testMsg}</div>}
             </div>
           )}
-          <button onClick={()=>save()} disabled={saving} style={{ ...btn(saved?C.ok:C.primary,"#fff",12), alignSelf:"flex-start", padding:"8px 18px" }}>
+          <button onClick={()=>save()} disabled={saving} style={{ ...btn(saved?C.ok:C.dark,"#fff",12), alignSelf:"flex-start", padding:"8px 18px" }}>
             {saved ? "Saved!" : saving ? "Saving…" : "Save"}
           </button>
         </div>
@@ -1880,7 +1880,7 @@ function BrandIdentityPanel({ businessId, onGoToMarketing }) {
       </div>
 
       <div style={{display:"flex",justifyContent:"flex-end",marginTop:18}}>
-        <button onClick={save} disabled={saving} style={{...btn(saving?"#9CA3AF":C.primary,"#fff",13),padding:"8px 20px"}}>
+        <button onClick={save} disabled={saving} style={{...btn(saving?"#9CA3AF":C.dark,"#fff",13),padding:"8px 20px"}}>
           {saved?"Saved ✓":saving?"Saving…":"Save changes"}
         </button>
       </div>
@@ -2368,7 +2368,7 @@ function InstagramPanel({ businessId, businessName, integs }) {
           <div style={{ fontSize:12, fontWeight:700, color:C.muted, textTransform:"uppercase", letterSpacing:"0.06em", marginBottom:10, fontFamily:FB }}>Recent posts</div>
           <div style={{ display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:10 }}>
             {media.map(m=>(
-              <div key={m.id} style={{ ...card("0"), overflow:"hidden", cursor:"pointer", border:activePost?.id===m.id?`2px solid ${C.primary}`:undefined }} onClick={()=>activePost?.id===m.id?setActivePost(null):loadComments(m)}>
+              <div key={m.id} style={{ ...card("0"), overflow:"hidden", cursor:"pointer", border:activePost?.id===m.id?`2px solid ${C.border}`:undefined }} onClick={()=>activePost?.id===m.id?setActivePost(null):loadComments(m)}>
                 {(m.media_url||m.thumbnail_url) ? (
                   <img src={m.media_url||m.thumbnail_url} alt="" style={{ width:"100%", aspectRatio:"1", objectFit:"cover", display:"block" }} />
                 ) : (
@@ -2391,7 +2391,7 @@ function InstagramPanel({ businessId, businessName, integs }) {
 
       {/* Comment management panel */}
       {activePost && (
-        <div style={{ ...card("14px 16px"), marginBottom:16, border:`1px solid ${C.primary}20` }}>
+        <div style={{ ...card("14px 16px"), marginBottom:16, border:`1px solid ${C.border}` }}>
           <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:10 }}>
             <div style={{ fontFamily:FH, fontWeight:600, fontSize:14 }}>Comments</div>
             <button onClick={()=>setActivePost(null)} style={{ fontSize:12, color:C.muted, background:"none", border:"none", cursor:"pointer", fontFamily:FB }}>Close</button>
@@ -2412,7 +2412,7 @@ function InstagramPanel({ businessId, businessName, integs }) {
                 {c.replied && <span style={{ fontSize:10, color:C.ok, fontFamily:FB }}>Replied</span>}
               </div>
               {!c.replied && c.suggestedReply && (
-                <div style={{ background:"#EFF6FF", borderRadius:8, padding:"8px 12px", marginTop:6 }}>
+                <div style={{ background:"#F8FAFC", borderRadius:8, padding:"8px 12px", marginTop:6 }}>
                   <div style={{ fontSize:11, color:C.muted, fontWeight:600, fontFamily:FB, marginBottom:4 }}>Suggested reply</div>
                   <div style={{ fontSize:12, fontFamily:FB, color:C.text, marginBottom:8 }}>{c.suggestedReply}</div>
                   <div style={{ display:"flex", gap:6 }}>
@@ -2503,7 +2503,7 @@ function _pearson(xs, ys) {
   return dx*dy===0?null:+(num/(dx*dy)).toFixed(2);
 }
 
-function MiniSparkline({ data, color="#7C3AED", w=130, h=44 }) {
+function MiniSparkline({ data, color=C.muted, w=130, h=44 }) {
   if(!data||data.length<2) return <div style={{ fontSize:10, color:C.muted, fontFamily:FB }}>No trend yet</div>;
   const max=Math.max(...data), min=Math.min(...data), rng=max-min||1;
   const pts=data.map((v,i)=>`${(i/(data.length-1))*(w-6)+3},${h-4-(v-min)/rng*(h-10)}`).join(" ");
@@ -2556,7 +2556,7 @@ function CorrelationPair({ link, metrics, snapshots, applied, onApplyToStrategy,
         </div>
         <div>
           <div style={{ fontSize:10, color:C.muted, fontFamily:FB, marginBottom:4 }}>{bF.label} trend</div>
-          <MiniSparkline data={snapB.length>=2?snapB:null} color={rClr===C.muted?"#7C3AED":rClr}/>
+          <MiniSparkline data={snapB.length>=2?snapB:null} color={rClr===C.muted?C.muted:rClr}/>
         </div>
         {snapA.length<2&&<div style={{ fontSize:10, color:C.muted, fontFamily:FB, alignSelf:"center" }}>Visit monthly to build trend data.</div>}
       </div>
@@ -2672,7 +2672,7 @@ function BusinessStrategySection({ businessId, metrics, snapshots, isPro, saveM,
     setSyncing(true);
     try{
       const payload = buildMarketingPayload(s, useTf, metrics);
-      await api.agents.addNote(businessId, payload, "#EFF6FF");
+      await api.agents.addNote(businessId, payload, "#F1F5F9");
       const now = new Date().toISOString();
       setSyncedAt(now);
       try{ localStorage.setItem(MKTG_SYNC_KEY, now); }catch{}
@@ -2758,7 +2758,7 @@ function BusinessStrategySection({ businessId, metrics, snapshots, isPro, saveM,
     try {
       if(card.category==="marketing") {
         const text=`[Strategy Insight — ${timeframe}]\n${card.title}\n${card.description||""}`;
-        await api.agents.addNote(businessId, text, "#EFF6FF");
+        await api.agents.addNote(businessId, text, "#F1F5F9");
       } else if(card.category==="tasks"||card.category==="outcomes"||card.category==="schedule") {
         await api.tasks.create(businessId, { name:card.title, description:card.description||"", category:"Strategy", canAutomate:false, status:"pending" });
         refreshTasks?.();
@@ -2851,11 +2851,11 @@ function BusinessStrategySection({ businessId, metrics, snapshots, isPro, saveM,
   };
 
   const PLAN_STYLE = {
-    budget:       { accent:"#2563EB", accentBg:"#EFF6FF" },
-    outreach:     { accent:"#2563EB", accentBg:"#EFF6FF" },
+    budget:       { accent:"#64748B", accentBg:"#F8FAFC" },
+    outreach:     { accent:"#64748B", accentBg:"#F8FAFC" },
     scaling:      { accent:"#059669", accentBg:"#F0FDF4" },
     conservation: { accent:"#DC2626", accentBg:"#FEF2F2" },
-    building:     { accent:"#2563EB", accentBg:"#EFF6FF" },
+    building:     { accent:"#64748B", accentBg:"#F8FAFC" },
     schedule:     { accent:"#64748B", accentBg:"#F8FAFC" },
     outcomes:     { accent:"#059669", accentBg:"#F0FDF4" },
   };
@@ -2967,10 +2967,10 @@ function BusinessStrategySection({ businessId, metrics, snapshots, isPro, saveM,
         {autoItems.length>0&&(
           <div style={{ marginBottom:14 }}>
             <div style={{ display:"flex", alignItems:"center", gap:6, marginBottom:8 }}>
-              <span style={{ fontSize:9, fontFamily:FB, fontWeight:700, color:"#7C3AED", background:"#F5F3FF", padding:"2px 9px", borderRadius:20, textTransform:"uppercase", letterSpacing:"0.06em" }}>⚡ Auto</span>
+              <span style={{ fontSize:9, fontFamily:FB, fontWeight:700, color:C.muted, background:"#F1F5F9", padding:"2px 9px", borderRadius:20, textTransform:"uppercase", letterSpacing:"0.06em" }}>⚡ Auto</span>
               {!isAutopilot&&<span style={{ fontSize:10, color:C.muted, fontFamily:FB }}>Pro Autopilot handles these</span>}
             </div>
-            {autoItems.map((item,i)=>itemRow(item,i,autoItems,"#7C3AED","#F5F3FF"))}
+            {autoItems.map((item,i)=>itemRow(item,i,autoItems,C.dark,"#F1F5F9"))}
           </div>
         )}
 
@@ -3051,7 +3051,7 @@ function BusinessStrategySection({ businessId, metrics, snapshots, isPro, saveM,
                     const pa=PLAN_ACTIVATION[t.id]||{active:true};
                     const isActive=stratTab===t.id;
                     return (
-                      <button key={t.id} onClick={()=>setStratTab(t.id)} style={{ padding:"7px 13px", fontFamily:FB, fontSize:12, fontWeight:isActive?700:400, color:isActive?C.primary:C.muted, background:"none", border:"none", borderBottom:isActive?`2px solid ${C.primary}`:"2px solid transparent", cursor:"pointer", whiteSpace:"nowrap", marginBottom:-1, display:"flex", alignItems:"center", gap:5 }}>
+                      <button key={t.id} onClick={()=>setStratTab(t.id)} style={{ padding:"7px 13px", fontFamily:FB, fontSize:12, fontWeight:isActive?700:400, color:isActive?C.text:C.muted, background:"none", border:"none", borderBottom:isActive?`2px solid ${C.text}`:"2px solid transparent", cursor:"pointer", whiteSpace:"nowrap", marginBottom:-1, display:"flex", alignItems:"center", gap:5 }}>
                         {pa.active&&<span style={{ width:5,height:5,borderRadius:"50%",background:ps.accent,flexShrink:0,opacity:isActive?1:0.6 }}/>}
                         {t.label}
                       </button>
@@ -3070,7 +3070,7 @@ function BusinessStrategySection({ businessId, metrics, snapshots, isPro, saveM,
                       </button>
                     )}
                     <button onClick={downloadStrategy} style={{ ...btnO(C.muted,12) }}>Download (.txt)</button>
-                    {isAutopilot&&<span style={{ fontSize:10, color:"#7C3AED", fontFamily:FB, marginLeft:2 }}>Auto-syncs on generate</span>}
+                    {isAutopilot&&<span style={{ fontSize:10, color:C.muted, fontFamily:FB, marginLeft:2 }}>Auto-syncs on generate</span>}
                   </div>
                   {syncedAt&&(
                     <div style={{ fontSize:10, color:C.muted, fontFamily:FB, marginTop:5 }}>
@@ -3563,11 +3563,11 @@ function CostsContent({ metrics, saveM, cardId="costs", globalRange=null, global
         notesByTarget={notesByTarget} onDropNote={onDropNote} onUnstickNote={onUnstickNote} cardId={cardId} />
       {investRows.length>0&&(
         <div style={{ marginTop:8 }}>
-          <div style={{ fontSize:10, color:"#7C3AED", fontFamily:FB, fontWeight:700, textTransform:"uppercase", letterSpacing:"0.05em", marginBottom:4 }}>From Investments</div>
+          <div style={{ fontSize:10, color:C.muted, fontFamily:FB, fontWeight:700, textTransform:"uppercase", letterSpacing:"0.05em", marginBottom:4 }}>From Investments</div>
           {investRows.map((x,i)=>(
-            <div key={x.id||i} style={{ display:"flex", justifyContent:"space-between", alignItems:"center", fontSize:11, fontFamily:FB, padding:"4px 6px", background:"#F5F3FF", borderRadius:6, marginBottom:3 }}>
-              <span style={{ color:"#7C3AED" }}>{x._label}{x.name?` — ${x.name}`:""}</span>
-              <span style={{ color:"#7C3AED", fontWeight:600 }}>${(x.amount||0).toLocaleString()}</span>
+            <div key={x.id||i} style={{ display:"flex", justifyContent:"space-between", alignItems:"center", fontSize:11, fontFamily:FB, padding:"4px 6px", background:"#F1F5F9", borderRadius:6, marginBottom:3 }}>
+              <span style={{ color:C.muted }}>{x._label}{x.name?` — ${x.name}`:""}</span>
+              <span style={{ color:C.muted, fontWeight:600 }}>${(x.amount||0).toLocaleString()}</span>
             </div>
           ))}
         </div>
@@ -3831,7 +3831,7 @@ function DraggableCard({ id, pos, meta, notes=[], isDragging, onDragStart, onRem
       style={{
         position:"absolute", left:pos.x, top:pos.y, width:pos.w||340,
         background:C.bg, borderRadius:16,
-        border:`${isHover?"2":"1"}px solid ${widgetHover?"#7C3AED":isHover?C.primary:C.border}`,
+        border:`${isHover?"2":"1"}px solid ${widgetHover?C.text:isHover?C.text:C.border}`,
         boxShadow: isDragging?"0 16px 48px rgba(0,0,0,0.18)":"0 4px 20px rgba(0,0,0,0.07)",
         overflow:"visible", userSelect:isDragging?"none":"auto",
         zIndex:isDragging?100:2, transition:isDragging?"none":"box-shadow 0.2s, border-color 0.15s",
@@ -3853,7 +3853,7 @@ function DraggableCard({ id, pos, meta, notes=[], isDragging, onDragStart, onRem
           <span style={{ fontFamily:FH, fontWeight:700, fontSize:14 }}>{meta?.label||id}</span>
         </div>
         <div style={{ display:"flex", gap:4, alignItems:"center" }} onMouseDown={e=>e.stopPropagation()}>
-          {widgetHover && <span style={{ fontSize:10, color:"#7C3AED", fontFamily:FB }}>Drop visual ↓</span>}
+          {widgetHover && <span style={{ fontSize:10, color:C.muted, fontFamily:FB }}>Drop visual ↓</span>}
           {dropHover && !widgetHover && <span style={{ fontSize:10, color:C.muted, fontFamily:FB }}>Drop note ↓</span>}
           <button title="Remove card" onClick={onRemove} style={{ background:"none", border:"none", cursor:"pointer", color:C.muted, fontSize:16, padding:"2px 6px", lineHeight:1 }}>×</button>
         </div>
@@ -4037,7 +4037,7 @@ function buildTimeSeries(items, mode, cStart="", cEnd="", aggregation="sum") {
   return [{label:today.slice(5),value:0}];
 }
 
-function LineChart({data=[],color=C.primary,yPrefix="",w=290,h=130}){
+function LineChart({data=[],color=C.dark,yPrefix="",w=290,h=130}){
   const canvasRef=useRef(null);
   useEffect(()=>{
     const canvas=canvasRef.current; if(!canvas) return;
@@ -4144,7 +4144,7 @@ function GraphWidget({ config, snapshots, metrics, businessId, cardRange }) {
 
   const total = data.reduce((a,x)=>a+x.value,0);
   const yP = aggregation==="count"?"":field.prefix;
-  const color = field.id==="profit"?"#22C55E":field.id==="loss"?"#EF4444":C.primary;
+  const color = field.id==="profit"?"#22C55E":field.id==="loss"?"#EF4444":C.dark;
   return (
     <div>
       <div style={{ display:"flex", justifyContent:"space-between", alignItems:"baseline", marginBottom:4 }}>
@@ -4279,7 +4279,7 @@ function IntraCorrelWidget({ config, snapshots, metrics }) {
       </div>
       <div style={{ display:"flex", gap:12, marginBottom:8 }}>
         <div><div style={{ fontSize:10, color:C.muted, fontFamily:FB, marginBottom:3 }}>{aF.label}</div><MiniSparkline data={snapA.length>=2?snapA:null} color="#3B82F6" w={120} h={50}/></div>
-        <div><div style={{ fontSize:10, color:C.muted, fontFamily:FB, marginBottom:3 }}>{bF.label}</div><MiniSparkline data={snapB.length>=2?snapB:null} color={rClr===C.muted?"#7C3AED":rClr} w={120} h={50}/></div>
+        <div><div style={{ fontSize:10, color:C.muted, fontFamily:FB, marginBottom:3 }}>{bF.label}</div><MiniSparkline data={snapB.length>=2?snapB:null} color={rClr===C.muted?C.muted:rClr} w={120} h={50}/></div>
       </div>
       {perUnit&&<div style={{ fontSize:11, color:C.muted, fontFamily:FB }}>Each +1 {aF.label} → {bF.prefix||""}{perUnit} {bF.label}</div>}
       {snapA.length<2&&<div style={{ fontSize:10, color:C.muted, fontFamily:FB }}>Visit monthly to build trend data.</div>}
@@ -4408,7 +4408,7 @@ function MgmtSidebar({ open, onToggle, hubNotes, setHubNotes, businessId, mgmtNo
     <>
       {/* Toggle button */}
       <div style={{ position:"fixed", right:open?290:0, top:"50%", transform:"translateY(-50%)", zIndex:302, transition:"right 0.25s ease" }}>
-        <button onClick={onToggle} style={{ background:open?C.surface:C.primary, color:open?C.primary:"#fff", border:`1px solid ${open?C.border:C.primary}`, borderRadius:"8px 0 0 8px", padding:"14px 7px", cursor:"pointer", fontSize:11, fontFamily:FB, fontWeight:700, letterSpacing:"0.05em", writingMode:"vertical-rl", textOrientation:"mixed", boxShadow:open?"none":"-4px 0 16px rgba(124,58,237,0.2)", lineHeight:1.2 }}>
+        <button onClick={onToggle} style={{ background:open?C.surface:C.dark, color:open?C.text:"#fff", border:`1px solid ${open?C.border:C.dark}`, borderRadius:"8px 0 0 8px", padding:"14px 7px", cursor:"pointer", fontSize:11, fontFamily:FB, fontWeight:700, letterSpacing:"0.05em", writingMode:"vertical-rl", textOrientation:"mixed", boxShadow:open?"none":"-4px 0 16px rgba(0,0,0,0.12)", lineHeight:1.2 }}>
           {open?"▶ Close":"◀ Tools"}
         </button>
       </div>
@@ -4419,7 +4419,7 @@ function MgmtSidebar({ open, onToggle, hubNotes, setHubNotes, businessId, mgmtNo
           {/* Tabs */}
           <div style={{ display:"flex", borderBottom:`1px solid ${C.border}`, flexShrink:0, paddingTop:8 }}>
             {[["notes","Notes"],["visuals","Visuals"],["analysis","Analysis"]].map(([k,l])=>(
-              <button key={k} onClick={()=>{ setSection(k); setActiveTool(null); }} style={{ flex:1, padding:"8px 4px", fontSize:10, fontFamily:FB, fontWeight:600, background:"transparent", color:section===k?C.primary:C.muted, border:"none", borderBottom:section===k?`2px solid ${C.primary}`:"2px solid transparent", cursor:"pointer", letterSpacing:"0.03em" }}>{l}</button>
+              <button key={k} onClick={()=>{ setSection(k); setActiveTool(null); }} style={{ flex:1, padding:"8px 4px", fontSize:10, fontFamily:FB, fontWeight:600, background:"transparent", color:section===k?C.text:C.muted, border:"none", borderBottom:section===k?`2px solid ${C.text}`:"2px solid transparent", cursor:"pointer", letterSpacing:"0.03em" }}>{l}</button>
             ))}
           </div>
 
@@ -4787,7 +4787,7 @@ function ManagementCanvas({ businessId, metrics, saveM, integs, hubNotes, setHub
             <ProGate isPro={isPro} label="Upgrade to Pro">
               <div style={{ display:"flex", gap:8 }}>
                 {["corr","field","eq"].map(t=>(
-                  <button key={t} onClick={()=>{ addWidget(t,{},WIDGET_DEFS[t]?.label||t); setToolbar(false); }} style={{ ...btnO("#7C3AED",11) }}>
+                  <button key={t} onClick={()=>{ addWidget(t,{},WIDGET_DEFS[t]?.label||t); setToolbar(false); }} style={{ ...btnO(C.muted,11) }}>
                     + {WIDGET_DEFS[t].label}
                   </button>
                 ))}
@@ -5047,15 +5047,47 @@ export default function Hub() {
 
   const runOverviewBrief = async (question) => {
     setBriefLoading(true); setOverviewBrief("");
-    const tasksDone    = tasks.filter(t=>t.status==="done"&&t.category!=="notes").length;
-    const tasksTotal2  = tasks.filter(t=>t.category!=="notes").length;
-    const pending      = tasks.filter(t=>t.status!=="done"&&t.category!=="notes"&&t.category!=="campaign").slice(0,5).map(t=>t.name).join(", ");
-    const rev          = metrics.revenue?.this_month||0;
-    const clients      = metrics.clients?.active||0;
-    const leads        = metrics.leads?.this_month||0;
-    const lastStrat    = (()=>{ try{ const s=localStorage.getItem(`earnedlab_strat_${businessId}`); return s?JSON.parse(s):null; }catch{ return null; } })();
-    const stratSummary = lastStrat ? `Budget: $${lastStrat.budget?.monthly||0}/mo. Predicted outcomes: ${(lastStrat.predictedOutcomes||[]).slice(0,2).join("; ")}.` : "No strategy run yet.";
-    const q = question || `For ${business?.name||"this business"}: Revenue this month $${rev}, active clients ${clients}, leads this month ${leads}. Tasks ${tasksDone}/${tasksTotal2} done. Pending actions: ${pending||"none"}. Latest strategy: ${stratSummary}. Give a concise business status briefing covering health, top priorities today, and one key insight.`;
+
+    // ── gather all real data ──────────────────────────────────────────────────
+    const allTasks   = tasks.filter(t=>t.category!=="notes");
+    const doneTasks  = allTasks.filter(t=>t.status==="done");
+    const pendTasks  = allTasks.filter(t=>t.status!=="done"&&t.category!=="campaign");
+
+    const mktgOut    = getOutput("marketing_insights") || getOutput("marketing_notes");
+    let   mktgData   = null;
+    try { if(mktgOut?.content) mktgData = JSON.parse(mktgOut.content); } catch {}
+
+    const lastStrat  = (()=>{ try{ const s=localStorage.getItem(`earnedlab_strat_${businessId}`); return s?JSON.parse(s):null; }catch{ return null; } })();
+
+    const connChs = integs.filter(i=>i.status==="connected").map(i=>{
+      const f = typeof i.fields==="string"?(()=>{ try{ return JSON.parse(i.fields); }catch{ return {}; } })():i.fields||{};
+      return `${i.provider} (${f.handle||f.address||f.bookingUrl||"connected"})`;
+    });
+
+    const chanByInsight = {};
+    if(mktgData?.insights) mktgData.insights.forEach(ins=>{
+      const ch = ins.channel||ins.implementationChannel||"general";
+      (chanByInsight[ch] = chanByInsight[ch]||[]).push(ins.title||ins.recommendation||"");
+    });
+
+    // ── build context block ───────────────────────────────────────────────────
+    const ctx = [
+      `Business: ${business?.name||"—"} | ${idea?.name||""} | ${business?.location||""}`,
+      `Metrics: Revenue $${metrics.revenue?.this_month||0}/mo, Costs $${metrics.costs?.this_month||0}/mo, Active clients ${metrics.clients?.active||0}, Leads this month ${metrics.leads?.this_month||0}, Bookings this week ${metrics.bookings?.this_week||0}`,
+      `Tasks: ${doneTasks.length}/${allTasks.length} done. Completed: ${doneTasks.slice(-8).map(t=>t.name).join(", ")||"none"}. Pending: ${pendTasks.map(t=>`${t.name} [${t.status}]`).join(", ")||"none"}`,
+      `Connected channels: ${connChs.length ? connChs.join(", ") : "none connected"}`,
+      mktgData
+        ? `Marketing analysis (run ${mktgData.ranAt ? new Date(mktgData.ranAt).toLocaleDateString() : "recently"}): Summary: ${mktgData.report?.analysis?.summary||mktgData.overview?.summary||"N/A"}. Channel insights: ${Object.entries(chanByInsight).slice(0,6).map(([ch,items])=>`${ch}: ${items.slice(0,2).join("; ")}`).join(" | ")||"none"}. Top recommendations: ${(mktgData.insights||[]).slice(0,4).map(i=>i.title||i.recommendation).join("; ")||"none"}`
+        : "Marketing analysis: none run yet",
+      lastStrat
+        ? `Business strategy: Budget $${lastStrat.budget?.monthly||0}/mo. Outreach: ${(lastStrat.outreach?.suggestions||[]).slice(0,2).join("; ")||"none"}. Outcomes: ${(lastStrat.predictedOutcomes||[]).join("; ")||"none"}`
+        : "Business strategy: none generated yet",
+    ].join("\n");
+
+    const q = question
+      ? `BUSINESS DATA:\n${ctx}\n\nUser question: "${question}"\n\nAnswer using only the real data above. Be specific and cite exact numbers when relevant.`
+      : `BUSINESS DATA:\n${ctx}\n\nGive a concise status briefing: overall health, top 2 priorities today, and one key insight from the data.`;
+
     try{
       const { suggestion } = await api.metrics.suggest(businessId, q, prefs);
       setOverviewBrief(suggestion||"");
@@ -5121,7 +5153,7 @@ export default function Hub() {
 
   if(loading) return (
     <div style={{ display:"flex", minHeight:"100vh", alignItems:"center", justifyContent:"center", background:C.bg }}>
-      <div style={{ width:32, height:32, borderRadius:"50%", border:`3px solid ${C.primary}25`, borderTopColor:C.primary, animation:"spin 0.8s linear infinite" }} />
+      <div style={{ width:32, height:32, borderRadius:"50%", border:`3px solid ${C.dark}20`, borderTopColor:C.dark, animation:"spin 0.8s linear infinite" }} />
     </div>
   );
 
@@ -5346,12 +5378,12 @@ export default function Hub() {
                         ))}
                         {(lastStrat.predictedOutcomes||[]).slice(0,2).map((o,i)=>(
                           <div key={i} style={{ fontSize:11, color:C.muted, fontFamily:FB, lineHeight:1.5, padding:"5px 0", borderBottom:`1px solid ${C.border}` }}>
-                            {o.length>65?o.slice(0,62)+"…":o}
+                            {o}
                           </div>
                         ))}
                         {(lastStrat.outreach?.suggestions||[]).slice(0,1).map((s,i)=>(
                           <div key={i} style={{ fontSize:11, color:C.text, fontFamily:FB, lineHeight:1.5, paddingTop:5 }}>
-                            {s.length>70?s.slice(0,67)+"…":s}
+                            {s}
                           </div>
                         ))}
                         {lastStrat.ranAt && <div style={{ fontSize:10, color:C.subtle, fontFamily:FB, marginTop:8 }}>Run {new Date(lastStrat.ranAt||Date.now()).toLocaleDateString()}</div>}
@@ -5585,7 +5617,7 @@ export default function Hub() {
         <div style={{ position:"fixed", bottom:120, right:chatOpen?360:24, zIndex:200, width:310, background:"#fff", borderRadius:14, boxShadow:"0 8px 40px rgba(0,0,0,0.15)", border:"1px solid #E5E7EB", overflow:"hidden" }}>
           <div style={{ padding:"12px 14px", borderBottom:"1px solid #F3F4F6", display:"flex", justifyContent:"space-between", alignItems:"center" }}>
             <span style={{ fontFamily:FH, fontWeight:700, fontSize:13, color:"#111827" }}>
-              Notes {hubNotes.length>0 && <span style={{ background:C.primary, color:"#fff", borderRadius:10, padding:"1px 6px", fontSize:10, marginLeft:4 }}>{hubNotes.length}</span>}
+              Notes {hubNotes.length>0 && <span style={{ background:C.dark, color:"#fff", borderRadius:10, padding:"1px 6px", fontSize:10, marginLeft:4 }}>{hubNotes.length}</span>}
             </span>
             <div style={{ display:"flex", alignItems:"center", gap:8 }}>
               <span style={{ fontSize:10, color:"#9CA3AF", fontFamily:FB }}>Drag to stick</span>
@@ -5637,8 +5669,8 @@ export default function Hub() {
         </div>
       )}
 
-      <button onClick={()=>setNotesOpen(o=>!o)} style={{ background:notesOpen?"#F3F4F6":"#fff", color:notesOpen?C.primary:"#6B7280", border:`1px solid ${notesOpen?C.primary:"#E5E7EB"}`, borderRadius:24, padding:"10px 16px", fontSize:13, fontWeight:500, cursor:"pointer", position:"fixed", bottom:72, right:chatOpen?336:24, boxShadow:"0 2px 10px rgba(0,0,0,0.08)", zIndex:99, transition:"right 0.25s", fontFamily:FB, display:"flex", alignItems:"center", gap:6 }}>
-        Notes{hubNotes.length>0 && <span style={{ background:C.primary, color:"#fff", borderRadius:10, padding:"1px 6px", fontSize:10 }}>{hubNotes.length}</span>}
+      <button onClick={()=>setNotesOpen(o=>!o)} style={{ background:notesOpen?"#F3F4F6":"#fff", color:notesOpen?C.text:"#6B7280", border:`1px solid ${notesOpen?C.border:"#E5E7EB"}`, borderRadius:24, padding:"10px 16px", fontSize:13, fontWeight:500, cursor:"pointer", position:"fixed", bottom:72, right:chatOpen?336:24, boxShadow:"0 2px 10px rgba(0,0,0,0.08)", zIndex:99, transition:"right 0.25s", fontFamily:FB, display:"flex", alignItems:"center", gap:6 }}>
+        Notes{hubNotes.length>0 && <span style={{ background:C.dark, color:"#fff", borderRadius:10, padding:"1px 6px", fontSize:10 }}>{hubNotes.length}</span>}
       </button>
 
       <button onClick={()=>setChatOpen(o=>!o)} style={{ background:C.grad, color:"#fff", border:"none", borderRadius:24, padding:"10px 20px", fontSize:13, fontWeight:500, cursor:"pointer", position:"fixed", bottom:24, right:chatOpen?336:24, boxShadow:`0 4px 20px rgba(124,58,237,0.3)`, zIndex:100, transition:"right 0.25s", fontFamily:FB }}>
