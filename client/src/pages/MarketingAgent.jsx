@@ -2399,7 +2399,7 @@ function QuickCreatePanel({ businessId, businessName, plan, agentMode }) {
 
 // ── MAIN AGENT PANEL ──────────────────────────────────────────────────────────
 
-export default function AgentPanel({ businessId, businessName, metrics, planInfo, integs, setTab, refreshTasks, hubNotes, stickyAssignments, onAssignSticky, onUnstickNote }) {
+export default function AgentPanel({ businessId, businessName, metrics, planInfo, integs, setTab, refreshTasks, hubNotes, stickyAssignments, onAssignSticky, onUnstickNote, refreshBudget }) {
   const navigate = useNavigate();
 
   // Mode — sessionStorage so it resets on browser close / logout
@@ -2503,6 +2503,7 @@ export default function AgentPanel({ businessId, businessName, metrics, planInfo
       setChannelStatuses(data.channelStatuses||{});
       api.agents.activity(businessId).then(d=>setActivity(d.activity||[])).catch(()=>{});
       refreshAccess();
+      refreshBudget?.();
 
       // Update monitoring campaign progress based on new analysis
       if (data.insights?.length) updateMonitoringProgress(data.insights);
@@ -2560,6 +2561,7 @@ export default function AgentPanel({ businessId, businessName, metrics, planInfo
       setImplemented(p=>({...p,[insight.id]:result}));
       api.agents.activity(businessId).then(d=>setActivity(d.activity||[])).catch(()=>{});
       refreshAccess();
+      refreshBudget?.();
     } catch(e) {
       console.error(`[AGENT:implement] FAILED — insightId=${insight.id} error="${e.message}"`);
       setError(e.message);

@@ -2462,11 +2462,11 @@ function AutopilotCard({ businessId, planInfo, navigate }) {
             {!isAutopilotPlan && <span style={{ background:"#F4F4F5", color:C.muted, fontSize:9, fontWeight:700, padding:"2px 8px", borderRadius:20, textTransform:"uppercase", letterSpacing:"0.04em" }}>Pro Autopilot only</span>}
             {isAutopilotPlan && enabled && <span style={{ background:C.ok, color:"#fff", fontSize:9, fontWeight:700, padding:"2px 8px", borderRadius:20, textTransform:"uppercase", letterSpacing:"0.04em" }}>Running</span>}
           </div>
-          <p style={{ fontSize:13, color:C.muted, lineHeight:1.6, fontFamily:FB }}>
-            {isAutopilotPlan
-              ? "When enabled, your agents run on their own schedule — analyzing and implementing automatically."
-              : "Let your business run itself — agents check in and implement improvements without you. Available on the Pro Autopilot plan ($199/mo)."}
-          </p>
+          {isAutopilotPlan && (
+            <p style={{ fontSize:13, color:C.muted, lineHeight:1.6, fontFamily:FB }}>
+              When enabled, your agents run on their own schedule — analyzing and implementing automatically.
+            </p>
+          )}
         </div>
         <button onClick={toggle} disabled={busy||enabled===null} style={{ ...btn(isAutopilotPlan?(enabled?C.err:C.ok):"#D97706","#fff",12), flexShrink:0, marginLeft:16 }}>
           {!isAutopilotPlan ? "Upgrade" : busy ? "…" : enabled ? "Turn off" : "Turn on"}
@@ -2704,6 +2704,7 @@ function BusinessStrategySection({ businessId, metrics, snapshots, isPro, saveM,
       }
       // Auto-sync to Marketing Agent for Autopilot users
       if(isAutopilot){ syncToMarketing(s, runTimeframe).catch(()=>{}); }
+      refreshBudget?.();
       return s;
     }catch(e){ setStratErr(e.message||"Generation failed — try again"); }
     finally{ setGenerating(false); }
@@ -3017,53 +3018,6 @@ function BusinessStrategySection({ businessId, metrics, snapshots, isPro, saveM,
       {expanded&&(
         <ProGate isPro={isPro} label="Upgrade to Pro">
         <div style={{ padding:"20px 22px" }}>
-          {/* Correlations */}
-          <div style={{ marginBottom:22 }}>
-            <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:12 }}>
-              <div>
-                <div style={{ fontFamily:FH, fontWeight:700, fontSize:14 }}>Correlations</div>
-              </div>
-              <button onClick={()=>setLinking(p=>!p)} style={{ ...btnO("#475569",12) }}>
-                {linking?"Cancel":"+ Link fields"}
-              </button>
-            </div>
-
-            {linking&&(
-              <div style={{ background:C.surface, borderRadius:12, padding:"14px 16px", marginBottom:12, display:"flex", gap:8, alignItems:"flex-end", flexWrap:"wrap" }}>
-                <div style={{ flex:1, minWidth:130 }}>
-                  <label style={lbl}>Field A (input / cause)</label>
-                  <select value={linkA} onChange={e=>setLinkA(e.target.value)} style={{ ...inp(), fontSize:13 }}>
-                    <option value="">Select…</option>
-                    {LINK_FIELDS.map(f=><option key={f.id} value={f.id}>{f.label}</option>)}
-                  </select>
-                </div>
-                <div style={{ fontSize:18, color:C.muted, paddingBottom:10, flexShrink:0 }}>→</div>
-                <div style={{ flex:1, minWidth:130 }}>
-                  <label style={lbl}>Field B (output / effect)</label>
-                  <select value={linkB} onChange={e=>setLinkB(e.target.value)} style={{ ...inp(), fontSize:13 }}>
-                    <option value="">Select…</option>
-                    {LINK_FIELDS.filter(f=>f.id!==linkA).map(f=><option key={f.id} value={f.id}>{f.label}</option>)}
-                  </select>
-                </div>
-                <button onClick={addLink} disabled={!linkA||!linkB} style={{ ...btn(C.dark,"#fff",13), padding:"9px 16px", flexShrink:0 }}>Add</button>
-              </div>
-            )}
-
-            {links.length===0&&!linking&&(
-              <div style={{ background:C.surface, borderRadius:10, padding:"14px 16px", textAlign:"center" }}>
-                <div style={{ fontSize:12, color:C.muted, fontFamily:FB }}>No correlations yet. Link fields above to get started.</div>
-              </div>
-            )}
-
-            {links.map(link=>(
-              <CorrelationPair key={link.id} link={link} metrics={metrics} snapshots={snapshots}
-                applied={!!applied.find(l=>l.id===link.id)}
-                onApplyToStrategy={toggleApply}
-                onRemove={()=>removeLink(link.id)}
-              />
-            ))}
-          </div>
-
           {/* Strategy generator */}
           <div style={{ borderTop:`2px solid ${C.border}`, paddingTop:20 }}>
             <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-end", marginBottom:12, flexWrap:"wrap", gap:10 }}>
@@ -4474,7 +4428,7 @@ function MgmtSidebar({ open, onToggle, hubNotes, setHubNotes, businessId, mgmtNo
             {/* Notes */}
             {section==="notes" && (<>
               {hubNotes.length===0&&<div style={{ fontSize:11, color:C.muted, fontFamily:FB, textAlign:"center", padding:"16px 0" }}>No notes yet.</div>}
-              {hubNotes.map(n=>{
+              {hubNotes.filter(n=>!(n.text||"").startsWith("[MANAGEMENT → MARKETING]")).map(n=>{
                 const asgn=mgmtNoteAssignments[n.id];
                 return (
                   <div key={n.id} draggable
@@ -5564,9 +5518,7 @@ export default function Hub() {
                 </div>
               </div>
               <MissingFieldsBar prefs={prefs} metrics={metrics} onGo={()=>setTab("business_info")} agent="marketing" />
-              <NoteDropItem targetId="marketing_panel" notesByTarget={sharedNotesByTarget} onDropNote={sharedDropNote} onUnstickNote={sharedUnstickNote}>
-                <AgentPanel businessId={businessId} businessName={business?.name || ""} metrics={metrics} planInfo={planInfo} integs={integs} setTab={setTab} refreshTasks={refreshTasks} hubNotes={hubNotes} stickyAssignments={stickyAssignments} onAssignSticky={assignSticky} onUnstickNote={unstickNote}/>
-              </NoteDropItem>
+              <AgentPanel businessId={businessId} businessName={business?.name || ""} metrics={metrics} planInfo={planInfo} integs={integs} setTab={setTab} refreshTasks={refreshTasks} hubNotes={hubNotes} stickyAssignments={stickyAssignments} onAssignSticky={assignSticky} onUnstickNote={unstickNote} refreshBudget={refreshBudget}/>
             </div>
           )}
 
@@ -5587,13 +5539,10 @@ export default function Hub() {
                 </div>
               </div>
               <MissingFieldsBar prefs={prefs} metrics={metrics} onGo={()=>setTab("business_info")} agent="management" />
-              <p style={{ color:C.muted, fontSize:13, marginBottom:20, fontFamily:FB }}>Revenue channels and business dashboard. Drag cards to organize — pin notes, add fields, and track what matters.</p>
-
               <AutopilotCard businessId={businessId} planInfo={planInfo} navigate={navigate} />
 
               <div style={{ ...card("16px 18px"), marginBottom:24, background:"#F8FAFC", border:`1px solid ${C.border}` }}>
                 <div style={{ fontFamily:FH, fontWeight:600, fontSize:14, marginBottom:8 }}>Ask your management agent</div>
-                <p style={{ fontSize:12, color:C.muted, marginBottom:10, fontFamily:FB }}>Ask anything about revenue, clients, or business strategy. Say "I'm scaling up" and preferences update automatically.</p>
                 <div style={{ display:"flex", gap:8, marginBottom:mgmtAns?12:0 }}>
                   <input value={mgmtQ} onChange={e=>setMgmtQ(e.target.value)} onKeyDown={e=>e.key==="Enter"&&askMgmt()} placeholder="What should I focus on this week?" style={{ ...inp(), flex:1 }} />
                   <button onClick={askMgmt} disabled={hubLoading} style={{ ...btn(C.dark,"#fff",13), padding:"10px 16px", flexShrink:0 }}>{hubLoading?"…":"Ask"}</button>
@@ -5645,7 +5594,7 @@ export default function Hub() {
           </div>
           <div style={{ maxHeight:260, overflowY:"auto", padding:"10px 12px" }}>
             {hubNotes.length===0 && <div style={{ fontSize:12, color:"#9CA3AF", textAlign:"center", padding:"12px 0", fontFamily:FB }}>No notes yet. Add one below.</div>}
-            {hubNotes.map(n=>{
+            {hubNotes.filter(n=>!(n.text||"").startsWith("[MANAGEMENT → MARKETING]")).map(n=>{
               const stuckTo = Object.entries(stickyAssignments).find(([,v])=>v.noteId===n.id);
               return (
                 <div key={n.id}

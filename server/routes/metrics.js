@@ -12,6 +12,18 @@ const Anthropic   = require("@anthropic-ai/sdk");
 const prisma = new PrismaClient();
 const ai     = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
+function todayKey() { return `tok_${new Date().toISOString().slice(0,10).replace(/-/g,"")}`; }
+async function addDailyTokens(bizId, estimate) {
+  const key = todayKey();
+  const out = await prisma.businessOutput.findFirst({ where:{ businessId:bizId, type:"usage" } });
+  const usage = out ? (()=>{ try{ return JSON.parse(out.content); }catch{ return {}; } })() : {};
+  usage[key] = (usage[key] || 0) + estimate;
+  Object.keys(usage).filter(k => k.startsWith("tok_") && k !== key).forEach(k => delete usage[k]);
+  const content = JSON.stringify(usage);
+  if (out) await prisma.businessOutput.update({ where:{ id:out.id }, data:{ content } });
+  else await prisma.businessOutput.create({ data:{ businessId:bizId, type:"usage", title:"Usage tracking", content } });
+}
+
 const DEFAULT_METRICS = {
   revenue:     { this_month:0, last_month:0, total:0, sources:[] },
   costs:       { this_month:0, last_month:0, total:0, causes:[] },
@@ -185,6 +197,7 @@ All items must be specific to "${biz.name}" and "${idea.name||"this business typ
     if (existing) await prisma.businessOutput.update({ where:{ id:existing.id }, data:{ content } });
     else await prisma.businessOutput.create({ data:{ businessId:req.params.businessId, type:"management_strategy", title:"Business Strategy", content } });
 
+    await addDailyTokens(req.params.businessId, 4000);
     res.json({ strategy });
   } catch(e) { next(e); }
 });
