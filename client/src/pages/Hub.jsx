@@ -2436,109 +2436,48 @@ const CHANNEL_OPTIONS = ["instagram","email","website","google","calendly","twit
 
 // ── Marketing Agent components → see MarketingAgent.jsx (imported above as AgentPanel) ──
 
-function MgmtModeToggle({ businessId, planInfo, navigate }) {
-  const [apEnabled, setApEnabled] = useState(null);
-  const [apBusy,    setApBusy]    = useState(false);
-  const [showPlans, setShowPlans] = useState(false);
-  const plan = planInfo?.plan;
-  const isAdmin = planInfo?.isAdmin;
-  const isAutopilotPlan = plan === "pro_autopilot" || isAdmin;
+function MgmtModeToggle({ mode, onChange, allowedModes }) {
+  const [showPlans,    setShowPlans]    = useState(false);
+  const [highlightPlan, setHighlightPlan] = useState("pro");
 
-  useEffect(()=>{
-    if (!isAutopilotPlan) return;
-    api.agents.getAutopilot(businessId).then(d=>setApEnabled(!!d.autopilotEnabled)).catch(()=>setApEnabled(false));
-  },[businessId, isAutopilotPlan]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  const toggleAp = async (e) => {
-    e.stopPropagation();
-    setApBusy(true);
-    try { const { autopilotEnabled } = await api.agents.setAutopilot(businessId, !apEnabled); setApEnabled(autopilotEnabled); }
-    catch {}
-    setApBusy(false);
-  };
-
-  const currentMode = isAdmin || plan === "pro_autopilot" ? "autopilot"
-                    : plan === "pro" ? "insights"
-                    : "correlation";
-
-  const MODES = [
-    {
-      id: "correlation",
-      label: "Correlation Analysis",
-      planLabel: "Starter",
-      features: ["Metric pair correlations","Pearson r-value scoring","Historical trend charts","Purely algorithmic — no AI"],
-    },
-    {
-      id: "insights",
-      label: "Business Insights",
-      planLabel: "Pro",
-      features: ["AI strategy generation","Manual generate & review","Insight cards + task creation","Sync strategy to Marketing"],
-    },
-    {
-      id: "autopilot",
-      label: "Operations Autopilot",
-      planLabel: "Pro Autopilot",
-      features: ["Weekly auto-strategy runs","Auto-sync to Marketing Agent","Auto-complete insight actions","Fully scheduled operations"],
-    },
+  const opts = [
+    { value:"correlation", label:"Correlation Analysis", desc:"Statistical metric analysis — no AI required",     minPlan:null },
+    { value:"insights",    label:"Business Insights",    desc:"AI strategy generation, manual review & approval", minPlan:"pro",          minPlanBadge:"Pro" },
+    { value:"autopilot",   label:"Operations Autopilot", desc:"Fully automated strategy, sync, and execution",    minPlan:"pro_autopilot", minPlanBadge:"Autopilot" },
   ];
 
   return (
     <>
-      {showPlans && <PlansModal highlightPlan="pro" onClose={()=>setShowPlans(false)} />}
-      <div style={{ ...card("16px 18px"), marginBottom:24 }}>
-        <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:12 }}>
-          <div style={{ fontFamily:FH, fontWeight:700, fontSize:13, color:C.text }}>Management Mode</div>
-          <span style={{ fontSize:10, color:C.muted, fontFamily:FB }}>Determined by your plan</span>
-        </div>
-        <div style={{ display:"flex", gap:8, flexWrap:"wrap" }}>
-          {MODES.map(m => {
-            const isActive = m.id === currentMode;
-            const isLocked = !isAdmin && (
-              (m.id === "insights"    && plan !== "pro" && plan !== "pro_autopilot") ||
-              (m.id === "autopilot"   && plan !== "pro_autopilot")
-            );
+      <div style={{ marginBottom:24 }}>
+        <div style={{ display:"flex", background:"#F1F0EF", borderRadius:12, padding:3, gap:2, marginBottom:6 }}>
+          {opts.map(o => {
+            const locked = !allowedModes.includes(o.value);
+            const isActive = mode === o.value;
             return (
-              <div
-                key={m.id}
-                onClick={() => isLocked ? setShowPlans(true) : null}
-                style={{
-                  flex: "1 1 0", minWidth: 148, maxWidth: 280,
-                  border: `1px solid ${isActive ? C.dark : C.border}`,
-                  borderRadius: 10, padding: "12px 14px",
-                  background: isActive ? C.dark : "#F8FAFC",
-                  cursor: isLocked ? "pointer" : "default",
-                  transition: "border-color 0.15s",
+              <button key={o.value}
+                onClick={()=>{
+                  if (locked) { setHighlightPlan(o.minPlan||"pro"); setShowPlans(true); }
+                  else onChange(o.value);
                 }}
-              >
-                <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", marginBottom:4 }}>
-                  <div style={{ fontFamily:FH, fontWeight:700, fontSize:12, color: isActive?"#fff":isLocked?"#94A3B8":C.text, lineHeight:1.3 }}>{m.label}</div>
-                  {isActive && <span style={{ fontSize:9, fontWeight:700, padding:"1px 6px", borderRadius:10, background:"rgba(255,255,255,0.18)", color:"rgba(255,255,255,0.9)", fontFamily:FB, textTransform:"uppercase", letterSpacing:"0.05em", flexShrink:0, marginLeft:4 }}>Active</span>}
-                  {isLocked && <span style={{ fontSize:9, fontWeight:700, padding:"1px 6px", borderRadius:10, background:"#E2E8F0", color:"#94A3B8", fontFamily:FB, textTransform:"uppercase", letterSpacing:"0.04em", flexShrink:0, marginLeft:4 }}>Upgrade</span>}
-                </div>
-                <div style={{ fontSize:10, color: isActive?"rgba(255,255,255,0.55)":"#94A3B8", fontFamily:FB, marginBottom:8 }}>{m.planLabel} plan</div>
-                <div style={{ display:"flex", flexDirection:"column", gap:3 }}>
-                  {m.features.map((f, i) => (
-                    <div key={i} style={{ fontSize:10, color: isActive?"rgba(255,255,255,0.7)":isLocked?"#CBD5E1":C.muted, fontFamily:FB, display:"flex", alignItems:"flex-start", gap:5 }}>
-                      <span style={{ flexShrink:0 }}>·</span><span>{f}</span>
-                    </div>
-                  ))}
-                </div>
-                {isLocked && <div style={{ marginTop:10, fontSize:10, fontWeight:700, color:C.dark, fontFamily:FB }}>Upgrade to {m.planLabel} →</div>}
-                {isActive && m.id==="autopilot" && isAutopilotPlan && apEnabled!==null && (
-                  <div style={{ marginTop:10, paddingTop:10, borderTop:"1px solid rgba(255,255,255,0.15)", display:"flex", alignItems:"center", justifyContent:"space-between" }}>
-                    <span style={{ fontSize:11, fontFamily:FB, color:apEnabled?"rgba(255,255,255,0.85)":"rgba(255,255,255,0.45)" }}>
-                      {apEnabled?"Autopilot running":"Autopilot paused"}
-                    </span>
-                    <button onClick={toggleAp} disabled={apBusy} style={{ ...btn(apEnabled?"#DC2626":"#22C55E","#fff",10), padding:"4px 12px", opacity:apBusy?0.7:1 }}>
-                      {apBusy?"…":apEnabled?"Pause":"Enable"}
-                    </button>
-                  </div>
-                )}
-              </div>
+                style={{
+                  flex:1, padding:"8px 10px", borderRadius:9, border:"none", cursor:"pointer",
+                  fontFamily:FB, fontWeight:600, fontSize:12, transition:"all 0.15s",
+                  background: isActive ? C.dark : "transparent",
+                  color: locked ? "#9CA3AF" : isActive ? "#fff" : C.muted,
+                  boxShadow: isActive ? "0 1px 5px rgba(0,0,0,0.18)" : "none",
+                  position:"relative",
+                }}>
+                {o.label}
+                {locked && <span style={{ position:"absolute", top:-7, right:-3, fontSize:8, background:C.dark, color:"#fff", borderRadius:8, padding:"1px 5px", fontWeight:700, letterSpacing:"0.04em" }}>{o.minPlanBadge}</span>}
+              </button>
             );
           })}
         </div>
+        <div style={{ fontSize:11, color:C.muted, fontFamily:FB }}>
+          {opts.find(o=>o.value===mode)?.desc}
+        </div>
       </div>
+      {showPlans && <PlansModal highlightPlan={highlightPlan} onClose={()=>setShowPlans(false)} />}
     </>
   );
 }
@@ -2699,7 +2638,10 @@ function buildMarketingPayload(strategy, timeframe, metrics) {
   return lines.join("\n").trim();
 }
 
-function BusinessStrategySection({ businessId, metrics, snapshots, isPro, isStarter=false, saveM, isAutopilot=false, onNotify, refreshTasks, insightsBudget, refreshBudget }) {
+function BusinessStrategySection({ businessId, metrics, snapshots, isPro, isStarter=false, mgmtMode="correlation", saveM, isAutopilot=false, onNotify, refreshTasks, insightsBudget, refreshBudget }) {
+  // Derived from mode selection + plan capability
+  const showStrategy    = isPro && (mgmtMode === "insights" || mgmtMode === "autopilot");
+  const activeAutopilot = isAutopilot && mgmtMode === "autopilot";
   const LINKS_KEY         = `earnedlab_links_${businessId}`;
   const STRAT_KEY         = `earnedlab_strat_${businessId}`;
   const STRAT_AUTORUN_KEY = `earnedlab_strat_autorun_${businessId}`;
@@ -2771,17 +2713,17 @@ function BusinessStrategySection({ businessId, metrics, snapshots, isPro, isStar
         const existing = (metrics?.insightCards||[]).filter(c=>c.status!=="pending"||c.strategyRef!==newCards[0]?.strategyRef);
         saveInsightCards([...newCards, ...existing]);
       }
-      // Auto-sync to Marketing Agent for Autopilot users
-      if(isAutopilot){ syncToMarketing(s, runTimeframe).catch(()=>{}); }
+      // Auto-sync to Marketing Agent for Autopilot users in autopilot mode
+      if(activeAutopilot){ syncToMarketing(s, runTimeframe).catch(()=>{}); }
       refreshBudget?.();
       return s;
     }catch(e){ setStratErr(e.message||"Generation failed — try again"); }
     finally{ setGenerating(false); }
   };
 
-  // Weekly auto-run for Pro Autopilot — fires on login if >7 days since last run
+  // Weekly auto-run — only fires when plan is Pro Autopilot AND mode is Operations Autopilot
   useEffect(()=>{
-    if(!isAutopilot) return;
+    if(!isAutopilot || mgmtMode!=="autopilot") return;
     const WEEK_MS = 7*24*3600*1000;
     const lastRanStr = localStorage.getItem(STRAT_AUTORUN_KEY);
     const lastRan = lastRanStr ? new Date(lastRanStr).getTime() : 0;
@@ -2803,7 +2745,7 @@ function BusinessStrategySection({ businessId, metrics, snapshots, isPro, isStar
     const remaining=Math.max(60_000,WEEK_MS-elapsed);
     autoRunTimerRef.current=setTimeout(doAutoRun,remaining);
     return ()=>clearTimeout(autoRunTimerRef.current);
-  },[isAutopilot]); // eslint-disable-line react-hooks/exhaustive-deps
+  },[isAutopilot, mgmtMode]); // eslint-disable-line react-hooks/exhaustive-deps
 
 
   const updateInsightCard = (id, patch) => saveInsightCards(insightCards.map(c=>c.id===id?{...c,...patch}:c));
@@ -2819,7 +2761,7 @@ function BusinessStrategySection({ businessId, metrics, snapshots, isPro, isStar
   };
 
   const autoComplete = async (card) => {
-    if(!isAutopilot) return;
+    if(!activeAutopilot) return;
     const nid = `auto_${card.id}_${Date.now()}`;
     onNotify?.({ id:nid, status:"active", message:card.title });
     await new Promise(r=>setTimeout(r,600));
@@ -2844,7 +2786,7 @@ function BusinessStrategySection({ businessId, metrics, snapshots, isPro, isStar
   };
 
   const runAllAutoCards = async (cards) => {
-    if(!isAutopilot || !cards.length) return;
+    if(!activeAutopilot || !cards.length) return;
     const PRIORITY = { high:0, medium:1, low:2 };
     const sorted = [...cards].sort((a,b)=>(PRIORITY[a.priority]??1)-(PRIORITY[b.priority]??1));
     const qnid = `autoq_${Date.now()}`;
@@ -3081,9 +3023,9 @@ function BusinessStrategySection({ businessId, metrics, snapshots, isPro, isStar
       <div style={{ background:C.dark, padding:"18px 20px", display:"flex", justifyContent:"space-between", alignItems:"center", cursor:"pointer" }} onClick={()=>setExpanded(p=>!p)}>
         <div>
           <div style={{ fontFamily:FH, fontWeight:700, fontSize:16, color:"#fff", marginBottom:2 }}>
-            {isStarter ? "Correlation Analysis" : "Business Strategy"}
+            {mgmtMode === "correlation" ? "Correlation Analysis" : "Business Strategy"}
           </div>
-          {!isStarter && isAutopilot && (
+          {activeAutopilot && (
             <div style={{ fontSize:10, color:"rgba(255,255,255,0.5)", fontFamily:FB }}>Auto-runs weekly</div>
           )}
         </div>
@@ -3099,7 +3041,7 @@ function BusinessStrategySection({ businessId, metrics, snapshots, isPro, isStar
               <div>
                 <div style={{ fontFamily:FH, fontWeight:700, fontSize:14, marginBottom:2 }}>Metric Correlations</div>
                 <div style={{ fontSize:11, color:C.muted, fontFamily:FB }}>
-                  {isStarter
+                  {mgmtMode==="correlation"
                     ? "Discover statistical relationships between your business metrics"
                     : applied.length>0
                       ? `${applied.length} applied to strategy: ${applied.map(l=>l.aLabel+"→"+l.bLabel).join(", ")}`
@@ -3146,21 +3088,21 @@ function BusinessStrategySection({ businessId, metrics, snapshots, isPro, isStar
                   metrics={metrics}
                   snapshots={snapshots}
                   applied={!!applied.find(l=>l.id===link.id)}
-                  onApplyToStrategy={!isStarter ? (corr)=>toggleApply(corr) : null}
+                  onApplyToStrategy={showStrategy ? (corr)=>toggleApply(corr) : null}
                   onRemove={()=>removeLink(link.id)}
                 />
               ))}
             </div>
           </div>
 
-          {/* ── AI Strategy Generator — Pro and Autopilot only ── */}
-          {isPro ? (
+          {/* ── AI Strategy Generator — Business Insights and Autopilot modes only ── */}
+          {showStrategy ? (
             <div style={{ borderTop:`2px solid ${C.border}`, paddingTop:20 }}>
               <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-end", marginBottom:12, flexWrap:"wrap", gap:10 }}>
                 <div>
                   <div style={{ fontFamily:FH, fontWeight:700, fontSize:14, marginBottom:2 }}>Suggested Strategy</div>
                   <div style={{ fontSize:11, color:C.muted, fontFamily:FB }}>
-                    {isAutopilot ? "Manually regenerate, or let autopilot handle weekly updates" : "Generate and review — all actions require your approval"}
+                    {activeAutopilot ? "Manually regenerate, or let autopilot handle weekly updates" : "Generate and review — all actions require your approval"}
                   </div>
                 </div>
                 <div style={{ display:"flex", gap:8, alignItems:"center" }}>
@@ -3204,7 +3146,7 @@ function BusinessStrategySection({ businessId, metrics, snapshots, isPro, isStar
                         </button>
                       )}
                       <button onClick={downloadStrategy} style={{ ...btnO(C.muted,12) }}>Download (.txt)</button>
-                      {isAutopilot&&<span style={{ fontSize:10, color:C.muted, fontFamily:FB, marginLeft:2 }}>Auto-syncs on generate</span>}
+                      {activeAutopilot&&<span style={{ fontSize:10, color:C.muted, fontFamily:FB, marginLeft:2 }}>Auto-syncs on generate</span>}
                     </div>
                     {syncedAt&&(
                       <div style={{ fontSize:10, color:C.muted, fontFamily:FB, marginTop:5 }}>
@@ -3228,25 +3170,29 @@ function BusinessStrategySection({ businessId, metrics, snapshots, isPro, isStar
                     onUpdate={updateInsightCard}
                     onArchive={archiveInsightCard}
                     onPromoteToTask={promoteToTask}
-                    isAutopilot={isAutopilot}
+                    isAutopilot={activeAutopilot}
                     onAutoComplete={autoComplete}
-                    onRunAll={isAutopilot ? runAllAutoCards : undefined}
+                    onRunAll={activeAutopilot ? runAllAutoCards : undefined}
                     insightsBudget={insightsBudget}
                   />
                 </div>
               )}
             </div>
           ) : (
-            /* Starter: upgrade prompt for AI strategy */
+            /* Not showing strategy — show upgrade prompt */
             <div style={{ borderTop:`1px solid ${C.border}`, marginTop: links.length>0 ? 4 : 0, paddingTop:16 }}>
               <div style={{ background:"#F8FAFC", borderRadius:10, padding:"16px 18px", border:`1px solid ${C.border}` }}>
                 <div style={{ fontFamily:FH, fontWeight:600, fontSize:13, marginBottom:4, color:C.text }}>AI Business Strategy</div>
                 <div style={{ fontSize:12, color:C.muted, fontFamily:FB, marginBottom:10, lineHeight:1.6 }}>
-                  Upgrade to Business Insights to generate AI-powered strategy reports using your correlation data.
+                  {!isPro
+                    ? "Upgrade to Business Insights (Pro plan) to generate AI-powered strategy reports using your correlation data."
+                    : "Switch to Business Insights or Operations Autopilot mode to generate AI-powered strategy."}
                 </div>
-                <ProGate isPro={false} label="Upgrade to Business Insights">
-                  <div style={{ height:48 }}/>
-                </ProGate>
+                {!isPro && (
+                  <ProGate isPro={false} label="Upgrade to Business Insights">
+                    <div style={{ height:48 }}/>
+                  </ProGate>
+                )}
               </div>
             </div>
           )}
@@ -4654,10 +4600,25 @@ function MgmtSidebar({ open, onToggle, hubNotes, setHubNotes, businessId, mgmtNo
 }
 
 function ManagementCanvas({ businessId, metrics, saveM, integs, hubNotes, setHubNotes, stickyAssignments, assignSticky, unstickNote, mgmtNoteAssignments, mgmtAssignNote, mgmtUnstickNote, sidebarOpen, setSidebarOpen, deleteNote, isPro, isStarter, isAutopilot, onNotify, refreshTasks, insightsBudget, refreshBudget }) {
-  const POS_KEY     = `earnedlab_mgmt_pos_${businessId}`;
-  const CARDS_KEY   = `earnedlab_mgmt_cards_${businessId}`;
-  const SNAP_KEY    = `earnedlab_snaps_${businessId}`;
-  const WIDGETS_KEY = `earnedlab_widgets_${businessId}`;
+  const POS_KEY      = `earnedlab_mgmt_pos_${businessId}`;
+  const CARDS_KEY    = `earnedlab_mgmt_cards_${businessId}`;
+  const SNAP_KEY     = `earnedlab_snaps_${businessId}`;
+  const WIDGETS_KEY  = `earnedlab_widgets_${businessId}`;
+  const MODE_KEY     = `earnedlab_mgmt_mode_${businessId}`;
+
+  const allowedModes = isAutopilot ? ["correlation","insights","autopilot"]
+                     : isPro       ? ["correlation","insights"]
+                     :               ["correlation"];
+  const defaultMode  = isAutopilot ? "autopilot" : isPro ? "insights" : "correlation";
+  const [mgmtMode, setMgmtMode] = useState(()=>{
+    try { const s=localStorage.getItem(MODE_KEY); if(s&&allowedModes.includes(s)) return s; } catch {}
+    return defaultMode;
+  });
+  const saveMode = (m) => { setMgmtMode(m); try{localStorage.setItem(MODE_KEY,m);}catch{} };
+  // Clamp to max allowed if plan changes
+  useEffect(()=>{
+    if(!allowedModes.includes(mgmtMode)) saveMode(allowedModes[allowedModes.length-1]);
+  },[isAutopilot, isPro]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Monthly snapshots for correlation trend data
   const [snapshots, setSnapshots] = useState(()=>{ try{return JSON.parse(localStorage.getItem(SNAP_KEY)||"[]");}catch{return [];} });
@@ -4852,7 +4813,8 @@ function ManagementCanvas({ businessId, metrics, saveM, integs, hubNotes, setHub
   return (
     <div style={{ paddingRight: sidebarOpen?300:0, transition:"padding-right 0.25s ease" }}>
       {showProGate && <PlansModal highlightPlan="pro" onClose={()=>setShowProGate(false)} />}
-      <BusinessStrategySection businessId={businessId} metrics={metrics} snapshots={snapshots} isPro={isPro} isStarter={isStarter} saveM={saveM} isAutopilot={isAutopilot} onNotify={onNotify} refreshTasks={refreshTasks} insightsBudget={insightsBudget} refreshBudget={refreshBudget} />
+      <MgmtModeToggle mode={mgmtMode} onChange={saveMode} allowedModes={allowedModes} />
+      <BusinessStrategySection businessId={businessId} metrics={metrics} snapshots={snapshots} isPro={isPro} isStarter={isStarter} mgmtMode={mgmtMode} saveM={saveM} isAutopilot={isAutopilot} onNotify={onNotify} refreshTasks={refreshTasks} insightsBudget={insightsBudget} refreshBudget={refreshBudget} />
 
       {/* Global time range bar */}
       <div style={{ padding:"10px 22px", display:"flex", alignItems:"center", gap:10, flexWrap:"wrap", background:C.surface, borderBottom:`1px solid ${C.border}`, marginBottom:16 }}>
@@ -5718,7 +5680,6 @@ export default function Hub() {
                 </div>
               </div>
               <MissingFieldsBar prefs={prefs} metrics={metrics} onGo={()=>setTab("business_info")} agent="management" />
-              <MgmtModeToggle businessId={businessId} planInfo={planInfo} navigate={navigate} />
 
               <div style={{ ...card("16px 18px"), marginBottom:24, background:"#F8FAFC", border:`1px solid ${C.border}` }}>
                 <div style={{ fontFamily:FH, fontWeight:600, fontSize:14, marginBottom:8 }}>Ask your management agent</div>
