@@ -2893,6 +2893,8 @@ function LossContent({ metrics, globalRange=null, globalCStart="", globalCEnd=""
   const rev  = filterDateRange(sources, effectiveMode, effectiveCStart, effectiveCEnd).reduce((a,x)=>a+(x.amount||0),0);
   const cost = filterDateRange([...causes, ...investItems], effectiveMode, effectiveCStart, effectiveCEnd).reduce((a,x)=>a+(x.amount||0),0);
   const loss = Math.max(0, cost - rev);
+  const totalRev  = sources.reduce((a,x)=>a+(x.amount||0),0);
+  const totalCost = [...causes, ...investItems].reduce((a,x)=>a+(x.amount||0),0);
   const label = effectiveMode==="day"?"Today":effectiveMode==="week"?"This Week":effectiveMode==="month"?"This Month":effectiveMode==="year"?"This Year":effectiveMode==="all"?"All Time":(cStart&&cEnd)?`${cStart} – ${cEnd}`:"Custom";
   return (
     <div>
@@ -2905,11 +2907,11 @@ function LossContent({ metrics, globalRange=null, globalCStart="", globalCEnd=""
       <div style={{ display:"flex", gap:8, marginTop:8 }}>
         <div style={{ flex:1, background:C.surface, borderRadius:8, padding:"8px 10px" }}>
           <div style={{ fontSize:9, color:C.muted, fontFamily:FB, fontWeight:700, textTransform:"uppercase", marginBottom:2 }}>Revenue</div>
-          <div style={{ fontFamily:FH, fontWeight:700, fontSize:16, color:C.text }}>${rev.toLocaleString()}</div>
+          <div style={{ fontFamily:FH, fontWeight:700, fontSize:16, color:C.text }}>${totalRev.toLocaleString()}</div>
         </div>
         <div style={{ flex:1, background:C.surface, borderRadius:8, padding:"8px 10px" }}>
           <div style={{ fontSize:9, color:C.muted, fontFamily:FB, fontWeight:700, textTransform:"uppercase", marginBottom:2 }}>Costs</div>
-          <div style={{ fontFamily:FH, fontWeight:700, fontSize:16, color:C.text }}>${cost.toLocaleString()}</div>
+          <div style={{ fontFamily:FH, fontWeight:700, fontSize:16, color:C.text }}>${totalCost.toLocaleString()}</div>
         </div>
       </div>
     </div>
@@ -2929,6 +2931,8 @@ function ProfitContent({ metrics, globalRange=null, globalCStart="", globalCEnd=
   const rev    = filterDateRange(sources, effectiveMode, effectiveCStart, effectiveCEnd).reduce((a,x)=>a+(x.amount||0),0);
   const cost   = filterDateRange([...causes, ...investItems], effectiveMode, effectiveCStart, effectiveCEnd).reduce((a,x)=>a+(x.amount||0),0);
   const profit = Math.max(0, rev - cost);
+  const totalRev  = sources.reduce((a,x)=>a+(x.amount||0),0);
+  const totalCost = [...causes, ...investItems].reduce((a,x)=>a+(x.amount||0),0);
   const label  = effectiveMode==="day"?"Today":effectiveMode==="week"?"This Week":effectiveMode==="month"?"This Month":effectiveMode==="year"?"This Year":effectiveMode==="all"?"All Time":(cStart&&cEnd)?`${cStart} – ${cEnd}`:"Custom";
   return (
     <div>
@@ -2936,16 +2940,15 @@ function ProfitContent({ metrics, globalRange=null, globalCStart="", globalCEnd=
       <div style={{ background:profit>0?"#F0FDF4":C.surface, borderRadius:12, padding:"12px 14px", border:`1px solid ${profit>0?"#BBF7D0":C.border}` }}>
         <div style={{ fontSize:9, color:profit>0?"#16A34A":C.muted, fontWeight:700, textTransform:"uppercase", letterSpacing:"0.07em", fontFamily:FB, marginBottom:4 }}>Profit — {label}</div>
         <div style={{ fontFamily:FH, fontWeight:700, fontSize:28, color:profit>0?"#16A34A":C.muted }}>{profit>0?`+$${profit.toLocaleString()}`:"$0"}</div>
-        {profit===0&&<div style={{ fontSize:11, color:"#EF4444", fontFamily:FB, marginTop:4 }}>$0</div>}
       </div>
       <div style={{ display:"flex", gap:8, marginTop:8 }}>
         <div style={{ flex:1, background:C.surface, borderRadius:8, padding:"8px 10px" }}>
           <div style={{ fontSize:9, color:C.muted, fontFamily:FB, fontWeight:700, textTransform:"uppercase", marginBottom:2 }}>Revenue</div>
-          <div style={{ fontFamily:FH, fontWeight:700, fontSize:16, color:C.text }}>${rev.toLocaleString()}</div>
+          <div style={{ fontFamily:FH, fontWeight:700, fontSize:16, color:C.text }}>${totalRev.toLocaleString()}</div>
         </div>
         <div style={{ flex:1, background:C.surface, borderRadius:8, padding:"8px 10px" }}>
           <div style={{ fontSize:9, color:C.muted, fontFamily:FB, fontWeight:700, textTransform:"uppercase", marginBottom:2 }}>Costs</div>
-          <div style={{ fontFamily:FH, fontWeight:700, fontSize:16, color:C.text }}>${cost.toLocaleString()}</div>
+          <div style={{ fontFamily:FH, fontWeight:700, fontSize:16, color:C.text }}>${totalCost.toLocaleString()}</div>
         </div>
       </div>
     </div>
