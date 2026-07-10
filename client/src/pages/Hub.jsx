@@ -3222,7 +3222,7 @@ function EmbeddedWidget({ widget, onUpdateConfig, onRemove, metrics, snapshots, 
       </div>
       {editing?<ConfigForm/>:(
         <>
-          {widget.type==="graph"&&<GraphWidget config={cfg} snapshots={snapshots||[]}/>}
+          {widget.type==="graph"&&<GraphWidget config={cfg} snapshots={snapshots||[]} metrics={metrics}/>}
           {widget.type==="pie"&&<PieWidget config={cfg} metrics={metrics}/>}
           {widget.type==="draw"&&<DrawingWidget widgetId={widget.id}/>}
           {widget.type==="corr"&&<IntraCorrelWidget config={cfg} snapshots={snapshots||[]} metrics={metrics}/>}
@@ -3234,28 +3234,60 @@ function EmbeddedWidget({ widget, onUpdateConfig, onRemove, metrics, snapshots, 
   );
 }
 
-function GraphWidget({ config, snapshots }) {
+function GraphWidget({ config, snapshots, metrics }) {
   const field = LINK_FIELDS.find(f=>f.id===config.fieldId)||LINK_FIELDS[0];
-  const data = snapshots.map(s=>s[field.snapKey||field.id]||0);
-  const cur = data[data.length-1]||0;
+
+  // Build month-by-month trend from raw items when available
+  const ITEMS_SRC = {
+    revenue:     ()=>metrics?.revenue?.sources||[],
+    costs:       ()=>metrics?.costs?.causes||[],
+    investments: ()=>metrics?.investments?.initial||[],
+  };
+  const getItems = ITEMS_SRC[config.fieldId];
+  let data, labels;
+  if(getItems) {
+    const monthMap = {};
+    getItems().forEach(item=>{
+      const m = normDate(item.date).slice(0,7); if(!m) return;
+      monthMap[m]=(monthMap[m]||0)+(item.amount||0);
+    });
+    const sorted = Object.entries(monthMap).sort(([a],[b])=>a<b?-1:1);
+    data   = sorted.map(([,v])=>v);
+    labels = sorted.map(([m])=>m);
+  } else {
+    data   = snapshots.map(s=>s[field.snapKey||field.id]||0);
+    labels = snapshots.map(s=>s.month||"");
+  }
+
+  const cur      = data[data.length-1]||0;
+  const curLabel = labels[labels.length-1]||"Latest";
   return (
     <div>
-      <div style={{ fontSize:10, color:C.muted, fontFamily:FB, marginBottom:6 }}>{field.label} over time</div>
+      <div style={{ fontSize:10, color:C.muted, fontFamily:FB, marginBottom:6 }}>{field.label} by month</div>
       <MiniSparkline data={data.length>=2?data:null} color={C.primary} w={268} h={80}/>
-      {data.length<2&&<div style={{ fontSize:11, color:C.muted, fontFamily:FB, marginTop:4 }}>Check back next month to see trends.</div>}
+      {data.length<2&&<div style={{ fontSize:11, color:C.muted, fontFamily:FB, marginTop:4 }}>Add items across multiple months to see a trend.</div>}
       <div style={{ fontFamily:FH, fontWeight:700, fontSize:26, marginTop:8 }}>{field.prefix}{cur.toLocaleString()}</div>
-      <div style={{ fontSize:10, color:C.muted, fontFamily:FB }}>Latest value</div>
+      <div style={{ fontSize:10, color:C.muted, fontFamily:FB }}>{curLabel}</div>
     </div>
   );
 }
 
 function PieWidget({ config, metrics }) {
   const src = config.source||"revenue";
-  let items = src==="revenue"?metrics.revenue?.sources||[]
-            : src==="costs"?metrics.costs?.causes||[]
-            : src==="investments.initial"?metrics.investments?.initial||[]
-            : metrics.investments?.ongoing||[];
-  const total = items.reduce((a,x)=>a+(x.amount||0),0);
+  const rawItems = src==="revenue"?metrics.revenue?.sources||[]
+    : src==="costs"?metrics.costs?.causes||[]
+    : src==="investments.initial"?metrics.investments?.initial||[]
+    : metrics.investments?.ongoing||[];
+
+  // Aggregate by category (fall back to item name when no category set)
+  const catMap = {};
+  rawItems.forEach(item=>{
+    const key = item.category||item.name||"Other";
+    catMap[key]=(catMap[key]||0)+(item.amount||0);
+  });
+  const items = Object.entries(catMap).map(([name,amount])=>({name,amount}));
+  const total = items.reduce((a,x)=>a+x.amount,0);
+
   const COLORS = ["#7C3AED","#3B82F6","#22C55E","#F59E0B","#EF4444","#EC4899","#14B8A6","#F97316"];
   const canvasRef = useRef(null);
   useEffect(()=>{
@@ -3266,7 +3298,7 @@ function PieWidget({ config, metrics }) {
     if(!items.length){ ctx.fillStyle=C.border; ctx.beginPath(); ctx.arc(cx,cy,r,0,Math.PI*2); ctx.fill(); return; }
     let angle=-Math.PI/2;
     items.forEach((item,i)=>{
-      const slice=total>0?(item.amount||0)/total*Math.PI*2:Math.PI*2/items.length;
+      const slice=total>0?item.amount/total*Math.PI*2:Math.PI*2/items.length;
       ctx.beginPath(); ctx.moveTo(cx,cy); ctx.arc(cx,cy,r,angle,angle+slice); ctx.closePath();
       ctx.fillStyle=COLORS[i%COLORS.length]; ctx.fill();
       angle+=slice;
@@ -3276,15 +3308,15 @@ function PieWidget({ config, metrics }) {
   return (
     <div>
       <canvas ref={canvasRef} width={200} height={160} style={{ display:"block", margin:"0 auto 8px" }}/>
-      {!items.length&&<div style={{ fontSize:11, color:C.muted, fontFamily:FB, textAlign:"center" }}>Add sources to see breakdown.</div>}
+      {!items.length&&<div style={{ fontSize:11, color:C.muted, fontFamily:FB, textAlign:"center" }}>Add items to see breakdown.</div>}
       <div style={{ maxHeight:100, overflowY:"auto" }}>
         {items.map((item,i)=>(
-          <div key={item.id||i} style={{ display:"flex", justifyContent:"space-between", fontSize:11, fontFamily:FB, padding:"2px 0" }}>
+          <div key={item.name} style={{ display:"flex", justifyContent:"space-between", fontSize:11, fontFamily:FB, padding:"2px 0" }}>
             <div style={{ display:"flex", alignItems:"center", gap:5 }}>
               <div style={{ width:8, height:8, borderRadius:"50%", background:COLORS[i%COLORS.length] }}/>
               <span style={{ color:C.text }}>{item.name}</span>
             </div>
-            <span style={{ color:C.muted }}>${(item.amount||0).toLocaleString()} {total>0?`(${Math.round((item.amount||0)/total*100)}%)`:""}</span>
+            <span style={{ color:C.muted }}>${item.amount.toLocaleString()} {total>0?`(${Math.round(item.amount/total*100)}%)`:""}</span>
           </div>
         ))}
       </div>
