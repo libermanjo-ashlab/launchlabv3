@@ -1077,25 +1077,47 @@ function buildInsightCards(strategy, timeframe) {
 }
 
 // ── InsightCardsSection ───────────────────────────────────────────────────────
-function InsightCardsSection({ cards, onUpdate, onArchive, onPromoteToTask, isAutopilot, onAutoComplete }) {
+function InsightCardsSection({ cards, onUpdate, onArchive, onPromoteToTask, isAutopilot, onAutoComplete, onRunAll, insightsBudget }) {
   const [showDone, setShowDone] = useState(false);
   const pending = cards.filter(c=>c.status==="pending");
   const done    = cards.filter(c=>c.status==="done");
   if(cards.length===0) return null;
 
-  const sorted = [...pending].sort((a,b)=>{const o={high:0,medium:1,low:2};return (o[a.priority]||1)-(o[b.priority]||1);});
-  const autoPending = pending.filter(c=>c.autoComplete);
+  const PRIORITY = {high:0,medium:1,low:2};
+  const sorted = [...pending].sort((a,b)=>(PRIORITY[a.priority]??1)-(PRIORITY[b.priority]??1));
+  const autoPending = sorted.filter(c=>c.autoComplete);
+
+  const rawLimit = insightsBudget?.limit || 110000;
+  const rawUsed  = insightsBudget?.used  || 0;
+  const budgetPct = rawLimit > 0 ? Math.round(rawUsed/rawLimit*100) : 0;
+  const budgetNearLimit = budgetPct >= 90;
 
   return (
     <div style={{ marginTop:20 }}>
-      <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:12 }}>
+      <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:12, flexWrap:"wrap", gap:8 }}>
         <div style={{ display:"flex", alignItems:"center", gap:8 }}>
           <div style={{ fontFamily:FH, fontWeight:700, fontSize:14 }}>Insights</div>
           {pending.length>0&&<span style={{ background:C.primary,color:"#fff",fontSize:9,fontWeight:700,padding:"2px 7px",borderRadius:20,fontFamily:FB }}>{pending.length}</span>}
+          {isAutopilot&&autoPending.length>0&&(
+            <span style={{ fontSize:9,color:C.muted,fontFamily:FB }}>
+              {autoPending.length} auto · sorted by priority
+            </span>
+          )}
         </div>
-        <div style={{ display:"flex", gap:8 }}>
+        <div style={{ display:"flex", gap:8, alignItems:"center" }}>
           {done.length>0&&<button onClick={()=>setShowDone(p=>!p)} style={{ ...btnO(C.muted,10), padding:"3px 10px" }}>{showDone?"Hide done":"Show done ("+done.length+")"}</button>}
-          {isAutopilot&&autoPending.length>0&&<button onClick={()=>autoPending.forEach(c=>onAutoComplete(c))} style={{ ...btn("#7C3AED","#fff",11), padding:"5px 12px" }}>Run all auto ({autoPending.length})</button>}
+          {isAutopilot&&autoPending.length>0&&(
+            <div style={{ display:"flex", flexDirection:"column", alignItems:"flex-end", gap:3 }}>
+              <button
+                onClick={()=>onRunAll ? onRunAll(autoPending) : autoPending.forEach(c=>onAutoComplete(c))}
+                disabled={budgetNearLimit}
+                title={budgetNearLimit?"Daily budget near limit — auto tasks paused":"Run all auto tasks in priority order"}
+                style={{ ...btn(budgetNearLimit?"#9CA3AF":"#7C3AED","#fff",11), padding:"5px 12px" }}>
+                {budgetNearLimit?"Budget limit":"Run all auto ("+autoPending.length+")"}
+              </button>
+              {budgetNearLimit&&<span style={{ fontSize:9,color:"#EF4444",fontFamily:FB }}>Daily budget at {budgetPct}%</span>}
+            </div>
+          )}
         </div>
       </div>
 
@@ -2533,9 +2555,73 @@ function CorrelationPair({ link, metrics, snapshots, applied, onApplyToStrategy,
   );
 }
 
-function BusinessStrategySection({ businessId, metrics, snapshots, isPro, saveM, isAutopilot=false, onNotify, refreshTasks }) {
-  const LINKS_KEY = `earnedlab_links_${businessId}`;
-  const STRAT_KEY = `earnedlab_strat_${businessId}`;
+function buildMarketingPayload(strategy, timeframe, metrics) {
+  const date = new Date().toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"});
+  const biz   = metrics?.businessProfile||{};
+  const lines = [
+    `[MANAGEMENT → MARKETING] Strategy Sync`,
+    `Timeframe: ${timeframe}  |  Generated: ${date}`,
+    biz.uniqueValueProp ? `Business: ${biz.uniqueValueProp}` : "",
+    ``,
+  ].filter(l=>l!==undefined);
+
+  const outreachItems = strategy.outreach?.suggestions||[];
+  if(outreachItems.length){
+    lines.push(`CHANNEL PRIORITIES`);
+    outreachItems.slice(0,4).forEach(s=>lines.push(`• ${s}`));
+    if((strategy.outreach?.monthlySpend||0)>0) lines.push(`Budget: $${strategy.outreach.monthlySpend.toLocaleString()}/mo`);
+    lines.push(``);
+  }
+
+  const scalingItems = strategy.scaling?.suggestions||[];
+  if(scalingItems.length){
+    lines.push(`AUDIENCE EXPANSION`);
+    scalingItems.slice(0,3).forEach(s=>lines.push(`• ${s}`));
+    lines.push(``);
+  }
+
+  const buildingItems = strategy.building?.suggestions||[];
+  if(buildingItems.length){
+    lines.push(`CONTENT & ASSETS`);
+    buildingItems.slice(0,3).forEach(s=>lines.push(`• ${s}`));
+    lines.push(``);
+  }
+
+  const conservItems = strategy.conservation?.actions||[];
+  if(conservItems.length){
+    lines.push(`SPEND CONSERVATION`);
+    conservItems.slice(0,2).forEach(s=>lines.push(`• ${s}`));
+    lines.push(``);
+  }
+
+  if((strategy.budget?.monthly||0)>0){
+    lines.push(`BUDGET`);
+    lines.push(`• Monthly: $${strategy.budget.monthly.toLocaleString()}/mo`);
+    if(strategy.budget?.rationale) lines.push(`• ${strategy.budget.rationale}`);
+    lines.push(``);
+  }
+
+  const outcomes = strategy.predictedOutcomes||[];
+  if(outcomes.length){
+    lines.push(`GROWTH TARGETS`);
+    outcomes.slice(0,3).forEach(o=>lines.push(`• ${o}`));
+    lines.push(``);
+  }
+
+  const week1 = (strategy.taskSchedule||[]).find(p=>/week\s*1|w1/i.test(p.period));
+  if(week1?.tasks?.length){
+    lines.push(`THIS WEEK`);
+    week1.tasks.slice(0,3).forEach(t=>lines.push(`• ${t}`));
+  }
+
+  return lines.join("\n").trim();
+}
+
+function BusinessStrategySection({ businessId, metrics, snapshots, isPro, saveM, isAutopilot=false, onNotify, refreshTasks, insightsBudget, refreshBudget }) {
+  const LINKS_KEY         = `earnedlab_links_${businessId}`;
+  const STRAT_KEY         = `earnedlab_strat_${businessId}`;
+  const STRAT_AUTORUN_KEY = `earnedlab_strat_autorun_${businessId}`;
+  const STRAT_HISTORY_KEY = `earnedlab_strat_history_${businessId}`;
 
   const [links,  setLinks]  = useState(()=>{ try{return JSON.parse(localStorage.getItem(LINKS_KEY)||"[]");}catch{return [];} });
   const [linking, setLinking] = useState(false);
@@ -2547,7 +2633,12 @@ function BusinessStrategySection({ businessId, metrics, snapshots, isPro, saveM,
   const [strategy,   setStrategy]   = useState(()=>{ try{const s=localStorage.getItem(STRAT_KEY);return s?JSON.parse(s):null;}catch{return null;} });
   const [stratTab,   setStratTab]   = useState("budget");
   const [stratErr,   setStratErr]   = useState("");
-  const [expanded,   setExpanded]   = useState(true);
+  const [expanded,      setExpanded]      = useState(true);
+  const [syncing,       setSyncing]       = useState(false);
+  const [showMktgPrev,  setShowMktgPrev]  = useState(false);
+  const [syncedAt,      setSyncedAt]      = useState(()=>{ try{return localStorage.getItem(`earnedlab_strat_mktgsync_${businessId}`);}catch{return null;} });
+  const autoRunTimerRef = useRef(null);
+  const MKTG_SYNC_KEY = `earnedlab_strat_mktgsync_${businessId}`;
 
   const saveLinks = l=>{ setLinks(l); try{localStorage.setItem(LINKS_KEY,JSON.stringify(l));}catch{} };
 
@@ -2562,30 +2653,75 @@ function BusinessStrategySection({ businessId, metrics, snapshots, isPro, saveM,
   const removeLink  = id=>{ saveLinks(links.filter(l=>l.id!==id)); setApplied(p=>p.filter(l=>l.id!==id)); };
   const toggleApply = corr=>setApplied(p=>p.find(l=>l.id===corr.id)?p.filter(l=>l.id!==corr.id):[...p,corr]);
 
-  const generate = async()=>{
+  const syncToMarketing = async (s, tf) => {
+    if(!s) return;
+    const useTf = tf || timeframe;
+    setSyncing(true);
+    try{
+      const payload = buildMarketingPayload(s, useTf, metrics);
+      await api.agents.addNote(businessId, payload, "#EFF6FF");
+      const now = new Date().toISOString();
+      setSyncedAt(now);
+      try{ localStorage.setItem(MKTG_SYNC_KEY, now); }catch{}
+      onNotify?.({ id:`mktg_sync_${Date.now()}`, status:"done", message:"Strategy synced to Marketing Agent" });
+    }catch(e){
+      onNotify?.({ id:`mktg_sync_${Date.now()}`, status:"done", message:`Marketing sync failed: ${e.message}` });
+    }
+    setSyncing(false);
+  };
+
+  const generate = async(opts={})=>{
+    const runTimeframe = opts.timeframe ?? timeframe;
+    const runCorrs     = opts.correlations ?? applied;
     setGenerating(true); setStratErr("");
     try{
-      const{strategy:s}=await api.metrics.strategy(businessId,{ timeframe, correlations:applied, snapshots });
+      const{strategy:s}=await api.metrics.strategy(businessId,{ timeframe:runTimeframe, correlations:runCorrs, snapshots });
       setStrategy(s); try{localStorage.setItem(STRAT_KEY,JSON.stringify(s));}catch{}
       setStratTab("budget");
-      // Generate insight cards from strategy — append, keeping existing cards from other runs
+      const ranAt = new Date().toISOString();
+      try{
+        const hist=JSON.parse(localStorage.getItem(STRAT_HISTORY_KEY)||"[]");
+        localStorage.setItem(STRAT_HISTORY_KEY,JSON.stringify([{strategy:s,ranAt,timeframe:runTimeframe},...hist].slice(0,4)));
+      }catch{}
+      if(opts.isAutoRun){ try{localStorage.setItem(STRAT_AUTORUN_KEY,ranAt);}catch{} }
       if(saveM){
-        const newCards = buildInsightCards(s, timeframe);
+        const newCards = buildInsightCards(s, runTimeframe);
         const existing = (metrics?.insightCards||[]).filter(c=>c.status!=="pending"||c.strategyRef!==newCards[0]?.strategyRef);
         saveInsightCards([...newCards, ...existing]);
       }
+      // Auto-sync to Marketing Agent for Autopilot users
+      if(isAutopilot){ syncToMarketing(s, runTimeframe).catch(()=>{}); }
+      return s;
     }catch(e){ setStratErr(e.message||"Generation failed — try again"); }
-    setGenerating(false);
+    finally{ setGenerating(false); }
   };
 
-  const sendToMarketing=async()=>{
-    if(!strategy) return;
-    const outreach=(strategy.outreach?.suggestions||[]);
-    const scaling=(strategy.scaling?.suggestions||[]);
-    const text=`[Business Strategy — ${timeframe}]\nOutreach: ${outreach.join("; ")}\nScaling: ${scaling.join("; ")}\nConservation: ${(strategy.conservation?.actions||[]).join("; ")}\nBuilding: ${(strategy.building?.suggestions||[]).join("; ")}\nOutcomes: ${(strategy.predictedOutcomes||[]).join("; ")}`;
-    try{ await api.agents.addNote(businessId,text,"#EFF6FF"); }catch{}
-    alert("Strategy sent to Marketing Agent — it will be referenced in your next marketing analysis.");
-  };
+  // Weekly auto-run for Pro Autopilot — fires on login if >7 days since last run
+  useEffect(()=>{
+    if(!isAutopilot) return;
+    const WEEK_MS = 7*24*3600*1000;
+    const lastRanStr = localStorage.getItem(STRAT_AUTORUN_KEY);
+    const lastRan = lastRanStr ? new Date(lastRanStr).getTime() : 0;
+    const elapsed = Date.now()-lastRan;
+    const allCorrs = LINK_FIELDS.flatMap((a,i)=>LINK_FIELDS.slice(i+1).map(b=>({id:`auto_${a.id}_${b.id}`,a:a.id,b:b.id})));
+    const doAutoRun = async()=>{
+      const nid = `auto_strat_${Date.now()}`;
+      onNotify?.({id:nid,status:"in-progress",message:"Running weekly business strategy..."});
+      const s = await generate({timeframe:"4 weeks",correlations:allCorrs,isAutoRun:true});
+      if(s){
+        const cnt = buildInsightCards(s,"4 weeks").length;
+        onNotify?.({id:nid,status:"done",message:`Weekly strategy updated — ${cnt} new insights`});
+      }
+    };
+    if(elapsed>=WEEK_MS){
+      const t=setTimeout(doAutoRun,2000);
+      return ()=>clearTimeout(t);
+    }
+    const remaining=Math.max(60_000,WEEK_MS-elapsed);
+    autoRunTimerRef.current=setTimeout(doAutoRun,remaining);
+    return ()=>clearTimeout(autoRunTimerRef.current);
+  },[isAutopilot]); // eslint-disable-line react-hooks/exhaustive-deps
+
 
   const updateInsightCard = (id, patch) => saveInsightCards(insightCards.map(c=>c.id===id?{...c,...patch}:c));
   const archiveInsightCard = id => saveInsightCards(insightCards.filter(c=>c.id!==id));
@@ -2624,6 +2760,44 @@ function BusinessStrategySection({ businessId, metrics, snapshots, isPro, saveM,
     }
   };
 
+  const runAllAutoCards = async (cards) => {
+    if(!isAutopilot || !cards.length) return;
+    const PRIORITY = { high:0, medium:1, low:2 };
+    const sorted = [...cards].sort((a,b)=>(PRIORITY[a.priority]??1)-(PRIORITY[b.priority]??1));
+    const qnid = `autoq_${Date.now()}`;
+    onNotify?.({id:qnid, status:"in-progress", message:`Starting ${sorted.length} auto task${sorted.length!==1?"s":""}…`});
+
+    let currentBudget = insightsBudget;
+    let completed = 0;
+    let budgetBlocked = false;
+
+    for(const card of sorted){
+      // Re-fetch budget before any AI-consuming card
+      if(card.category==="marketing"){
+        try{
+          const d = await api.agents.access(businessId);
+          if(d.tokenBudget){ currentBudget = d.tokenBudget; refreshBudget?.(); }
+        }catch{}
+        const rawLimit = currentBudget?.limit || 110000;
+        const rawUsed  = currentBudget?.used  || 0;
+        if(rawUsed >= rawLimit * 0.92){
+          budgetBlocked = true;
+          onNotify?.({id:`budget_cap_${Date.now()}`, status:"done", message:`Daily budget near limit — ${sorted.length-completed} task${sorted.length-completed!==1?"s":""} skipped`});
+          break;
+        }
+      }
+
+      onNotify?.({id:qnid, status:"in-progress", message:`${completed+1}/${sorted.length}: ${card.title.length>42?card.title.slice(0,39)+"…":card.title}`});
+      await autoComplete(card);
+      completed++;
+
+      if(card.category==="marketing") refreshBudget?.();
+      if(completed < sorted.length) await new Promise(r=>setTimeout(r,2500));
+    }
+
+    onNotify?.({id:qnid, status:"done", message:`${completed} auto task${completed!==1?"s":""} complete${budgetBlocked?" (budget limit reached)":""}`});
+  };
+
   const downloadStrategy=()=>{
     if(!strategy) return;
     const lines=[
@@ -2641,97 +2815,181 @@ function BusinessStrategySection({ businessId, metrics, snapshots, isPro, saveM,
     a.href=u; a.download="business-strategy.txt"; a.click(); URL.revokeObjectURL(u);
   };
 
+  // Plan activation conditions — derived from real metrics
+  const _revAT   = metrics?.revenue?.all_time||0;
+  const _costAT  = metrics?.costs?.all_time||0;
+  const _profitAT = Math.max(0, _revAT - _costAT);
+  const _lossAT   = Math.max(0, _costAT - _revAT);
+  const _leadsNow  = metrics?.leads?.this_month||0;
+  const _leadsLast = metrics?.leads?.last_month||1;
+  const _isNewBiz  = !_revAT || metrics?.businessProfile?.stage === "new";
+  const _hasDigital = (metrics?.products||[]).some(p=>p.type==="digital");
+  const _hasUndeveloped = (metrics?.products||[]).some(p=>p.status==="idea"||p.status==="development");
+
+  const PLAN_ACTIVATION = {
+    budget:       { active:true,          desc:"Always active" },
+    outreach:     { active:_isNewBiz||_leadsNow<_leadsLast, desc:"Leads declining or business is new" },
+    scaling:      { active:_profitAT>0,   desc:`Profit > $0 — business is profitable` },
+    conservation: { active:_lossAT>0,     desc:"Loss present — costs exceed revenue" },
+    building:     { active:_isNewBiz||_hasUndeveloped, desc:"New business or undeveloped assets" },
+    schedule:     { active:true,          desc:"Always active" },
+    outcomes:     { active:true,          desc:"Always active" },
+  };
+
+  const PLAN_STYLE = {
+    budget:       { accent:"#7C3AED", accentBg:"#F5F3FF" },
+    outreach:     { accent:"#D97706", accentBg:"#FFFBEB" },
+    scaling:      { accent:"#16A34A", accentBg:"#F0FDF4" },
+    conservation: { accent:"#EF4444", accentBg:"#FFF1F2" },
+    building:     { accent:"#2563EB", accentBg:"#EFF6FF" },
+    schedule:     { accent:"#8B5CF6", accentBg:"#F5F3FF" },
+    outcomes:     { accent:"#0891B2", accentBg:"#ECFEFF" },
+  };
+
   const TABS=[
-    {id:"budget","label":"Budget"},
-    {id:"outreach","label":"Outreach"},
-    {id:"scaling","label":"Scaling"},
-    {id:"conservation","label":"Conservation"},
-    {id:"building","label":"Building"},
-    {id:"schedule","label":"Schedule"},
-    {id:"outcomes","label":"Outcomes"},
+    {id:"budget",       label:"Budget"},
+    {id:"outreach",     label:"Outreach"},
+    {id:"scaling",      label:"Scaling"},
+    {id:"conservation", label:"Conservation"},
+    {id:"building",     label:"Building"},
+    {id:"schedule",     label:"Schedule"},
+    {id:"outcomes",     label:"Outcomes"},
   ];
+
+  const createPlanTasks = async (planId, items) => {
+    if(!items.length||!refreshTasks) return;
+    const nid = `plan_tasks_${planId}_${Date.now()}`;
+    onNotify?.({id:nid, status:"in-progress", message:`Creating ${planId} plan tasks…`});
+    try {
+      for (const item of items) {
+        await api.tasks.create(businessId, {
+          name: item.text.length>80 ? item.text.slice(0,77)+"…" : item.text,
+          description: item.text,
+          category: planId.charAt(0).toUpperCase()+planId.slice(1),
+          canAutomate: item.mode==="auto",
+          status: "pending",
+        });
+        await new Promise(r=>setTimeout(r,150));
+      }
+      refreshTasks();
+      onNotify?.({id:nid, status:"done", message:`${items.length} ${planId} task${items.length!==1?"s":""} created`});
+    } catch(e) {
+      onNotify?.({id:nid, status:"done", message:`Failed to create tasks: ${e.message}`});
+    }
+  };
 
   const renderTab=()=>{
     if(!strategy) return null;
-    switch(stratTab){
-      case "budget": return (
-        <div>
-          <div style={{ display:"flex", gap:12, marginBottom:12 }}>
-            {[["Monthly budget",`$${(strategy.budget?.monthly||0).toLocaleString()}`],["Total ("+timeframe+")",`$${(strategy.budget?.total||0).toLocaleString()}`]].map(([l,v])=>(
-              <div key={l} style={{ flex:1, background:C.surface, borderRadius:10, padding:"12px 14px" }}>
-                <div style={{ fontSize:9, color:C.muted, fontFamily:FB, textTransform:"uppercase", letterSpacing:"0.07em", marginBottom:4 }}>{l}</div>
-                <div style={{ fontFamily:FH, fontWeight:700, fontSize:26, color:C.text }}>{v}</div>
-              </div>
-            ))}
-          </div>
-          {strategy.budget?.rationale&&<div style={{ fontSize:13, color:C.muted, fontFamily:FB, lineHeight:1.7 }}>{strategy.budget.rationale}</div>}
-        </div>
-      );
-      case "outreach": case "scaling": case "building": {
-        const sec=strategy[stratTab]||{};
-        const items=sec.suggestions||sec.actions||[];
-        return (
-          <div>
-            {(sec.monthlySpend>0||sec.monthlySavings>0)&&(
-              <div style={{ background:C.surface, borderRadius:10, padding:"10px 14px", marginBottom:14 }}>
-                <div style={{ fontSize:9, color:C.muted, fontFamily:FB, textTransform:"uppercase", letterSpacing:"0.07em", marginBottom:2 }}>{sec.monthlySavings>0?"Monthly savings":"Monthly spend"}</div>
-                <div style={{ fontFamily:FH, fontWeight:700, fontSize:22, color:C.text }}>${(sec.monthlySpend||sec.monthlySavings||0).toLocaleString()}</div>
-              </div>
-            )}
-            {items.map((s,i)=>(
-              <div key={i} style={{ display:"flex", gap:10, padding:"10px 0", borderBottom:i<items.length-1?`1px solid ${C.border}`:"none" }}>
-                <div style={{ width:22,height:22,borderRadius:"50%",background:C.primaryBg,color:C.primary,fontFamily:FH,fontWeight:700,fontSize:11,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0 }}>{i+1}</div>
-                <div style={{ flex:1, fontSize:13, color:C.text, fontFamily:FB, lineHeight:1.6, paddingTop:1 }}>{s}</div>
-              </div>
-            ))}
-          </div>
-        );
-      }
-      case "conservation": {
-        const sec=strategy.conservation||{};
-        return (
-          <div>
-            {sec.monthlySavings>0&&(
-              <div style={{ background:"#F0FDF4", borderRadius:10, padding:"10px 14px", marginBottom:14 }}>
-                <div style={{ fontSize:9, color:"#166534", fontFamily:FB, textTransform:"uppercase", letterSpacing:"0.07em", marginBottom:2 }}>Monthly savings target</div>
-                <div style={{ fontFamily:FH, fontWeight:700, fontSize:22, color:"#16A34A" }}>${(sec.monthlySavings||0).toLocaleString()}</div>
-              </div>
-            )}
-            {(sec.actions||[]).map((s,i)=>(
-              <div key={i} style={{ display:"flex", gap:10, padding:"10px 0", borderBottom:i<(sec.actions||[]).length-1?`1px solid ${C.border}`:"none" }}>
-                <div style={{ width:22,height:22,borderRadius:"50%",background:"#F0FDF4",color:"#16A34A",fontFamily:FH,fontWeight:700,fontSize:11,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0 }}>{i+1}</div>
-                <div style={{ flex:1, fontSize:13, color:C.text, fontFamily:FB, lineHeight:1.6, paddingTop:1 }}>{s}</div>
-              </div>
-            ))}
-          </div>
-        );
-      }
-      case "schedule": return (
-        <div>
-          {(strategy.taskSchedule||[]).map((p,i)=>(
-            <div key={i} style={{ marginBottom:16 }}>
-              <div style={{ fontFamily:FH, fontWeight:700, fontSize:13, color:C.primary, marginBottom:8 }}>{p.period}</div>
-              {(p.tasks||[]).map((t,j)=>(
-                <div key={j} style={{ display:"flex", gap:8, padding:"5px 0", borderBottom:j<p.tasks.length-1?`1px solid ${C.border}`:"none", alignItems:"flex-start" }}>
-                  <span style={{ width:5,height:5,borderRadius:"50%",background:C.primary,flexShrink:0,marginTop:7 }}/>
-                  <div style={{ fontSize:12, fontFamily:FB, color:C.text, lineHeight:1.6 }}>{t}</div>
-                </div>
-              ))}
-            </div>
-          ))}
-        </div>
-      );
-      case "outcomes": return (
-        <div>
-          {(strategy.predictedOutcomes||[]).map((o,i)=>(
-            <div key={i} style={{ display:"flex", gap:10, padding:"10px 0", borderBottom:i<strategy.predictedOutcomes.length-1?`1px solid ${C.border}`:"none" }}>
-                  <div style={{ fontSize:13, fontFamily:FB, color:C.text, lineHeight:1.6 }}>{o}</div>
-            </div>
-          ))}
-        </div>
-      );
+    const { accent, accentBg } = PLAN_STYLE[stratTab]||PLAN_STYLE.budget;
+    const { active, desc } = PLAN_ACTIVATION[stratTab]||{ active:true, desc:"" };
+
+    // Build typed item lists per plan
+    let items = [];
+    let metric = null;
+
+    switch(stratTab) {
+      case "budget":
+        metric = { label:"Monthly", value:`$${(strategy.budget?.monthly||0).toLocaleString()}`, sub:`$${(strategy.budget?.total||0).toLocaleString()} total (${timeframe})` };
+        if(strategy.budget?.rationale) items.push({ text:strategy.budget.rationale, mode:"guided" });
+        items.push({ text:`Allocate $${strategy.budget?.monthly||0}/mo as monthly strategy budget`, mode:"auto" });
+        break;
+      case "outreach":
+        if((strategy.outreach?.monthlySpend||0)>0) metric = { label:"Monthly spend", value:`$${strategy.outreach.monthlySpend.toLocaleString()}` };
+        items = (strategy.outreach?.suggestions||[]).map(text=>({ text, mode:"guided" }));
+        break;
+      case "scaling":
+        if((strategy.scaling?.monthlySpend||0)>0) metric = { label:"Monthly invest", value:`$${strategy.scaling.monthlySpend.toLocaleString()}` };
+        (strategy.scaling?.suggestions||[]).forEach((text,i)=>items.push({ text, mode:i<2?"auto":"guided" }));
+        break;
+      case "conservation":
+        if((strategy.conservation?.monthlySavings||0)>0) metric = { label:"Savings target", value:`$${strategy.conservation.monthlySavings.toLocaleString()}/mo` };
+        items = (strategy.conservation?.actions||[]).map(text=>({ text, mode:"guided" }));
+        break;
+      case "building":
+        if((strategy.building?.monthlySpend||0)>0) metric = { label:"Monthly invest", value:`$${strategy.building.monthlySpend.toLocaleString()}` };
+        items = (strategy.building?.suggestions||[]).map(text=>({ text, mode:_hasDigital?"auto":"guided" }));
+        break;
+      case "schedule":
+        items = (strategy.taskSchedule||[]).flatMap(p=>(p.tasks||[]).map(t=>({ text:`${p.period}: ${t}`, mode:"auto" })));
+        break;
+      case "outcomes":
+        items = (strategy.predictedOutcomes||[]).map(text=>({ text, mode:"auto" }));
+        break;
       default: return null;
     }
+
+    const autoItems   = items.filter(i=>i.mode==="auto");
+    const guidedItems = items.filter(i=>i.mode==="guided");
+
+    const itemRow = (item, idx, arr, rowAccent, rowBg) => (
+      <div key={idx} style={{ display:"flex", gap:10, padding:"9px 0", borderBottom:idx<arr.length-1?`1px solid ${C.border}`:"none", alignItems:"flex-start" }}>
+        <div style={{ width:20,height:20,borderRadius:"50%",background:rowBg,color:rowAccent,fontFamily:FH,fontWeight:700,fontSize:10,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,marginTop:1 }}>{idx+1}</div>
+        <div style={{ flex:1, fontSize:13, color:C.text, fontFamily:FB, lineHeight:1.6 }}>{item.text}</div>
+        <span style={{ fontSize:9, color:rowAccent, background:rowBg, padding:"2px 7px", borderRadius:10, fontFamily:FB, fontWeight:700, flexShrink:0, textTransform:"uppercase", letterSpacing:"0.05em", marginTop:2 }}>
+          {item.mode==="auto"?"Auto":"Guide"}
+        </span>
+      </div>
+    );
+
+    return (
+      <div>
+        {/* Activation + metric banner */}
+        <div style={{ display:"flex", alignItems:"center", gap:10, padding:"9px 14px", borderRadius:10, background:active?accentBg:C.surface, marginBottom:16, border:`1px solid ${active?accent+"30":C.border}` }}>
+          <div style={{ width:8,height:8,borderRadius:"50%",background:active?accent:C.muted,flexShrink:0 }}/>
+          <div style={{ flex:1 }}>
+            <div style={{ fontSize:11, fontFamily:FB, fontWeight:700, color:active?accent:C.muted }}>{active?"Plan Active":"Conditions Not Met"}</div>
+            <div style={{ fontSize:10, fontFamily:FB, color:C.muted, marginTop:1 }}>{desc}</div>
+          </div>
+          {metric&&(
+            <div style={{ textAlign:"right", flexShrink:0 }}>
+              <div style={{ fontFamily:FH, fontWeight:700, fontSize:20, color:accent, lineHeight:1.1 }}>{metric.value}</div>
+              {metric.sub&&<div style={{ fontSize:9, color:C.muted, fontFamily:FB, marginTop:1 }}>{metric.sub}</div>}
+              <div style={{ fontSize:9, color:C.muted, fontFamily:FB, textTransform:"uppercase", letterSpacing:"0.05em" }}>{metric.label}</div>
+            </div>
+          )}
+        </div>
+
+        {/* Auto tasks section */}
+        {autoItems.length>0&&(
+          <div style={{ marginBottom:14 }}>
+            <div style={{ display:"flex", alignItems:"center", gap:6, marginBottom:8 }}>
+              <span style={{ fontSize:9, fontFamily:FB, fontWeight:700, color:"#7C3AED", background:"#F5F3FF", padding:"2px 9px", borderRadius:20, textTransform:"uppercase", letterSpacing:"0.06em" }}>⚡ Auto</span>
+              {!isAutopilot&&<span style={{ fontSize:10, color:C.muted, fontFamily:FB }}>Pro Autopilot handles these</span>}
+            </div>
+            {autoItems.map((item,i)=>itemRow(item,i,autoItems,"#7C3AED","#F5F3FF"))}
+          </div>
+        )}
+
+        {/* Guided tasks section */}
+        {guidedItems.length>0&&(
+          <div style={{ marginBottom:14 }}>
+            <div style={{ display:"flex", alignItems:"center", gap:6, marginBottom:8 }}>
+              <span style={{ fontSize:9, fontFamily:FB, fontWeight:700, color:"#374151", background:C.surface, padding:"2px 9px", borderRadius:20, textTransform:"uppercase", letterSpacing:"0.06em", border:`1px solid ${C.border}` }}>Guided</span>
+              <span style={{ fontSize:10, color:C.muted, fontFamily:FB }}>Your action required</span>
+            </div>
+            {guidedItems.map((item,i)=>itemRow(item,i,guidedItems,accent,accentBg))}
+          </div>
+        )}
+
+        {items.length===0&&(
+          <div style={{ textAlign:"center", padding:"24px 0", color:C.muted, fontSize:12, fontFamily:FB }}>
+            No {stratTab} items in this strategy — regenerate with more data.
+          </div>
+        )}
+
+        {/* Create plan tasks footer */}
+        {items.length>0&&refreshTasks&&(
+          <div style={{ marginTop:10, paddingTop:12, borderTop:`1px solid ${C.border}`, display:"flex", alignItems:"center", justifyContent:"space-between", flexWrap:"wrap", gap:8 }}>
+            <div style={{ fontSize:11, color:C.muted, fontFamily:FB }}>
+              {autoItems.length>0&&`${autoItems.length} auto`}{autoItems.length>0&&guidedItems.length>0&&" · "}{guidedItems.length>0&&`${guidedItems.length} guided`}
+            </div>
+            <button onClick={()=>createPlanTasks(stratTab,items)} style={{ ...btn(accent,"#fff",12), padding:"7px 16px" }}>
+              Create {items.length} Plan Task{items.length!==1?"s":""}
+            </button>
+          </div>
+        )}
+      </div>
+    );
   };
 
   return (
@@ -2821,16 +3079,42 @@ function BusinessStrategySection({ businessId, metrics, snapshots, isPro, saveM,
             {strategy&&(
               <div style={{ marginTop:16 }}>
                 <div style={{ display:"flex", gap:0, marginBottom:16, borderBottom:`1px solid ${C.border}`, overflowX:"auto" }}>
-                  {TABS.map(t=>(
-                    <button key={t.id} onClick={()=>setStratTab(t.id)} style={{ padding:"7px 13px", fontFamily:FB, fontSize:12, fontWeight:stratTab===t.id?700:400, color:stratTab===t.id?C.primary:C.muted, background:"none", border:"none", borderBottom:stratTab===t.id?`2px solid ${C.primary}`:"2px solid transparent", cursor:"pointer", whiteSpace:"nowrap", marginBottom:-1 }}>
-                      {t.label}
-                    </button>
-                  ))}
+                  {TABS.map(t=>{
+                    const ps=PLAN_STYLE[t.id]||PLAN_STYLE.budget;
+                    const pa=PLAN_ACTIVATION[t.id]||{active:true};
+                    const isActive=stratTab===t.id;
+                    return (
+                      <button key={t.id} onClick={()=>setStratTab(t.id)} style={{ padding:"7px 13px", fontFamily:FB, fontSize:12, fontWeight:isActive?700:400, color:isActive?C.primary:C.muted, background:"none", border:"none", borderBottom:isActive?`2px solid ${C.primary}`:"2px solid transparent", cursor:"pointer", whiteSpace:"nowrap", marginBottom:-1, display:"flex", alignItems:"center", gap:5 }}>
+                        {pa.active&&<span style={{ width:5,height:5,borderRadius:"50%",background:ps.accent,flexShrink:0,opacity:isActive?1:0.6 }}/>}
+                        {t.label}
+                      </button>
+                    );
+                  })}
                 </div>
                 <div style={{ minHeight:100 }}>{renderTab()}</div>
-                <div style={{ display:"flex", gap:10, marginTop:18, paddingTop:16, borderTop:`1px solid ${C.border}`, flexWrap:"wrap" }}>
-                  <button onClick={sendToMarketing} style={{ ...btn(C.primary,"#fff",13) }}>Send to Marketing Agent</button>
-                  <button onClick={downloadStrategy} style={{ ...btnO(C.muted,12) }}>Download (.txt)</button>
+                <div style={{ marginTop:18, paddingTop:16, borderTop:`1px solid ${C.border}` }}>
+                  <div style={{ display:"flex", gap:8, alignItems:"center", flexWrap:"wrap" }}>
+                    <button onClick={()=>syncToMarketing(strategy)} disabled={syncing||!strategy} style={{ ...btn(C.primary,"#fff",13) }}>
+                      {syncing?"Syncing…":"Sync to Marketing Agent"}
+                    </button>
+                    {strategy&&(
+                      <button onClick={()=>setShowMktgPrev(p=>!p)} style={{ ...btnO(C.primary,12) }}>
+                        {showMktgPrev?"Hide Preview":"Preview"}
+                      </button>
+                    )}
+                    <button onClick={downloadStrategy} style={{ ...btnO(C.muted,12) }}>Download (.txt)</button>
+                    {isAutopilot&&<span style={{ fontSize:10, color:"#7C3AED", fontFamily:FB, marginLeft:2 }}>Auto-syncs on generate</span>}
+                  </div>
+                  {syncedAt&&(
+                    <div style={{ fontSize:10, color:C.muted, fontFamily:FB, marginTop:5 }}>
+                      Last synced: {new Date(syncedAt).toLocaleString()}
+                    </div>
+                  )}
+                  {showMktgPrev&&strategy&&(
+                    <pre style={{ fontSize:11, fontFamily:"'Courier New',monospace", background:C.surface, border:`1px solid ${C.border}`, borderRadius:10, padding:"12px 14px", marginTop:10, overflowX:"auto", color:C.text, lineHeight:1.65, whiteSpace:"pre-wrap", wordBreak:"break-word" }}>
+                      {buildMarketingPayload(strategy, timeframe, metrics)}
+                    </pre>
+                  )}
                 </div>
               </div>
             )}
@@ -2845,6 +3129,8 @@ function BusinessStrategySection({ businessId, metrics, snapshots, isPro, saveM,
                   onPromoteToTask={promoteToTask}
                   isAutopilot={isAutopilot}
                   onAutoComplete={autoComplete}
+                  onRunAll={isAutopilot ? runAllAutoCards : undefined}
+                  insightsBudget={insightsBudget}
                 />
               </div>
             )}
@@ -4253,7 +4539,7 @@ function MgmtSidebar({ open, onToggle, hubNotes, setHubNotes, businessId, mgmtNo
   );
 }
 
-function ManagementCanvas({ businessId, metrics, saveM, integs, hubNotes, setHubNotes, stickyAssignments, assignSticky, unstickNote, mgmtNoteAssignments, mgmtAssignNote, mgmtUnstickNote, sidebarOpen, setSidebarOpen, deleteNote, isPro, isAutopilot, onNotify, refreshTasks }) {
+function ManagementCanvas({ businessId, metrics, saveM, integs, hubNotes, setHubNotes, stickyAssignments, assignSticky, unstickNote, mgmtNoteAssignments, mgmtAssignNote, mgmtUnstickNote, sidebarOpen, setSidebarOpen, deleteNote, isPro, isAutopilot, onNotify, refreshTasks, insightsBudget, refreshBudget }) {
   const POS_KEY     = `earnedlab_mgmt_pos_${businessId}`;
   const CARDS_KEY   = `earnedlab_mgmt_cards_${businessId}`;
   const SNAP_KEY    = `earnedlab_snaps_${businessId}`;
@@ -4452,7 +4738,7 @@ function ManagementCanvas({ businessId, metrics, saveM, integs, hubNotes, setHub
   return (
     <div style={{ paddingRight: sidebarOpen?300:0, transition:"padding-right 0.25s ease" }}>
       {showProGate && <PlansModal highlightPlan="pro" onClose={()=>setShowProGate(false)} />}
-      <BusinessStrategySection businessId={businessId} metrics={metrics} snapshots={snapshots} isPro={isPro} saveM={saveM} isAutopilot={isAutopilot} onNotify={onNotify} refreshTasks={refreshTasks} />
+      <BusinessStrategySection businessId={businessId} metrics={metrics} snapshots={snapshots} isPro={isPro} saveM={saveM} isAutopilot={isAutopilot} onNotify={onNotify} refreshTasks={refreshTasks} insightsBudget={insightsBudget} refreshBudget={refreshBudget} />
 
       {/* Global time range bar */}
       <div style={{ padding:"10px 22px", display:"flex", alignItems:"center", gap:10, flexWrap:"wrap", background:C.surface, borderBottom:`1px solid ${C.border}`, marginBottom:16 }}>
@@ -4617,6 +4903,10 @@ export default function Hub() {
     if(n.status==="done") setTimeout(()=>setAutoNotifs(p=>p.filter(x=>x.id!==n.id)), 6000);
   }, []);
   const dismissNotif = id => setAutoNotifs(p=>p.filter(x=>x.id!==id));
+  const refreshBudget = useCallback(()=>{
+    if(!businessId) return;
+    api.agents.access(businessId).then(d=>{ if(d.tokenBudget) setInsightsBudget(d.tokenBudget); }).catch(()=>{});
+  },[businessId]);
 
   const age     = user?.age;
   const isMinor = age && age < 18;
@@ -5056,6 +5346,8 @@ export default function Hub() {
                 isAutopilot={planInfo?.plan==="pro_autopilot"||planInfo?.isAdmin}
                 onNotify={pushNotif}
                 refreshTasks={refreshTasks}
+                insightsBudget={insightsBudget}
+                refreshBudget={refreshBudget}
               />
             </div>
           )}
