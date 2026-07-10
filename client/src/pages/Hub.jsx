@@ -994,6 +994,22 @@ function PlansModal({ onClose, highlightPlan }) {
   );
 }
 
+function ProGate({ isPro, children, label="Pro" }) {
+  const [showPlans, setShowPlans] = useState(false);
+  if (isPro) return <>{children}</>;
+  return (
+    <div style={{ position:"relative" }}>
+      <div style={{ filter:"blur(2px)", pointerEvents:"none", userSelect:"none", opacity:0.45 }}>{children}</div>
+      <div onClick={()=>setShowPlans(true)}
+        style={{ position:"absolute", inset:0, display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", gap:8, cursor:"pointer", background:"rgba(255,255,255,0.55)", borderRadius:12 }}>
+        <span style={{ background:"#7C3AED", color:"#fff", fontSize:9, fontWeight:700, padding:"3px 12px", borderRadius:20, letterSpacing:"0.08em", fontFamily:FB, textTransform:"uppercase" }}>Pro</span>
+        <span style={{ fontSize:12, color:"#7C3AED", fontFamily:FB, fontWeight:700 }}>{label}</span>
+      </div>
+      {showPlans && <PlansModal highlightPlan="pro" onClose={()=>setShowPlans(false)} />}
+    </div>
+  );
+}
+
 function AutopilotToggle({ on, onToggle, label, disabled }) {
   const [showPlans, setShowPlans] = useState(false);
   return (
@@ -2153,7 +2169,7 @@ function CorrelationPair({ link, metrics, snapshots, applied, onApplyToStrategy,
   );
 }
 
-function BusinessStrategySection({ businessId, metrics, snapshots }) {
+function BusinessStrategySection({ businessId, metrics, snapshots, isPro }) {
   const LINKS_KEY = `earnedlab_links_${businessId}`;
   const STRAT_KEY = `earnedlab_strat_${businessId}`;
 
@@ -2317,6 +2333,7 @@ function BusinessStrategySection({ businessId, metrics, snapshots }) {
       </div>
 
       {expanded&&(
+        <ProGate isPro={isPro} label="Upgrade to Pro">
         <div style={{ padding:"20px 22px" }}>
           {/* Correlations */}
           <div style={{ marginBottom:22 }}>
@@ -2409,6 +2426,7 @@ function BusinessStrategySection({ businessId, metrics, snapshots }) {
 
           </div>
         </div>
+        </ProGate>
       )}
     </div>
   );
@@ -3642,7 +3660,7 @@ function EquationWidget({ config, metrics, saveM }) {
 }
 
 // ── MANAGEMENT SIDEBAR ────────────────────────────────────────────
-function MgmtSidebar({ open, onToggle, hubNotes, setHubNotes, businessId, mgmtNoteAssignments, onAssignNote, onUnstickNote, deleteNote, onAddWidget }) {
+function MgmtSidebar({ open, onToggle, hubNotes, setHubNotes, businessId, mgmtNoteAssignments, onAssignNote, onUnstickNote, deleteNote, onAddWidget, isPro }) {
   const [section, setSection] = useState("notes");
   const [activeTool, setActiveTool] = useState(null);
   const [cfg, setCfg] = useState({});
@@ -3774,7 +3792,7 @@ function MgmtSidebar({ open, onToggle, hubNotes, setHubNotes, businessId, mgmtNo
             {/* Analysis */}
             {section==="analysis" && (<>
               {activeTool?configForm():(
-                <>
+                <ProGate isPro={isPro} label="Upgrade to Pro">
                   <div style={{ display:"flex", flexDirection:"column", gap:6 }}>
                     {["corr","field","eq"].map(t=>{const d=WIDGET_DEFS[t];return(
                       <div key={t} draggable onDragStart={e=>{e.dataTransfer.setData("text/widgetType",t);}}
@@ -3785,7 +3803,7 @@ function MgmtSidebar({ open, onToggle, hubNotes, setHubNotes, businessId, mgmtNo
                       </div>
                     );})}
                   </div>
-                </>
+                </ProGate>
               )}
             </>)}
           </div>
@@ -3810,7 +3828,7 @@ function MgmtSidebar({ open, onToggle, hubNotes, setHubNotes, businessId, mgmtNo
   );
 }
 
-function ManagementCanvas({ businessId, metrics, saveM, integs, hubNotes, setHubNotes, stickyAssignments, assignSticky, unstickNote, mgmtNoteAssignments, mgmtAssignNote, mgmtUnstickNote, sidebarOpen, setSidebarOpen, deleteNote }) {
+function ManagementCanvas({ businessId, metrics, saveM, integs, hubNotes, setHubNotes, stickyAssignments, assignSticky, unstickNote, mgmtNoteAssignments, mgmtAssignNote, mgmtUnstickNote, sidebarOpen, setSidebarOpen, deleteNote, isPro }) {
   const POS_KEY     = `earnedlab_mgmt_pos_${businessId}`;
   const CARDS_KEY   = `earnedlab_mgmt_cards_${businessId}`;
   const SNAP_KEY    = `earnedlab_snaps_${businessId}`;
@@ -3867,6 +3885,7 @@ function ManagementCanvas({ businessId, metrics, saveM, integs, hubNotes, setHub
   const [globalCEnd, setGlobalCEnd] = useState("");
   const [toolbar, setToolbar] = useState(false);
   const [dragActive, setDragActive] = useState(null);
+  const [showProGate, setShowProGate] = useState(false);
   const dragging = useRef(null);
 
   const savePos     = p=>{ setPositions(p); try{localStorage.setItem(POS_KEY,JSON.stringify(p));}catch{} };
@@ -4007,7 +4026,8 @@ function ManagementCanvas({ businessId, metrics, saveM, integs, hubNotes, setHub
 
   return (
     <div style={{ paddingRight: sidebarOpen?300:0, transition:"padding-right 0.25s ease" }}>
-      <BusinessStrategySection businessId={businessId} metrics={metrics} snapshots={snapshots} />
+      {showProGate && <PlansModal highlightPlan="pro" onClose={()=>setShowProGate(false)} />}
+      <BusinessStrategySection businessId={businessId} metrics={metrics} snapshots={snapshots} isPro={isPro} />
 
       {/* Global time range bar */}
       <div style={{ padding:"10px 22px", display:"flex", alignItems:"center", gap:10, flexWrap:"wrap", background:C.surface, borderBottom:`1px solid ${C.border}`, marginBottom:16 }}>
@@ -4031,6 +4051,7 @@ function ManagementCanvas({ businessId, metrics, saveM, integs, hubNotes, setHub
         onDrop={e=>{
           const wt=e.dataTransfer.getData("text/widgetType"); if(!wt) return;
           e.preventDefault();
+          if(!isPro && ["corr","field","eq"].includes(wt)) { setShowProGate(true); return; }
           const rect=e.currentTarget.getBoundingClientRect();
           const x=Math.max(0,e.clientX-rect.left-150);
           const y=Math.max(0,e.clientY-rect.top-20);
@@ -4085,11 +4106,15 @@ function ManagementCanvas({ businessId, metrics, saveM, integs, hubNotes, setHub
             ))}
             {addable.length===0&&<span style={{ fontSize:11, color:C.muted, fontFamily:FB }}>All channel cards on canvas</span>}
             <div style={{ width:1, alignSelf:"stretch", background:C.border, margin:"0 4px" }}/>
-            {["corr","field","eq"].map(t=>(
-              <button key={t} onClick={()=>{ addWidget(t,{},WIDGET_DEFS[t]?.label||t); setToolbar(false); }} style={{ ...btnO("#7C3AED",11) }}>
-                + {WIDGET_DEFS[t].label}
-              </button>
-            ))}
+            <ProGate isPro={isPro} label="Upgrade to Pro">
+              <div style={{ display:"flex", gap:8 }}>
+                {["corr","field","eq"].map(t=>(
+                  <button key={t} onClick={()=>{ addWidget(t,{},WIDGET_DEFS[t]?.label||t); setToolbar(false); }} style={{ ...btnO("#7C3AED",11) }}>
+                    + {WIDGET_DEFS[t].label}
+                  </button>
+                ))}
+              </div>
+            </ProGate>
             <div style={{ width:1, alignSelf:"stretch", background:C.border, margin:"0 4px" }}/>
             <button onClick={resetLayout} style={{ ...btnO(C.muted,11) }}>Reset layout</button>
             <button onClick={()=>setToolbar(false)} style={{ background:"none", border:"none", color:C.muted, cursor:"pointer", fontSize:16, padding:"0 4px" }}>×</button>
@@ -4110,6 +4135,7 @@ function ManagementCanvas({ businessId, metrics, saveM, integs, hubNotes, setHub
         onUnstickNote={mgmtUnstickNote}
         deleteNote={deleteNote}
         onAddWidget={addWidget}
+        isPro={isPro}
       />
     </div>
   );
@@ -4588,6 +4614,7 @@ export default function Hub() {
                 sidebarOpen={mgmtSidebarOpen}
                 setSidebarOpen={setMgmtSidebarOpen}
                 deleteNote={deleteHubNote}
+                isPro={planInfo?.plan==="pro"||planInfo?.plan==="pro_autopilot"||planInfo?.isAdmin}
               />
             </div>
           )}
