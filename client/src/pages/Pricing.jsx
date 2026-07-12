@@ -45,14 +45,7 @@ export default function Pricing() {
         <div onClick={()=>navigate(token?"/dashboard":"/")} style={{ color:"#ffffff50", fontSize:13, cursor:"pointer", marginBottom:32, fontFamily:FB }}>&#8592; Back</div>
 
         <div style={{ textAlign:"center", marginBottom:48 }}>
-          <div style={{ fontFamily:FH, fontWeight:700, fontSize:36, color:"#fff", letterSpacing:"-0.04em", marginBottom:12 }}>Choose your plan</div>
-          <p style={{ fontSize:15, color:"#ffffff60" }}>
-            {current?.isTrial && !current.trialExpired
-              ? `You have ${current.trialDaysLeft} day${current.trialDaysLeft!==1?"s":""} left on your free trial.`
-              : current?.trialExpired
-              ? "Your free trial has ended — choose a plan to keep building."
-              : "7 days free to start. Cancel anytime."}
-          </p>
+          <div style={{ fontFamily:FH, fontWeight:700, fontSize:36, color:"#fff", letterSpacing:"-0.04em" }}>Choose your plan</div>
         </div>
 
         {error && <div style={{ background:"rgba(220,38,38,0.15)", border:"1px solid rgba(220,38,38,0.3)", borderRadius:10, padding:"12px 16px", fontSize:13, color:"#FCA5A5", marginBottom:24, maxWidth:600, margin:"0 auto 24px", textAlign:"center" }}>{error}</div>}
@@ -117,9 +110,6 @@ export default function Pricing() {
                 </button>
               </div>
             )}
-            <p style={{ fontSize:12, color:"#ffffff30" }}>
-              Free trial includes {plans.trial.marketingRuns} marketing analyses and {plans.trial.managementImplements} live implementation, for {plans.trial.days} days.
-            </p>
             <p style={{ fontSize:12, color:"#ffffff30", marginTop:8 }}>
               Questions? Email <a href="mailto:support@earnedlab.com" style={{ color:"#ffffff50", textDecoration:"underline" }}>support@earnedlab.com</a>
             </p>

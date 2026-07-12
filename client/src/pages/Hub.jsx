@@ -5985,7 +5985,7 @@ export default function Hub() {
 
               {/* Daily Insights */}
               {(()=>{
-                const rawLimit = insightsBudget?.limit || (effPlan==="pro_autopilot"?110000:effPlan==="pro"?50000:20000);
+                const rawLimit = insightsBudget?.limit || (effPlan==="pro_autopilot"?110000:effPlan==="pro"?110000:20000);
                 const rawUsed  = insightsBudget?.used  || 0;
                 const usedIns  = Math.round(rawUsed  / 1.5);
                 const limitIns = Math.round(rawLimit / 1.5);

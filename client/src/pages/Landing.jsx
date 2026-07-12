@@ -261,19 +261,19 @@ function Pricing({ onCta }) {
     {
       id:"starter", name:"Starter", price:39, color:"#6366F1",
       tagline:"Insights, reports, and manual tracking.",
-      features:["Unlimited marketing insights","Revenue & lead tracking","Business planning tools","Email support"],
+      features:["Marketing insights & analysis","Revenue & lead tracking","Business planning tools","Email support"],
       cta:"Start free trial",
     },
     {
       id:"pro", name:"Pro", price:89, color:C.primary, popular:true,
       tagline:"Agents act on your request.",
-      features:["Everything in Starter","Management agent implements changes","Live website updates on demand","Marketing + Management agents work together","Priority support"],
+      features:["Everything in Starter","Management agent implements changes for you","Live website updates on demand","Marketing + Management working together","Priority support"],
       cta:"Start free trial",
     },
     {
       id:"pro_autopilot", name:"Pro Autopilot", price:199, color:"#DB2777",
       tagline:"Fully autonomous — just watch it run.",
-      features:["Everything in Pro","Agents run on their own schedule","Zero manual input required","White-glove onboarding","Dedicated support"],
+      features:["Everything in Pro","Agents run automatically on a schedule","No manual input required","White-glove onboarding","Dedicated support"],
       cta:"Start free trial",
     },
   ];

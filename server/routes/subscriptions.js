@@ -20,9 +20,9 @@ const PRICE_ENV = { starter:"STRIPE_PRICE_STARTER", pro:"STRIPE_PRICE_PRO", pro_
 router.get("/plans", (req, res) => {
   res.json({
     plans: [
-      { id:"starter",       ...PLAN_INFO.starter,       features:["Marketing agent insights & reports","Manual stat tracking and analysis","Unlimited insight generation","Email support"] },
-      { id:"pro",           ...PLAN_INFO.pro,           features:["Everything in Starter","Management agent implements changes","Live website updates on request","Marketing + Management work together","Priority support"] },
-      { id:"pro_autopilot", ...PLAN_INFO.pro_autopilot, features:["Everything in Pro","Fully autonomous operation","Agents run on their own schedule","No manual input required","White-glove support"] },
+      { id:"starter",       ...PLAN_INFO.starter,       features:["Marketing insights & analysis","Revenue & lead tracking","Business planning tools","Email support"] },
+      { id:"pro",           ...PLAN_INFO.pro,           features:["Everything in Starter","Management agent implements changes for you","Live website updates on demand","Marketing + Management working together","Priority support"] },
+      { id:"pro_autopilot", ...PLAN_INFO.pro_autopilot, features:["Everything in Pro","Agents run automatically on a schedule","No manual input required","White-glove onboarding","Dedicated support"] },
     ],
     trial: { days:7, marketingRuns:TRIAL_LIMITS.marketingRuns, managementImplements:TRIAL_LIMITS.managementImplements },
   });
