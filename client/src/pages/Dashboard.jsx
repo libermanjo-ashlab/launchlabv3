@@ -49,6 +49,13 @@ export default function Dashboard() {
 
   const logout = () => { clearAuth(); navigate("/"); };
 
+  const openPortal = async () => {
+    try {
+      const { url } = await api.subscriptions.portal();
+      window.location.href = url;
+    } catch(e) { console.error(e); }
+  };
+
   const simulate = async (val) => {
     try {
       await api.auth.simulatePlan(val);
@@ -107,6 +114,17 @@ export default function Dashboard() {
               </div>
             </div>
             <button onClick={()=>navigate("/pricing")} style={{ ...btn(planInfo.locked?C.err:C.dark,"#fff",12), flexShrink:0 }}>View plans</button>
+          </div>
+        )}
+
+        {planInfo && !planInfo.isTrial && !planInfo.locked && !planInfo.isAdmin && (
+          <div style={{ ...card("12px 18px"), marginBottom:24, display:"flex", justifyContent:"space-between", alignItems:"center", gap:12 }}>
+            <div style={{ fontSize:13, color:C.muted, fontFamily:FB }}>
+              <span style={{ fontWeight:600, color:C.text }}>{planInfo.planInfo?.name || planInfo.plan}</span> plan · Renews monthly
+            </div>
+            <button onClick={openPortal} style={{ ...btnO(C.muted,12), padding:"5px 14px", flexShrink:0 }}>
+              Manage billing
+            </button>
           </div>
         )}
 

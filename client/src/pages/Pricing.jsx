@@ -17,11 +17,21 @@ export default function Pricing() {
     if (token) api.subscriptions.me().then(setCurrent).catch(()=>{});
   }, [token]);
 
+  const isPaid = current && !current.isTrial && !current.locked;
+
   const choose = async planId => {
     if (!token) return navigate("/signup");
     setLoading(planId); setError("");
     try {
       const { url } = await api.subscriptions.checkout(planId);
+      window.location.href = url;
+    } catch(e) { setError(e.message); setLoading(null); }
+  };
+
+  const openPortal = async () => {
+    setLoading("portal"); setError("");
+    try {
+      const { url } = await api.subscriptions.portal();
       window.location.href = url;
     } catch(e) { setError(e.message); setLoading(null); }
   };
@@ -72,10 +82,21 @@ export default function Pricing() {
                       </div>
                     ))}
                   </div>
-                  <button onClick={()=>choose(p.id)} disabled={loading===p.id||isCurrent}
-                    style={{ ...btn(isCurrent?"rgba(255,255,255,0.1)":color,"#fff",14), width:"100%", padding:"12px", borderRadius:10, opacity:loading===p.id?0.7:1, cursor:isCurrent?"default":"pointer" }}>
-                    {isCurrent?"Current plan":loading===p.id?"Redirecting...":`Choose ${p.name}`}
-                  </button>
+                  {isCurrent ? (
+                    <button disabled style={{ ...btn("rgba(255,255,255,0.1)","#fff",14), width:"100%", padding:"12px", borderRadius:10, cursor:"default", opacity:0.7 }}>
+                      Current plan
+                    </button>
+                  ) : isPaid ? (
+                    <button onClick={openPortal} disabled={loading==="portal"}
+                      style={{ ...btn(color,"#fff",14), width:"100%", padding:"12px", borderRadius:10, opacity:loading==="portal"?0.7:1 }}>
+                      {loading==="portal" ? "Redirecting…" : `Switch to ${p.name}`}
+                    </button>
+                  ) : (
+                    <button onClick={()=>choose(p.id)} disabled={loading===p.id}
+                      style={{ ...btn(color,"#fff",14), width:"100%", padding:"12px", borderRadius:10, opacity:loading===p.id?0.7:1 }}>
+                      {loading===p.id ? "Redirecting…" : `Choose ${p.name}`}
+                    </button>
+                  )}
                 </div>
               );
             })}
@@ -84,6 +105,18 @@ export default function Pricing() {
 
         {plans && (
           <div style={{ textAlign:"center", marginTop:32 }}>
+            {isPaid && (
+              <div style={{ background:"rgba(255,255,255,0.04)", border:"1px solid rgba(255,255,255,0.1)", borderRadius:14, padding:"20px 24px", maxWidth:480, margin:"0 auto 28px", display:"flex", justifyContent:"space-between", alignItems:"center", flexWrap:"wrap", gap:12 }}>
+                <div style={{ textAlign:"left" }}>
+                  <div style={{ fontSize:14, fontWeight:600, color:"#fff", fontFamily:FH }}>Manage your subscription</div>
+                  <div style={{ fontSize:12, color:"#ffffff50", marginTop:3 }}>Upgrade, downgrade, or cancel — handled by our secure billing portal.</div>
+                </div>
+                <button onClick={openPortal} disabled={loading==="portal"}
+                  style={{ ...btnO("rgba(255,255,255,0.5)", 13), padding:"9px 20px", opacity:loading==="portal"?0.6:1, whiteSpace:"nowrap" }}>
+                  {loading==="portal" ? "Redirecting…" : "Billing portal →"}
+                </button>
+              </div>
+            )}
             <p style={{ fontSize:12, color:"#ffffff30" }}>
               Free trial includes {plans.trial.marketingRuns} marketing analyses and {plans.trial.managementImplements} live implementation, for {plans.trial.days} days.
             </p>
