@@ -156,6 +156,19 @@ export default function Dashboard() {
                 );
               })}
             </div>
+            {businesses.some(b=>b.status==="live") && (
+              <div style={{ marginTop:16, textAlign:"center" }}>
+                <button
+                  onClick={()=>{
+                    const live = businesses.filter(b=>b.status==="live");
+                    live.forEach(b=>localStorage.removeItem(`earnedlab_toured_${b.id}`));
+                    if (live.length===1) { setCurrentBusiness(live[0].id); navigate(`/hub/${live[0].id}`); }
+                  }}
+                  style={{ background:"none", border:"none", cursor:"pointer", fontSize:12, color:C.muted, fontFamily:FB, textDecoration:"underline", padding:0 }}>
+                  Replay onboarding tour
+                </button>
+              </div>
+            )}
           </>
         )}
       </div>
