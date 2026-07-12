@@ -5983,20 +5983,19 @@ export default function Hub() {
                 </div>
               ))}
 
-              {/* Daily Insights */}
+              {/* Daily AI budget */}
               {(()=>{
                 const rawLimit = insightsBudget?.limit || (effPlan==="pro_autopilot"?110000:effPlan==="pro"?110000:20000);
                 const rawUsed  = insightsBudget?.used  || 0;
-                const usedIns  = Math.round(rawUsed  / 1.5);
-                const limitIns = Math.round(rawLimit / 1.5);
                 const pct      = Math.min(100, rawLimit > 0 ? Math.round(rawUsed / rawLimit * 100) : 0);
                 const barColor = pct >= 90 ? "#DC2626" : pct >= 70 ? "#D97706" : "rgba(255,255,255,0.35)";
+                const fmtK = n => n >= 1000 ? `${(n/1000).toFixed(0)}k` : String(n);
                 return (
                   <div style={{ padding:"6px 6px", marginTop:14, borderTop:"1px solid rgba(255,255,255,0.06)", paddingTop:12 }}>
                     <div style={{ display:"flex", justifyContent:"space-between", marginBottom:4 }}>
-                      <span style={{ fontSize:9, color:"rgba(255,255,255,0.35)", fontFamily:FB, textTransform:"uppercase", letterSpacing:"0.05em" }}>Daily insights</span>
+                      <span style={{ fontSize:9, color:"rgba(255,255,255,0.35)", fontFamily:FB, textTransform:"uppercase", letterSpacing:"0.05em" }}>Daily AI budget</span>
                       <span style={{ fontSize:9, color:"rgba(255,255,255,0.35)", fontFamily:FB }}>
-                        {usedIns.toLocaleString()}/{limitIns.toLocaleString()}
+                        {fmtK(rawUsed)}/{fmtK(rawLimit)}
                       </span>
                     </div>
                     <div style={{ height:2, borderRadius:2, background:"rgba(255,255,255,0.08)" }}>

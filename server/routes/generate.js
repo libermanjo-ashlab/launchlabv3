@@ -2,6 +2,7 @@ const router      = require("express").Router();
 const requireAuth = require("../middleware/auth");
 const { PrismaClient } = require("@prisma/client");
 const ai = require("../services/ai");
+const { addDailyTokens, TOKEN_EST } = require("../services/dailyBudget");
 
 const prisma = new PrismaClient();
 
@@ -127,6 +128,7 @@ router.post("/chat", requireAuth, async (req, res, next) => {
         context = { businessName:biz.name, businessType:idea.name, location:biz.location, age:user?.age };
       }
     }
+    if (businessId) addDailyTokens(businessId, TOKEN_EST.chat).catch(() => {});
     const reply = await ai.chatResponse(message, context);
     res.json({ reply });
   } catch(e) { next(e); }

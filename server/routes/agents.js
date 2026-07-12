@@ -24,17 +24,8 @@ function logActivity(bizId, entry) {
 }
 
 // ── Daily token budget ────────────────────────────────────────────────────────
-const DAILY_TOKEN_LIMITS = { trial:20000, starter:20000, active:50000, autopilot:110000, pro:110000 };
-// Conservative per-operation estimates (actual usage varies; estimates err high for safety)
-const TOKEN_EST = { marketing_full:12000, marketing_basic:800, campaign_breakdown:2500, task_run:1500, implement:1800 };
+const { DAILY_TOKEN_LIMITS, TOKEN_EST, getDailyTokens, addDailyTokens, tokenBudget, getUsage } = require("../services/dailyBudget");
 
-function todayKey() { return `tok_${new Date().toISOString().slice(0,10)}`; }
-
-async function getUsage(bizId) {
-  const out = await prisma.businessOutput.findFirst({ where:{ businessId:bizId, type:"usage" } });
-  if (!out) return { marketingRuns:0, managementImplements:0 };
-  try { return JSON.parse(out.content); } catch { return { marketingRuns:0, managementImplements:0 }; }
-}
 async function bumpUsage(bizId, key) {
   const usage = await getUsage(bizId);
   usage[key] = (usage[key]||0) + 1;
@@ -43,25 +34,6 @@ async function bumpUsage(bizId, key) {
   if (existing) await prisma.businessOutput.update({ where:{ id:existing.id }, data:{ content } });
   else await prisma.businessOutput.create({ data:{ businessId:bizId, type:"usage", title:"Usage tracking", content } });
   return usage;
-}
-async function getDailyTokens(bizId) {
-  const usage = await getUsage(bizId);
-  return usage[todayKey()] || 0;
-}
-async function addDailyTokens(bizId, estimate) {
-  const key = todayKey();
-  const usage = await getUsage(bizId);
-  usage[key] = (usage[key] || 0) + estimate;
-  // Purge stale daily keys (anything not today)
-  Object.keys(usage).filter(k => k.startsWith("tok_") && k !== key).forEach(k => delete usage[k]);
-  const existing = await prisma.businessOutput.findFirst({ where:{ businessId:bizId, type:"usage" } });
-  const content = JSON.stringify(usage);
-  if (existing) await prisma.businessOutput.update({ where:{ id:existing.id }, data:{ content } });
-  else await prisma.businessOutput.create({ data:{ businessId:bizId, type:"usage", title:"Usage tracking", content } });
-}
-function tokenBudget(plan, used) {
-  const limit = DAILY_TOKEN_LIMITS[plan] || DAILY_TOKEN_LIMITS.starter;
-  return { used, limit, remaining: Math.max(0, limit - used), pct: Math.min(100, Math.round(used / limit * 100)) };
 }
 
 async function getUserMetrics(bizId) {
@@ -245,6 +217,7 @@ router.post("/:businessId/management/implement", requireAuth, async (req, res, n
       const websiteOut = await prisma.businessOutput.findFirst({ where:{ businessId:req.params.businessId, type:"website" } });
       if (!websiteOut) return res.status(400).json({ error:"Generate your website in the Tasks tab first, then implement this insight." });
 
+      addDailyTokens(req.params.businessId, TOKEN_EST.implement).catch(() => {});
       const { html } = await runManagementAgent(biz, insight, websiteOut.content);
       await prisma.businessOutput.update({ where:{ id:websiteOut.id }, data:{ content:html } });
       logActivity(req.params.businessId,{ agent:"management", action:"Website updated", detail:"New content generated and ready to deploy" });
@@ -324,6 +297,7 @@ router.post("/:businessId/management/implement", requireAuth, async (req, res, n
 
       const context2 = insight.recommendation || insight.agentObservation;
 
+      addDailyTokens(req.params.businessId, TOKEN_EST.implement).catch(() => {});
       // Caption via OpenAI (GPT-4o), fallback to Claude
       let captionResult;
       if (process.env.OPENAI_API_KEY) {
@@ -420,6 +394,7 @@ router.post("/:businessId/management/implement", requireAuth, async (req, res, n
           message:"X / Twitter not connected. Add your API Key, API Key Secret, Access Token, and Access Token Secret in Hub → X / Twitter." });
       }
       const brandId = await getBrandIdentity(req.params.businessId);
+      addDailyTokens(req.params.businessId, TOKEN_EST.implement).catch(() => {});
       const tweetText = await openaiSvc.generateChannelCaption({
         businessName: biz.name, channel: "twitter", context: insight.recommendation, brandIdentity: brandId,
       });
@@ -449,6 +424,7 @@ router.post("/:businessId/management/implement", requireAuth, async (req, res, n
       const ttIntg = await prisma.integration.findFirst({ where:{ businessId:req.params.businessId, provider:"tiktok" } });
       const ttMeta = ttIntg?.metadata ? JSON.parse(ttIntg.metadata) : {};
       const brandId = await getBrandIdentity(req.params.businessId);
+      addDailyTokens(req.params.businessId, TOKEN_EST.implement).catch(() => {});
       const tiktokText = await openaiSvc.generateChannelCaption({
         businessName: biz.name, channel: "tiktok", context: insight.recommendation, brandIdentity: brandId,
       });
@@ -491,6 +467,7 @@ router.post("/:businessId/management/implement", requireAuth, async (req, res, n
       const emIntg = await prisma.integration.findFirst({ where:{ businessId:req.params.businessId, provider:"email" } });
       const emMeta = emIntg?.metadata ? JSON.parse(emIntg.metadata) : {};
       const brandId = await getBrandIdentity(req.params.businessId);
+      addDailyTokens(req.params.businessId, TOKEN_EST.implement).catch(() => {});
       const emailText = await openaiSvc.generateChannelCaption({
         businessName: biz.name, channel: "email", context: insight.recommendation, brandIdentity: brandId,
       });
@@ -520,6 +497,7 @@ router.post("/:businessId/management/implement", requireAuth, async (req, res, n
       const webIntg = await prisma.integration.findFirst({ where:{ businessId:req.params.businessId, provider:"website" } });
       const webMeta = webIntg?.metadata ? JSON.parse(webIntg.metadata) : {};
       const brandId = await getBrandIdentity(req.params.businessId);
+      addDailyTokens(req.params.businessId, TOKEN_EST.implement).catch(() => {});
       const webText = await openaiSvc.generateChannelCaption({
         businessName: biz.name, channel: "website", context: insight.recommendation, brandIdentity: brandId,
       });
@@ -544,6 +522,7 @@ router.post("/:businessId/management/implement", requireAuth, async (req, res, n
     const VISUAL_FALLBACK = new Set(["linkedin","google","facebook","general"]);
     if (VISUAL_FALLBACK.has(channelLabel)) {
       const brandId = await getBrandIdentity(req.params.businessId);
+      addDailyTokens(req.params.businessId, TOKEN_EST.implement).catch(() => {});
       const captionText = await openaiSvc.generateChannelCaption({
         businessName: biz.name, channel: channelLabel, context: insight.recommendation, brandIdentity: brandId,
       });
