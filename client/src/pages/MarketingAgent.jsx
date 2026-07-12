@@ -17,6 +17,10 @@ import { api } from "../lib/api";
 import { C, FH, FB, btn, btnO, card, inp, lbl } from "../components";
 import { generatePostImageBlob } from "../lib/postImageCanvas";
 import { generateSlideshowBlob } from "../lib/slideshowVideo";
+import {
+  Check, CircleX, X, Pin, NotebookPen, Clapperboard, ClipboardList,
+  Lightbulb, Video,
+} from "lucide-react";
 
 // ── Design helpers ────────────────────────────────────────────────────────────
 
@@ -69,7 +73,7 @@ function PlansModalMA({ onClose, highlightPlan }) {
               <ul style={{ margin:"0 0 24px", padding:0, listStyle:"none", display:"flex", flexDirection:"column", gap:8 }}>
                 {t.features.map(f=>(
                   <li key={f} style={{ display:"flex", gap:8, fontSize:12, color:"rgba(255,255,255,0.55)", lineHeight:1.5, fontFamily:FB }}>
-                    <span style={{ color:t.color, fontWeight:700, flexShrink:0 }}>✓</span>{f}
+                    <Check size={12} color={t.color} strokeWidth={2.5} style={{ flexShrink:0 }} aria-hidden="true" />{f}
                   </li>
                 ))}
               </ul>
@@ -155,7 +159,7 @@ function StickyNotesPanel({ businessId }) {
   return (
     <div style={{ position:"relative" }}>
       <button onClick={()=>setOpen(o=>!o)} style={{ ...btnO(open?"#475569":"#9CA3AF",11), padding:"5px 10px", display:"flex", alignItems:"center", gap:5 }}>
-        📝 Notes {notes.length>0 && <span style={{ background:"#475569", color:"#fff", borderRadius:10, padding:"0 5px", fontSize:10 }}>{notes.length}</span>}
+        <NotebookPen size={14} style={{display:"inline-block",verticalAlign:"middle",marginRight:4}} aria-hidden="true" />Notes {notes.length>0 && <span style={{ background:"#475569", color:"#fff", borderRadius:10, padding:"0 5px", fontSize:10 }}>{notes.length}</span>}
       </button>
 
       {open && (
@@ -214,7 +218,7 @@ function ChannelStatCard({ stat }) {
         <div style={{ marginTop:8, paddingTop:8, borderTop:`1px solid ${C.border}` }}>
           {stat.highlights?.map((h,i)=>(
             <div key={i} style={{ fontSize:12, color:C.text, fontFamily:FB, marginBottom:3, display:"flex", gap:6 }}>
-              <span style={{ color:C.ok, flexShrink:0 }}>✓</span>{h}
+              <Check size={12} color={C.ok} strokeWidth={2.5} style={{ flexShrink:0 }} aria-hidden="true" />{h}
             </div>
           ))}
           {stat.alerts?.map((a,i)=>(
@@ -274,7 +278,7 @@ function GuidanceBlock({ content }) {
   return (
     <div style={{ background:"#FFFBEB", border:"1px solid #FDE68A", borderRadius:8, padding:"12px 14px", marginTop:8 }}>
       <div style={{ fontSize:11, fontWeight:700, color:"#92400E", fontFamily:FB, textTransform:"uppercase", letterSpacing:"0.05em", marginBottom:8 }}>
-        {isVideo ? "📹 Video task — do manually" : "📋 Action guide — do manually"}
+        {isVideo ? <><Video size={14} style={{display:"inline-block",verticalAlign:"middle",marginRight:5}} aria-hidden="true" />Video task — do manually</> : <><ClipboardList size={14} style={{display:"inline-block",verticalAlign:"middle",marginRight:5}} aria-hidden="true" />Action guide — do manually</>}
       </div>
       {content.guidanceWhy && (
         <p style={{ fontSize:12, color:"#78350F", fontFamily:FB, marginBottom:8, fontStyle:"italic", lineHeight:1.5 }}>
@@ -291,7 +295,7 @@ function GuidanceBlock({ content }) {
           <div style={{ fontSize:10, fontWeight:700, color:"#92400E", fontFamily:FB, marginBottom:5 }}>Pro tips</div>
           {content.guidanceTips.map((tip, i) => (
             <div key={i} style={{ fontSize:11, color:"#78350F", fontFamily:FB, marginBottom:3, display:"flex", gap:6 }}>
-              <span>💡</span><span>{tip}</span>
+              <Lightbulb size={14} style={{ flexShrink:0 }} aria-hidden="true" /><span>{tip}</span>
             </div>
           ))}
         </div>
@@ -438,7 +442,7 @@ function VideoSlideTaskBlock({ content, businessName, backgroundUrl }) {
           </button>
         )}
         <button onClick={copyCaption} style={{ ...btnO(C.ok,11), padding:"4px 10px" }}>
-          {copied ? "✓ Copied" : "Copy caption"}
+          {copied ? <><Check size={12} style={{display:"inline-block",verticalAlign:"middle",marginRight:3}} aria-hidden="true"/>Copied</> : "Copy caption"}
         </button>
       </div>
       {videoBlob && (
@@ -472,7 +476,7 @@ function SuggestionCard({ suggestion:s, mode, onAddToCampaign }) {
         {mode === "auto" && (
           <>
             <span style={{ fontSize:10, color:C.ok, fontFamily:FB, background:C.okBg, padding:"3px 8px", borderRadius:20 }}>
-              ✓ Auto-queued
+              <Check size={12} style={{display:"inline-block",verticalAlign:"middle",marginRight:3}} aria-hidden="true"/>Auto-queued
             </span>
             <button onClick={()=>onAddToCampaign({...s, autoStart:true})}
               style={{ ...btnO("#475569",11), padding:"5px 10px" }}>
@@ -564,8 +568,8 @@ function CampaignTaskRow({ task:t, mode, channel, businessId, businessName, onCo
     <div style={{ padding:"7px 0", borderBottom:`1px solid ${C.border}` }}>
       <div style={{ display:"flex", alignItems:"center", gap:8 }}>
         <div style={{ width:14, height:14, borderRadius:"50%", border:`2px solid ${isFailed?C.err:isDone?C.ok:isSkipped?"#F59E0B":C.border}`, background:isFailed?C.err:isDone?C.ok:isSkipped?"#F59E0B":"transparent", flexShrink:0, display:"flex", alignItems:"center", justifyContent:"center" }}>
-          {isDone && <span style={{ color:"#fff", fontSize:9, fontWeight:700 }}>✓</span>}
-          {isFailed && <span style={{ color:"#fff", fontSize:9, fontWeight:700 }}>✗</span>}
+          {isDone && <Check size={9} color="#fff" strokeWidth={2.5} aria-hidden="true" />}
+          {isFailed && <CircleX size={9} color="#fff" aria-hidden="true" />}
           {isSkipped && <span style={{ color:"#fff", fontSize:9, fontWeight:700 }}>!</span>}
         </div>
         <span style={{ flex:1, fontSize:12, fontFamily:FB, color:isFailed?C.err:isDone?C.muted:isSkipped?C.warn:C.text, textDecoration:isDone?"line-through":"none" }}>{t.name}</span>
@@ -653,7 +657,7 @@ function CampaignTaskRow({ task:t, mode, channel, businessId, businessName, onCo
                 try {
                   const res = await api.instagram.createPost(businessId, content.imageUrl, content.caption || content.body);
                   if (res.success) {
-                    setPostMsg(`✓ Posted! ${res.permalink || ""}`);
+                    setPostMsg(`ok:Posted! ${res.permalink || ""}`);
                     setContent(p => ({ ...p, published: true }));
                     onComplete(t.id);
                   } else {
@@ -668,7 +672,10 @@ function CampaignTaskRow({ task:t, mode, channel, businessId, businessName, onCo
                 {posting && <span style={{ ...spin(), width:10, height:10, borderWidth:1.5 }}/>}
                 {posting ? "Posting…" : "Post to Instagram"}
               </button>
-              {postMsg && <div style={{ fontSize:11, color:postMsg.startsWith("✓")?C.ok:C.err, fontFamily:FB, marginTop:4 }}>{postMsg}</div>}
+              {postMsg && <div style={{ fontSize:11, color:postMsg.startsWith("ok:")?C.ok:C.err, fontFamily:FB, marginTop:4, display:"flex", alignItems:"center", gap:4 }}>
+                {postMsg.startsWith("ok:") ? <Check size={11} strokeWidth={2.5} aria-hidden="true" /> : <CircleX size={11} aria-hidden="true" />}
+                {postMsg.slice(3)}
+              </div>}
             </div>
           )}
 
@@ -902,9 +909,9 @@ function CampaignCard({ campaign:c, onUpdate, onDelete, businessId, businessName
       {/* Sticky note */}
       {stickyNote && (
         <div style={{ display:"flex", alignItems:"center", gap:5, background:stickyNote.color||"#FEF9C3", borderRadius:6, padding:"4px 8px", marginBottom:8, fontSize:11, color:"#374151", fontFamily:FB }}>
-          <span>📌</span>
+          <Pin size={12} style={{ flexShrink:0, color:"#9CA3AF" }} aria-hidden="true" />
           <span style={{ flex:1, wordBreak:"break-word" }}>{stickyNote.text}</span>
-          <button onClick={()=>onUnstickNote?.(c.id)} style={{ background:"none", border:"none", cursor:"pointer", color:"#9CA3AF", fontSize:12, padding:0 }}>✕</button>
+          <button onClick={()=>onUnstickNote?.(c.id)} aria-label="Unpin note" style={{ background:"none", border:"none", cursor:"pointer", color:"#9CA3AF", padding:0, display:"flex" }}><X size={10} aria-hidden="true" /></button>
         </div>
       )}
       {dropOver && !stickyNote && <div style={{ height:2, background:C.border, borderRadius:2, marginBottom:6 }} />}
@@ -992,7 +999,7 @@ function CampaignCard({ campaign:c, onUpdate, onDelete, businessId, businessName
           <button onClick={pause} style={{ ...btn(C.err,"#fff",11), padding:"5px 12px" }}>⏸ Pause</button>
         )}
         {c.status==="active" && (allDone || mode!=="auto") && (
-          <button onClick={markDone} style={{ ...btn(C.ok,"#fff",11), padding:"5px 12px" }}>✓ Mark done</button>
+          <button onClick={markDone} style={{ ...btn(C.ok,"#fff",11), padding:"5px 12px", display:"flex", alignItems:"center", gap:4 }}><Check size={14} aria-hidden="true" />Mark done</button>
         )}
         {c.status==="monitoring" && (
           <button onClick={archive} style={{ ...btnO(C.ok,11), padding:"5px 12px" }}>Archive (goal reached)</button>
@@ -1027,9 +1034,9 @@ function ManualCampaignCard({ campaign:c, onUpdate, onDelete, stickyNote, onAssi
       style={{ ...card("12px 14px"), marginBottom:10, border:`1px solid ${statusColor}25` }}>
       {stickyNote && (
         <div style={{ display:"flex", alignItems:"center", gap:5, background:stickyNote.color||"#FEF9C3", borderRadius:6, padding:"4px 8px", marginBottom:8, fontSize:11, color:"#374151", fontFamily:FB }}>
-          <span>📌</span>
+          <Pin size={12} style={{ flexShrink:0, color:"#9CA3AF" }} aria-hidden="true" />
           <span style={{ flex:1, wordBreak:"break-word" }}>{stickyNote.text}</span>
-          <button onClick={()=>onUnstickNote?.(c.id)} style={{ background:"none", border:"none", cursor:"pointer", color:"#9CA3AF", fontSize:12, padding:0 }}>✕</button>
+          <button onClick={()=>onUnstickNote?.(c.id)} aria-label="Unpin note" style={{ background:"none", border:"none", cursor:"pointer", color:"#9CA3AF", padding:0, display:"flex" }}><X size={10} aria-hidden="true" /></button>
         </div>
       )}
       {dropOver && !stickyNote && <div style={{ height:2, background:C.border, borderRadius:2, marginBottom:6 }} />}
@@ -1055,7 +1062,7 @@ function ManualCampaignCard({ campaign:c, onUpdate, onDelete, stickyNote, onAssi
         )}
         {c.status === "active" && (
           <button onClick={()=>onUpdate({...c,status:"monitoring",completedAt:new Date().toISOString()})}
-            style={{ ...btn(C.ok,"#fff",11), padding:"5px 12px" }}>✓ Mark complete</button>
+            style={{ ...btn(C.ok,"#fff",11), padding:"5px 12px", display:"flex", alignItems:"center", gap:4 }}><Check size={14} aria-hidden="true" />Mark complete</button>
         )}
         {c.status === "monitoring" && (
           <button onClick={()=>onUpdate({...c,status:"archived",archivedAt:new Date().toISOString()})}
@@ -1196,7 +1203,7 @@ function ImplementResult({ result, businessId, businessName }) {
   if (result.published || published) {
     return (
       <div style={{ background:C.okBg, borderRadius:8, padding:"8px 12px", marginTop:8, fontSize:12, color:C.ok, fontFamily:FB, display:"flex", gap:8, alignItems:"center" }}>
-        <span>✓</span>
+        <Check size={14} strokeWidth={2.5} aria-hidden="true" />
         <span>Published to Instagram{result.permalink ? <a href={result.permalink} target="_blank" rel="noopener noreferrer" style={{ color:C.ok, marginLeft:6 }}> View post ↗</a> : ""}</span>
       </div>
     );
@@ -1205,7 +1212,7 @@ function ImplementResult({ result, businessId, businessName }) {
   if (result.liveUrl) {
     return (
       <div style={{ background:C.okBg, borderRadius:8, padding:"8px 12px", marginTop:8 }}>
-        <div style={{ fontSize:12, color:C.ok, fontFamily:FB, marginBottom:4 }}>✓ Website deployed</div>
+        <div style={{ fontSize:12, color:C.ok, fontFamily:FB, marginBottom:4, display:"flex", alignItems:"center", gap:4 }}><Check size={12} strokeWidth={2.5} aria-hidden="true" />Website deployed</div>
         <a href={result.liveUrl} target="_blank" rel="noopener noreferrer" style={{ fontSize:12, color:C.muted, textDecoration:"underline" }}>{result.liveUrl} ↗</a>
       </div>
     );
@@ -1291,7 +1298,7 @@ function BrandQAPanel({ businessId }) {
       ))}
       <div style={{ display:"flex", justifyContent:"flex-end" }}>
         <button onClick={save} disabled={saving} style={{ ...btnO("#475569",11), padding:"3px 10px" }}>
-          {saved ? "Saved ✓" : saving ? "Saving…" : "Save answers"}
+          {saved ? <><Check size={13} style={{display:"inline-block",verticalAlign:"middle",marginRight:3}} aria-hidden="true"/>Saved</> : saving ? "Saving…" : "Save answers"}
         </button>
       </div>
     </div>
@@ -1382,7 +1389,7 @@ function SuggestedContentCard({ item, onAddToQueue }) {
         </div>
       )}
       {added
-        ? <span style={{ fontSize:11, color:C.ok, fontFamily:FB }}>✓ Added to campaigns →</span>
+        ? <span style={{ fontSize:11, color:C.ok, fontFamily:FB, display:"flex", alignItems:"center", gap:3 }}><Check size={12} strokeWidth={2.5} aria-hidden="true" />Added to campaigns →</span>
         : <button onClick={handleAdd} style={{ ...btn(clr,"#fff",10), padding:"5px 12px" }}>Add to campaigns</button>
       }
     </div>
@@ -1449,9 +1456,9 @@ function SuggestedCampaignCard({ campaign:c, agentMode, businessId, businessName
       style={{ ...card("12px 14px"), marginBottom:10, border:`1px solid ${clr}20` }}>
       {stickyNote && (
         <div style={{ display:"flex", alignItems:"center", gap:5, background:stickyNote.color||"#FEF9C3", borderRadius:6, padding:"4px 8px", marginBottom:8, fontSize:11, color:"#374151", fontFamily:FB }}>
-          <span>📌</span>
+          <Pin size={12} style={{ flexShrink:0, color:"#9CA3AF" }} aria-hidden="true" />
           <span style={{ flex:1, wordBreak:"break-word" }}>{stickyNote.text}</span>
-          <button onClick={()=>onUnstickNote?.(c.id)} style={{ background:"none", border:"none", cursor:"pointer", color:"#9CA3AF", fontSize:12, padding:0 }}>✕</button>
+          <button onClick={()=>onUnstickNote?.(c.id)} aria-label="Unpin note" style={{ background:"none", border:"none", cursor:"pointer", color:"#9CA3AF", padding:0, display:"flex" }}><X size={10} aria-hidden="true" /></button>
         </div>
       )}
       {dropOver2 && !stickyNote && <div style={{ height:2, background:C.border, borderRadius:2, marginBottom:6 }} />}
@@ -1516,7 +1523,7 @@ function SuggestedCampaignCard({ campaign:c, agentMode, businessId, businessName
             {composedBlob && <button onClick={downloadImage} style={{ ...btnO(C.muted,10), padding:"4px 10px" }}>Download</button>}
             <button onClick={()=>onUpdate({...c,status:"monitoring",completedAt:new Date().toISOString()})}
               style={{ ...btn(C.ok,"#fff",10), padding:"4px 10px", marginLeft:"auto" }}>
-              ✓ Mark as posted
+              <Check size={12} style={{display:"inline-block",verticalAlign:"middle",marginRight:3}} aria-hidden="true"/>Mark as posted
             </button>
           </>
         )}
@@ -1750,7 +1757,7 @@ function ContentLab({ businessId, businessName, plan }) {
                       </>
                     ) : (
                       <div style={{ ...card("18px 12px"), background:"#F8FAFC", border:`1px solid ${C.border}`, borderRadius:8, textAlign:"center" }}>
-                        <div style={{ fontSize:28, marginBottom:8 }}>🎬</div>
+                        <div style={{ marginBottom:8, display:"flex", justifyContent:"center", color:C.muted }}><Clapperboard size={28} aria-hidden="true" /></div>
                         <div style={{ fontSize:12, color:C.text, fontFamily:FB, marginBottom:12, lineHeight:1.5 }}>
                           {result.slides.length} slides ready<br/>
                           <span style={{ fontSize:11, color:C.muted }}>~{result.slides.length * 4}s video</span>
@@ -1794,7 +1801,7 @@ function ContentLab({ businessId, businessName, plan }) {
                       <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:6 }}>
                         <span style={{ fontSize:10, fontWeight:700, color:C.ok, fontFamily:FB, textTransform:"uppercase", letterSpacing:"0.05em" }}>Caption</span>
                         <button onClick={copyText} style={{ ...btn(copied ? C.ok : "#6B7280","#fff",10), padding:"3px 10px" }}>
-                          {copied ? "✓ Copied" : "Copy text"}
+                          {copied ? <><Check size={12} style={{display:"inline-block",verticalAlign:"middle",marginRight:3}} aria-hidden="true"/>Copied</> : "Copy text"}
                         </button>
                       </div>
                       <p style={{ fontSize:12, color:"#374151", fontFamily:FB, lineHeight:1.6, marginBottom: result.hashtags ? 4 : 0 }}>
@@ -1864,7 +1871,7 @@ function ContentLab({ businessId, businessName, plan }) {
                           <span style={{ fontSize:9, color:C.muted, fontFamily:FB }}>{result.captionSource}</span>
                           <button onClick={copyText}
                             style={{ ...btn(copied ? C.ok : "#6B7280","#fff",10), padding:"3px 10px" }}>
-                            {copied ? "✓ Copied" : "Copy text"}
+                            {copied ? <><Check size={12} style={{display:"inline-block",verticalAlign:"middle",marginRight:3}} aria-hidden="true"/>Copied</> : "Copy text"}
                           </button>
                         </div>
                       </div>
@@ -2129,7 +2136,7 @@ function MarketInsightCard({ campaign:c, businessId, onUpdate, onDelete }) {
         )}
         {tasks.length > 0 && c.status !== "monitoring" && c.status !== "archived" && (
           <button onClick={()=>onUpdate({...c,status:"monitoring",completedAt:new Date().toISOString()})}
-            style={{ ...btn(C.ok,"#fff",10), padding:"5px 12px" }}>✓ Mark done</button>
+            style={{ ...btn(C.ok,"#fff",10), padding:"5px 12px", display:"flex", alignItems:"center", gap:4 }}><Check size={12} aria-hidden="true" />Mark done</button>
         )}
         {c.status === "monitoring" && (
           <button onClick={()=>onUpdate({...c,status:"archived",archivedAt:new Date().toISOString()})}
@@ -2316,7 +2323,7 @@ function QuickCreatePanel({ businessId, businessName, plan, agentMode }) {
                           </>
                         ) : (
                           <div style={{ ...card("14px"), background:"#F8FAFC", textAlign:"center" }}>
-                            <div style={{ fontSize:20, marginBottom:6 }}>🎬</div>
+                            <div style={{ marginBottom:6, display:"flex", justifyContent:"center", color:C.muted }}><Clapperboard size={20} aria-hidden="true" /></div>
                             <div style={{ fontSize:11, color:C.muted, fontFamily:FB, marginBottom:10 }}>{result.slides.length} slides ready</div>
                             <button onClick={createVideo} disabled={videoLoading}
                               style={{ ...btn(videoLoading?"#9CA3AF":C.dark,"#fff",11), padding:"6px 14px", display:"inline-flex", alignItems:"center", gap:6 }}>
@@ -2329,14 +2336,14 @@ function QuickCreatePanel({ businessId, businessName, plan, agentMode }) {
                       <div style={{ ...card("10px 12px"), background:"#F0FDF4", border:`1px solid ${C.ok}25` }}>
                         <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:6 }}>
                           <span style={{ fontSize:10, fontWeight:700, color:C.ok, fontFamily:FB, textTransform:"uppercase", letterSpacing:"0.05em" }}>Caption</span>
-                          <button onClick={copyText} style={{ ...btn(copied?C.ok:"#6B7280","#fff",10), padding:"3px 10px" }}>{copied?"✓ Copied":"Copy text"}</button>
+                          <button onClick={copyText} style={{ ...btn(copied?C.ok:"#6B7280","#fff",10), padding:"3px 10px" }}>{copied?<><Check size={12} style={{display:"inline-block",verticalAlign:"middle",marginRight:3}} aria-hidden="true"/>Copied</>:"Copy text"}</button>
                         </div>
                         <p style={{ fontSize:12, color:"#374151", fontFamily:FB, lineHeight:1.6, marginBottom:result.hashtags?4:0 }}>{result.body||result.caption}</p>
                         {result.hashtags&&<p style={{ fontSize:11, color:C.muted, fontFamily:FB }}>{result.hashtags}</p>}
                         {isGuided&&!markedPosted&&(
-                          <button onClick={()=>setMarkedPosted(true)} style={{ ...btnO(C.ok,11), padding:"5px 14px", marginTop:8, width:"100%" }}>✓ Mark as posted manually</button>
+                          <button onClick={()=>setMarkedPosted(true)} style={{ ...btnO(C.ok,11), padding:"5px 14px", marginTop:8, width:"100%" }}><Check size={12} style={{display:"inline-block",verticalAlign:"middle",marginRight:3}} aria-hidden="true"/>Mark as posted manually</button>
                         )}
-                        {markedPosted&&<div style={{ fontSize:11, color:C.ok, fontFamily:FB, marginTop:8, fontWeight:600 }}>✓ Marked as posted</div>}
+                        {markedPosted&&<div style={{ fontSize:11, color:C.ok, fontFamily:FB, marginTop:8, fontWeight:600 }}><Check size={12} style={{display:"inline-block",verticalAlign:"middle",marginRight:3}} aria-hidden="true"/>Marked as posted</div>}
                       </div>
                     </div>
                   )}
@@ -2370,7 +2377,7 @@ function QuickCreatePanel({ businessId, businessName, plan, agentMode }) {
                           <span style={{ fontSize:10, fontWeight:700, color:C.ok, fontFamily:FB, textTransform:"uppercase", letterSpacing:"0.05em" }}>
                             {channelOpt?.label||channel} copy
                           </span>
-                          <button onClick={copyText} style={{ ...btn(copied?C.ok:"#6B7280","#fff",10), padding:"3px 10px" }}>{copied?"✓ Copied":"Copy text"}</button>
+                          <button onClick={copyText} style={{ ...btn(copied?C.ok:"#6B7280","#fff",10), padding:"3px 10px" }}>{copied?<><Check size={12} style={{display:"inline-block",verticalAlign:"middle",marginRight:3}} aria-hidden="true"/>Copied</>:"Copy text"}</button>
                         </div>
                         <p style={{ fontSize:13, color:"#374151", fontFamily:FB, lineHeight:1.65, marginBottom:result.hashtags?6:0, whiteSpace:"pre-wrap" }}>
                           {result.body||result.caption}
@@ -2379,10 +2386,10 @@ function QuickCreatePanel({ businessId, businessName, plan, agentMode }) {
 
                         {/* Guided: mark as posted (no auto-publish) */}
                         {isGuided&&!markedPosted&&!postResult?.success&&(
-                          <button onClick={()=>setMarkedPosted(true)} style={{ ...btnO(C.ok,11), padding:"5px 14px", marginTop:10, width:"100%" }}>✓ Mark as posted manually</button>
+                          <button onClick={()=>setMarkedPosted(true)} style={{ ...btnO(C.ok,11), padding:"5px 14px", marginTop:10, width:"100%" }}><Check size={12} style={{display:"inline-block",verticalAlign:"middle",marginRight:3}} aria-hidden="true"/>Mark as posted manually</button>
                         )}
                         {markedPosted&&!postResult?.success&&(
-                          <div style={{ fontSize:11, color:C.ok, fontFamily:FB, marginTop:8, fontWeight:600 }}>✓ Marked as posted</div>
+                          <div style={{ fontSize:11, color:C.ok, fontFamily:FB, marginTop:8, fontWeight:600 }}><Check size={12} style={{display:"inline-block",verticalAlign:"middle",marginRight:3}} aria-hidden="true"/>Marked as posted</div>
                         )}
 
                         {/* Autopilot: auto-post */}
@@ -2743,7 +2750,7 @@ export default function AgentPanel({ businessId, businessName, metrics, planInfo
             : connectedChannels.length > 0 && (
               <div style={{ display:"flex", gap:5, flexWrap:"wrap", marginBottom:12 }}>
                 {connectedChannels.map(ch=>(
-                  <span key={ch} style={{ fontSize:10, fontWeight:600, fontFamily:FB, padding:"3px 9px", borderRadius:20, background:"#F1F5F9", color:C.muted }}>{CH_LABELS[ch]||ch} ✓</span>
+                  <span key={ch} style={{ fontSize:10, fontWeight:600, fontFamily:FB, padding:"3px 9px", borderRadius:20, background:"#F1F5F9", color:C.muted, display:"inline-flex", alignItems:"center", gap:4 }}>{CH_LABELS[ch]||ch} <Check size={10} strokeWidth={2.5} aria-hidden="true" /></span>
                 ))}
               </div>
             )

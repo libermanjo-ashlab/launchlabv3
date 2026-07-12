@@ -3,6 +3,12 @@ import { useParams, useNavigate, useSearchParams } from "react-router-dom";
 import useStore from "../lib/store";
 import { api } from "../lib/api";
 import { C, FH, FB, btn, btnO, card, inp, lbl, GuidePanel, Logo } from "../components";
+import {
+  Building2, ChartNoAxesCombined, Check, CircleCheck, CircleCheckBig, CircleX,
+  Clapperboard, ClipboardList, Folder, Heart, KeyRound, LayoutDashboard,
+  Lightbulb, LockKeyhole, Mail, MailCheck, MessageCircle, NotebookPen,
+  Pencil, Pin, Plug, Settings2, Share2, Sparkles, TriangleAlert, Video, X, Zap,
+} from "lucide-react";
 import AgentPanel from "./MarketingAgent";
 import { generatePostImageBlob } from "../lib/postImageCanvas";
 
@@ -15,42 +21,42 @@ function GuidedTour({ business, user, onDone }) {
 
   const steps = [
     {
-      emoji: "👋",
+      Icon: Sparkles,
       title: `Welcome to ${bizName}`,
       body: `Hey ${firstName} — your business is live. This is your command center. Everything you need to run, grow, and manage ${bizName} is here. This takes about 90 seconds.`,
     },
     {
-      emoji: "📋",
+      Icon: LayoutDashboard,
       title: "Business Canvas",
       body: `The canvas is where you log your numbers — Revenue, Costs, Leads, Clients, Bookings, Investments. Each card tracks actual entries with dates. The more you log, the smarter your agents become. Start by adding a revenue entry or a lead.`,
       cta: "Canvas → Add your first metric →",
     },
     {
-      emoji: "✅",
+      Icon: CircleCheck,
       title: "Tasks",
       body: `Tasks are your business to-do list — and many of them execute themselves. Generate a full business plan, 30-day content calendar, or a live website with one click. Others (like registering your business) need your action. Every completed task stores its output permanently in Files.`,
       cta: "Tasks tab → click any AI task to run it →",
     },
     {
-      emoji: "📊",
+      Icon: ChartNoAxesCombined,
       title: "Marketing Agent",
       body: `Your Marketing Agent reads your canvas metrics, connected integrations, and business profile to rank your best growth opportunities by impact. Run a marketing analysis to get a prioritised channel plan — outreach, social, content, ads — tailored to your actual numbers.`,
       cta: "Marketing Agent tab → Run analysis →",
     },
     {
-      emoji: "⚙️",
+      Icon: Settings2,
       title: "Management Agent",
       body: `The Management Agent has three modes. Correlation Analysis lets you compare any two metrics statistically to find what drives growth. Business Insights generates an AI strategy report you review and approve. Operations Autopilot runs the strategy cycle automatically each week and syncs directly to your Marketing Agent.`,
       cta: "Management Agent tab → choose a mode →",
     },
     {
-      emoji: "🔗",
+      Icon: Plug,
       title: "Integrations & Files",
       body: `Connect your tools under Integrations — Calendly, Instagram, your website, payment processors — and the agents use that live context in every analysis. All generated documents (business plans, content calendars, websites) are saved permanently in Files and can be re-opened any time.`,
       cta: "Hub tab → Integrations → connect one tool →",
     },
     {
-      emoji: "🚀",
+      Icon: CircleCheckBig,
       title: `You're set, ${firstName}.`,
       body: `Start with Tasks — several AI tasks can run right now with one click. Then log a few canvas metrics and run your first Marketing analysis. The more data you give your agents, the more specific and useful their output becomes.`,
     },
@@ -67,7 +73,7 @@ function GuidedTour({ business, user, onDone }) {
             <div key={i} style={{ height:3, flex:1, borderRadius:2, background:i<=step?C.dark:"#E5E7EB", transition:"background 0.25s" }} />
           ))}
         </div>
-        <div style={{ fontSize:38, marginBottom:14, lineHeight:1 }}>{s.emoji}</div>
+        <div style={{ marginBottom:14, lineHeight:1, color:C.text }}><s.Icon size={24} strokeWidth={1.5} aria-hidden="true" /></div>
         <div style={{ fontFamily:FH, fontWeight:700, fontSize:22, letterSpacing:"-0.04em", marginBottom:10 }}>{s.title}</div>
         <p style={{ fontSize:14, color:C.muted, lineHeight:1.8, fontFamily:FB, marginBottom:s.cta?16:28 }}>{s.body}</p>
         {s.cta && <div style={{ background:"#F1F5F9", borderRadius:10, padding:"10px 14px", fontSize:12, color:C.text, fontFamily:FB, fontWeight:600, marginBottom:28 }}>{s.cta}</div>}
@@ -457,7 +463,7 @@ function TaskCard({ task, businessId, outputs, onUpdate, onDelete, isStarterPlan
     <div style={{ ...card("0"), overflow:"hidden", marginBottom:8 }}>
       <div style={{ padding:"14px 16px", display:"flex", gap:12, alignItems:"flex-start", cursor:"pointer" }} onClick={()=>setExpanded(p=>!p)}>
         <div style={{ width:18, height:18, borderRadius:"50%", border:`2px solid ${statusColor[status]||C.muted}`, background:status==="done"?statusColor[status]:"transparent", display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0, marginTop:2 }}>
-          {status==="done"&&<span style={{ color:"#fff", fontSize:10, fontWeight:700 }}>✓</span>}
+          {status==="done"&&<Check size={10} color="#fff" strokeWidth={2.5} aria-hidden="true" />}
         </div>
         <div style={{ flex:1, minWidth:0 }}>
           <div style={{ display:"flex", alignItems:"center", gap:8, flexWrap:"wrap" }}>
@@ -581,7 +587,7 @@ const NOTE_BG_COLORS = ["#FEF9C3","#FCE7F3","#DBEAFE","#D1FAE5","#FEE2E2"];
 function NotesGrid({ notes, onDelete }) {
   if (notes.length===0) return (
     <div style={{ ...card("28px"), textAlign:"center", color:C.muted }}>
-      <div style={{ fontSize:24, marginBottom:8 }}>📝</div>
+      <div style={{ marginBottom:8, color:C.muted }}><NotebookPen size={24} aria-hidden="true" /></div>
       <div style={{ fontFamily:FH, fontWeight:600, fontSize:14, marginBottom:4 }}>No notes yet</div>
       <p style={{ fontSize:12, lineHeight:1.6 }}>Add sticky notes in the Marketing Agent tab and they'll appear here.</p>
     </div>
@@ -612,7 +618,7 @@ function CampaignTaskCard({ task }) {
   return (
     <div style={{ display:"flex", gap:8, alignItems:"flex-start", padding:"8px 0", borderBottom:`1px solid ${C.border}` }}>
       <div style={{ width:14, height:14, borderRadius:"50%", border:`2px solid ${dotColor}`, background:isDone?C.ok:"transparent", flexShrink:0, marginTop:2, display:"flex", alignItems:"center", justifyContent:"center" }}>
-        {isDone && <span style={{ color:"#fff", fontSize:9, fontWeight:700 }}>✓</span>}
+        {isDone && <Check size={9} color="#fff" strokeWidth={2.5} aria-hidden="true" />}
       </div>
       <div style={{ flex:1, minWidth:0 }}>
         <span style={{ fontSize:12, fontFamily:FB, fontWeight:600, color:isDone||isSkipped?C.muted:C.text, textDecoration:isDone||isSkipped?"line-through":"none" }}>{task.name}</span>
@@ -631,9 +637,9 @@ function StickyNoteChip({ note, onUnstick }) {
   if (!note) return null;
   return (
     <div style={{ display:"inline-flex", alignItems:"center", gap:5, background:note.color||"#FEF9C3", borderRadius:6, padding:"3px 8px", marginBottom:4, fontSize:11, color:"#374151", fontFamily:FB, maxWidth:"100%", overflow:"hidden" }}>
-      <span style={{ flexShrink:0 }}>📌</span>
+      <Pin size={12} style={{ flexShrink:0, color:"#9CA3AF" }} aria-hidden="true" />
       <span style={{ flex:1, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{note.text}</span>
-      <button onClick={e=>{e.stopPropagation();onUnstick();}} style={{ background:"none", border:"none", cursor:"pointer", color:"#9CA3AF", fontSize:12, padding:0, flexShrink:0 }}>✕</button>
+      <button onClick={e=>{e.stopPropagation();onUnstick();}} aria-label="Unpin note" style={{ background:"none", border:"none", cursor:"pointer", color:"#9CA3AF", padding:0, flexShrink:0, display:"flex" }}><X size={10} aria-hidden="true" /></button>
     </div>
   );
 }
@@ -698,7 +704,7 @@ function TaskRowWrapper({ task, businessId, businessName, outputs, onUpdate, onD
             <button onClick={e=>{e.stopPropagation();setEditing(true);}}
               title="Edit task"
               style={{ position:"absolute", top:10, right:36, background:"none", border:"none", cursor:"pointer", color:C.muted, fontSize:13, padding:"3px 5px", lineHeight:1, zIndex:2 }}>
-              ✏️
+              <Pencil size={13} aria-hidden="true" />
             </button>
           </div>
         )}
@@ -897,7 +903,7 @@ function TasksPanel({ businessId, businessName, businessOutputs, hubNotes, stick
           {categories.map(c => (
             <button key={c} onClick={()=>setFilter(c)}
               style={{ ...btn(filter===c?(c==="notes"?"#D97706":C.dark):"#F4F4F5", filter===c?"#fff":C.muted, 11), padding:"5px 12px", textTransform:"capitalize" }}>
-              {c==="notes"?"📝 Notes":c}
+              {c==="notes"?<><NotebookPen size={14} style={{display:"inline-block",verticalAlign:"middle",marginRight:4}} aria-hidden="true" />Notes</>:c}
               {c==="notes"&&noteTasks.length>0&&<span style={{ marginLeft:4, background:"rgba(255,255,255,0.3)", borderRadius:10, padding:"0 5px", fontSize:9 }}>{noteTasks.length}</span>}
             </button>
           ))}
@@ -1044,7 +1050,7 @@ function PlansModal({ onClose, highlightPlan }) {
               <ul style={{ margin:"0 0 24px", padding:0, listStyle:"none", display:"flex", flexDirection:"column", gap:8 }}>
                 {t.features.map(f=>(
                   <li key={f} style={{ display:"flex", gap:8, fontSize:12, color:"rgba(255,255,255,0.55)", lineHeight:1.5, fontFamily:FB }}>
-                    <span style={{ color:t.color, fontWeight:700, flexShrink:0 }}>✓</span>{f}
+                    <Check size={12} color={t.color} strokeWidth={2.5} style={{ flexShrink:0 }} aria-hidden="true" />{f}
                   </li>
                 ))}
               </ul>
@@ -1088,7 +1094,7 @@ function AutoNotifications({ notifications, onDismiss }) {
           display:"flex", alignItems:"center", gap:10, fontFamily:FB, pointerEvents:"all"
         }}>
           {n.status==="in-progress"&&<span style={{ width:13,height:13,borderRadius:"50%",border:"2px solid #D97706",borderTopColor:"transparent",animation:"spin 0.8s linear infinite",display:"inline-block",flexShrink:0 }}/>}
-          {n.status==="done"&&<span style={{ color:"#16A34A",fontWeight:700,fontSize:14,flexShrink:0 }}>✓</span>}
+          {n.status==="done"&&<Check size={14} color="#16A34A" strokeWidth={2.5} style={{ flexShrink:0 }} aria-hidden="true" />}
           {n.status==="active"&&<span style={{ width:7,height:7,borderRadius:"50%",background:"#3B82F6",flexShrink:0,display:"inline-block" }}/>}
           <span style={{ fontSize:12,color:"#374151",flex:1,lineHeight:1.4 }}>{n.message}</span>
           {n.status==="done"&&n.onUndo&&(
@@ -1219,7 +1225,7 @@ function InsightCardsSection({ cards, onUpdate, onArchive, onPromoteToTask, isAu
             <div key={c.id} style={{ background:C.surface, borderRadius:10, border:`1px solid ${C.border}`, padding:"8px 14px", opacity:0.55, display:"flex", alignItems:"center", gap:8 }}>
               <span style={{ fontSize:9,fontWeight:700,color:cat.color,background:cat.bg,padding:"1px 8px",borderRadius:20,fontFamily:FB }}>{cat.label}</span>
               <span style={{ fontSize:12,fontFamily:FB,color:C.muted,flex:1 }}>{c.title}</span>
-              <span style={{ fontSize:11,color:"#16A34A",fontFamily:FB }}>Done ✓</span>
+              <span style={{ fontSize:11,color:"#16A34A",fontFamily:FB,display:"flex",alignItems:"center",gap:3 }}>Done <Check size={11} strokeWidth={2.5} aria-hidden="true" /></span>
               <button onClick={()=>onUpdate(c.id,{status:"pending"})} style={{ background:"none",border:"none",color:C.muted,cursor:"pointer",fontSize:11,fontFamily:FB }}>Reopen</button>
             </div>
           );
@@ -1372,15 +1378,18 @@ function IntegrationCard({ provider, label, desc, fields, savedMeta, onSave, isC
                 setTesting(true); setTestMsg("");
                 try {
                   const msg = await onTestConnection(vals);
-                  setTestMsg("✓ " + msg);
+                  setTestMsg("ok:" + msg);
                 } catch(e) {
-                  setTestMsg("✗ " + e.message);
+                  setTestMsg("err:" + e.message);
                 }
                 setTesting(false);
               }} disabled={testing} style={{ ...btnO("#475569",12), padding:"8px 18px" }}>
                 {testing ? "Testing…" : "Test connection"}
               </button>
-              {testMsg && <div style={{ fontSize:11, fontFamily:FB, marginTop:6, color: testMsg.startsWith("✓") ? C.ok : C.err }}>{testMsg}</div>}
+              {testMsg && <div style={{ fontSize:11, fontFamily:FB, marginTop:6, color: testMsg.startsWith("ok:") ? C.ok : C.err, display:"flex", alignItems:"center", gap:4 }}>
+                {testMsg.startsWith("ok:") ? <Check size={11} strokeWidth={2.5} aria-hidden="true" /> : <CircleX size={11} aria-hidden="true" />}
+                {testMsg.slice(3)}
+              </div>}
             </div>
           )}
           <button onClick={()=>save()} disabled={saving} style={{ ...btn(saved?C.ok:C.dark,"#fff",12), alignSelf:"flex-start", padding:"8px 18px" }}>
@@ -1458,7 +1467,7 @@ function FilesArchive({ businessId, outputs, tasks }) {
     URL.revokeObjectURL(url);
   };
 
-  const folderIcons = { "Business Info": "🏢", "Social Media": "📱", "Marketing": "📊", "Email": "✉️", "Other": "📁" };
+  const folderIcons = { "Business Info": Building2, "Social Media": Share2, "Marketing": ChartNoAxesCombined, "Email": Mail, "Other": Folder };
 
   return (
     <div style={{ ...card("0"), overflow:"hidden", marginTop:20 }}>
@@ -1474,6 +1483,7 @@ function FilesArchive({ businessId, outputs, tasks }) {
           {folderOrder.map((folderName, fi) => {
             const files = folderMap[folderName];
             const isFolderOpen = openFolders[folderName];
+            const FolderIcon = folderIcons[folderName];
             return (
               <div key={folderName} style={{ borderBottom: fi < folderOrder.length - 1 ? `1px solid ${C.border}` : "none" }}>
                 <div
@@ -1481,7 +1491,7 @@ function FilesArchive({ businessId, outputs, tasks }) {
                   onClick={() => toggleFolder(folderName)}
                 >
                   <div style={{ display:"flex", alignItems:"center", gap:8 }}>
-                    <span style={{ fontSize:14 }}>{folderIcons[folderName]}</span>
+                    {FolderIcon && <FolderIcon size={18} style={{ flexShrink:0, color:C.muted }} aria-hidden="true" />}
                     <span style={{ fontSize:13, fontWeight:600, fontFamily:FH }}>{folderName}</span>
                     <span style={{ fontSize:10, color:C.muted, fontFamily:FB }}>{files.length} file{files.length !== 1 ? "s" : ""}</span>
                   </div>
@@ -1882,7 +1892,7 @@ function BrandIdentityPanel({ businessId, onGoToMarketing }) {
 
       <div style={{display:"flex",justifyContent:"flex-end",marginTop:18}}>
         <button onClick={save} disabled={saving} style={{...btn(saving?"#9CA3AF":C.dark,"#fff",13),padding:"8px 20px"}}>
-          {saved?"Saved ✓":saving?"Saving…":"Save changes"}
+          {saved?<>Saved <Check size={13} style={{display:"inline-block",verticalAlign:"middle"}} aria-hidden="true"/></>:saving?"Saving…":"Save changes"}
         </button>
       </div>
     </div>
@@ -2379,8 +2389,8 @@ function InstagramPanel({ businessId, businessName, integs }) {
                 )}
                 <div style={{ padding:"6px 8px" }}>
                   <div style={{ display:"flex", gap:8, fontSize:11, color:C.muted, fontFamily:FB }}>
-                    <span>♥ {m.like_count||0}</span>
-                    <span>💬 {m.comments_count||0}</span>
+                    <span style={{ display:"flex",alignItems:"center",gap:3 }}><Heart size={12} aria-hidden="true" /> {m.like_count||0}</span>
+                    <span style={{ display:"flex",alignItems:"center",gap:3 }}><MessageCircle size={12} aria-hidden="true" /> {m.comments_count||0}</span>
                     {m.postInsights?.impressions > 0 && <span>{m.postInsights.impressions.toLocaleString()} views</span>}
                   </div>
                 </div>
@@ -2890,7 +2900,7 @@ function CorrelationPair({ link, metrics, businessId, applied, onApplyToStrategy
       {onApplyToStrategy&&(
         <button onClick={()=>onApplyToStrategy({ ...link, aLabel:aF.label, bLabel:bF.label, r, summary })}
           style={{ ...applied?btn("#22C55E","#fff",11):btnO("#475569",11), padding:"5px 12px" }}>
-          {applied?"✓ Applied to strategy":"Apply to strategy"}
+          {applied?<><Check size={14} style={{display:"inline-block",verticalAlign:"middle",marginRight:4}} aria-hidden="true"/>Applied to strategy</>:"Apply to strategy"}
         </button>
       )}
     </div>
@@ -3446,7 +3456,7 @@ function BusinessStrategySection({ businessId, metrics, snapshots, isPro, isStar
         {autoItems.length>0&&(
           <div style={{ marginBottom:14 }}>
             <div style={{ display:"flex", alignItems:"center", gap:6, marginBottom:8 }}>
-              <span style={{ fontSize:9, fontFamily:FB, fontWeight:700, color:C.muted, background:"#F1F5F9", padding:"2px 9px", borderRadius:20, textTransform:"uppercase", letterSpacing:"0.06em" }}>⚡ Auto</span>
+              <span style={{ fontSize:9, fontFamily:FB, fontWeight:700, color:C.muted, background:"#F1F5F9", padding:"2px 9px", borderRadius:20, textTransform:"uppercase", letterSpacing:"0.06em", display:"flex", alignItems:"center", gap:3 }}><Zap size={9} aria-hidden="true" /> Auto</span>
               {!isAutopilot&&<span style={{ fontSize:10, color:C.muted, fontFamily:FB }}>Pro Autopilot handles these</span>}
             </div>
             {autoItems.map((item,i)=>itemRow(item,i,autoItems,C.dark,"#F1F5F9"))}
@@ -3740,7 +3750,7 @@ function MCell({ label, value, onChange, prefix="" }) {
       {ed ? (
         <div style={{ display:"flex", gap:4 }}>
           <input value={v} onChange={e=>setV(e.target.value)} onKeyDown={e=>e.key==="Enter"&&save()} autoFocus style={{ flex:1, fontSize:16, padding:"3px 8px", border:`1px solid ${C.border}`, borderRadius:6, fontFamily:FH, outline:"none", color:C.text, background:C.bg }} />
-          <button onClick={save} style={{ ...btn(C.dark,"#fff",11), padding:"4px 8px" }}>✓</button>
+          <button onClick={save} aria-label="Save" style={{ ...btn(C.dark,"#fff",11), padding:"4px 8px", display:"flex", alignItems:"center" }}><Check size={11} aria-hidden="true" /></button>
         </div>
       ) : (
         <div onClick={()=>setEd(true)} style={{ cursor:"pointer", display:"flex", alignItems:"baseline", gap:4 }}>
@@ -4548,7 +4558,7 @@ function EmbeddedWidget({ widget, onUpdateConfig, onRemove, metrics, snapshots, 
               <option value="custom">Custom</option>
             </select>
           )}
-          {!editing&&widget.type!=="draw"&&<button onClick={()=>setEditing(true)} style={{ background:"none", border:`1px solid ${C.border}`, borderRadius:5, cursor:"pointer", color:C.muted, fontSize:13, padding:"0px 5px", lineHeight:"18px" }}>⚙</button>}
+          {!editing&&widget.type!=="draw"&&<button onClick={()=>setEditing(true)} title="Configure widget" aria-label="Configure widget" style={{ background:"none", border:`1px solid ${C.border}`, borderRadius:5, cursor:"pointer", color:C.muted, padding:"0px 5px", lineHeight:"18px", display:"flex", alignItems:"center" }}><Settings2 size={13} aria-hidden="true" /></button>}
           {!standalone&&<button onClick={onRemove} style={{ background:"none", border:"none", cursor:"pointer", color:C.muted, fontSize:13, padding:0, lineHeight:1 }}>×</button>}
         </div>
       </div>
@@ -5060,7 +5070,7 @@ function MgmtSidebar({ open, onToggle, hubNotes, setHubNotes, businessId, mgmtNo
                       <div style={{ fontSize:12, color:"#374151", fontFamily:FB, lineHeight:1.5, wordBreak:"break-word" }}>{n.text}</div>
                       {asgn&&(<div style={{ display:"flex", alignItems:"center", gap:4, marginTop:3 }}>
                         <span style={{ fontSize:10, color:"#6B7280", fontFamily:FB }}>pinned: {asgn.targetLabel||"Card"}</span>
-                        <button onClick={()=>onUnstickNote(n.id)} style={{ background:"none", border:"none", cursor:"pointer", color:"#D1D5DB", fontSize:10, padding:0 }}>✕</button>
+                        <button onClick={()=>onUnstickNote(n.id)} aria-label="Unpin note" style={{ background:"none", border:"none", cursor:"pointer", color:"#D1D5DB", padding:0, display:"flex" }}><X size={10} aria-hidden="true" /></button>
                       </div>)}
                     </div>
                     <button onClick={()=>deleteNote(n.id)} style={{ background:"none", border:"none", cursor:"pointer", color:"#9CA3AF", fontSize:14, padding:0, flexShrink:0, alignSelf:"flex-start" }}>×</button>
@@ -5875,7 +5885,7 @@ export default function Hub() {
         <div style={{ position:"fixed", inset:0, zIndex:300, display:"flex", alignItems:"center", justifyContent:"center", background:"rgba(0,0,0,0.55)" }}
           onClick={() => setShowTrialExpiredModal(false)}>
           <div className="trial-expired-modal" onClick={e=>e.stopPropagation()} style={{ background:"#fff", borderRadius:16, padding:"32px 36px", maxWidth:400, width:"90%", textAlign:"center", boxShadow:"0 20px 60px rgba(0,0,0,0.25)" }}>
-            <div style={{ fontSize:36, marginBottom:12 }}>🔒</div>
+            <div style={{ marginBottom:12, display:"flex", justifyContent:"center", color:C.muted }}><LockKeyhole size={36} aria-hidden="true" /></div>
             <div style={{ fontFamily:FH, fontWeight:700, fontSize:20, marginBottom:8, color:"#111" }}>Your trial has ended</div>
             <p style={{ fontSize:13, color:"#6B7280", fontFamily:FB, lineHeight:1.6, marginBottom:20 }}>
               Your data is safe. Upgrade to a paid plan to continue using all features — your history, tasks, and settings will all be here waiting.
@@ -6317,8 +6327,8 @@ export default function Hub() {
                     <div style={{ fontSize:12, color:"#374151", fontFamily:FB, lineHeight:1.5, wordBreak:"break-word" }}>{n.text}</div>
                     {stuckTo && (
                       <div style={{ display:"flex", alignItems:"center", gap:4, marginTop:4 }}>
-                        <span style={{ fontSize:10, color:"#6B7280", fontFamily:FB }}>📌 {stuckTo[1].targetLabel || "Item"}</span>
-                        <button onClick={()=>unstickNote(stuckTo[0])} style={{ background:"none", border:"none", cursor:"pointer", color:"#D1D5DB", fontSize:10, padding:0 }}>✕</button>
+                        <span style={{ fontSize:10, color:"#6B7280", fontFamily:FB, display:"flex", alignItems:"center", gap:3 }}><Pin size={10} aria-hidden="true" /> {stuckTo[1].targetLabel || "Item"}</span>
+                        <button onClick={()=>unstickNote(stuckTo[0])} aria-label="Unpin note" style={{ background:"none", border:"none", cursor:"pointer", color:"#D1D5DB", padding:0, display:"flex" }}><X size={10} aria-hidden="true" /></button>
                       </div>
                     )}
                   </div>

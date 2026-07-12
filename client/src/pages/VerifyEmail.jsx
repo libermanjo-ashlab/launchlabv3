@@ -3,6 +3,7 @@ import { useSearchParams, useNavigate } from "react-router-dom";
 import { api } from "../lib/api";
 import useStore from "../lib/store";
 import { C, FH, FB, Logo } from "../components";
+import { CircleCheck, TriangleAlert } from "lucide-react";
 
 export default function VerifyEmail() {
   const [searchParams]  = useSearchParams();
@@ -46,7 +47,7 @@ export default function VerifyEmail() {
 
   if (status === "success") return card(
     <>
-      <div style={{ fontSize:40, marginBottom:16 }}>✅</div>
+      <div style={{ marginBottom:16, display:"flex", justifyContent:"center", color:"#22C55E" }}><CircleCheck size={40} aria-hidden="true" /></div>
       <div style={{ fontFamily:FH, fontWeight:700, fontSize:22, color:"#fff", marginBottom:12, letterSpacing:"-0.03em" }}>Email verified!</div>
       <p style={{ fontSize:14, color:"rgba(255,255,255,0.6)", lineHeight:1.7, marginBottom:24 }}>Your email address has been confirmed. You're all set.</p>
       <button onClick={() => navigate(token ? "/dashboard" : "/")} style={{ background:"#fff", color:C.dark, border:"none", borderRadius:12, padding:"13px 28px", fontSize:15, fontWeight:700, cursor:"pointer", fontFamily:FB, letterSpacing:"-0.01em" }}>
@@ -57,7 +58,7 @@ export default function VerifyEmail() {
 
   return card(
     <>
-      <div style={{ fontSize:40, marginBottom:16 }}>⚠️</div>
+      <div style={{ marginBottom:16, display:"flex", justifyContent:"center", color:"#F59E0B" }}><TriangleAlert size={40} aria-hidden="true" /></div>
       <div style={{ fontFamily:FH, fontWeight:700, fontSize:22, color:"#fff", marginBottom:12, letterSpacing:"-0.03em" }}>Link expired or invalid</div>
       <p style={{ fontSize:14, color:"rgba(255,255,255,0.6)", lineHeight:1.7, marginBottom:24 }}>{errMsg || "This verification link has expired or already been used."}</p>
       <button onClick={() => navigate("/")} style={{ background:"rgba(255,255,255,0.1)", color:"#fff", border:"none", borderRadius:12, padding:"13px 28px", fontSize:14, fontWeight:600, cursor:"pointer", fontFamily:FB }}>

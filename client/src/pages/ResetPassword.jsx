@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useSearchParams, useNavigate } from "react-router-dom";
 import { api } from "../lib/api";
 import { C, FH, FB, inp, btn, Logo } from "../components";
+import { KeyRound } from "lucide-react";
 
 export default function ResetPassword() {
   const [searchParams]   = useSearchParams();
@@ -43,7 +44,7 @@ export default function ResetPassword() {
 
   if (status === "success") return card(
     <>
-      <div style={{ fontSize:40, marginBottom:16, textAlign:"center" }}>🔐</div>
+      <div style={{ marginBottom:16, textAlign:"center", display:"flex", justifyContent:"center", color:"rgba(255,255,255,0.8)" }}><KeyRound size={40} aria-hidden="true" /></div>
       <div style={{ fontFamily:FH, fontWeight:700, fontSize:22, color:"#fff", marginBottom:12, letterSpacing:"-0.03em", textAlign:"center" }}>Password updated!</div>
       <p style={{ fontSize:14, color:"rgba(255,255,255,0.6)", lineHeight:1.7, marginBottom:24, textAlign:"center" }}>Your password has been changed. You can now sign in with your new password.</p>
       <button onClick={() => navigate("/")} style={{ ...btn(C.grad,"#fff",14), padding:"13px", borderRadius:12, width:"100%" }}>Sign in</button>

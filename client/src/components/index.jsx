@@ -1,5 +1,6 @@
 import { useState, Component } from "react";
 import * as Sentry from "@sentry/react";
+import { TriangleAlert } from "lucide-react";
 
 const SUPPORT = "support@earnedlab.com";
 
@@ -119,7 +120,7 @@ function ErrorFallback({ error, resetError }) {
   return (
     <div style={{ minHeight:"100vh", background:"#0A0A0F", display:"flex", alignItems:"center", justifyContent:"center", padding:24, fontFamily:FB }}>
       <div style={{ maxWidth:480, width:"100%", textAlign:"center" }}>
-        <div style={{ fontSize:48, marginBottom:20 }}>⚠️</div>
+        <div style={{ marginBottom:20, display:"flex", justifyContent:"center", color:"#F59E0B" }}><TriangleAlert size={48} aria-hidden="true" /></div>
         <h1 style={{ fontFamily:FH, fontWeight:700, fontSize:24, color:"#fff", letterSpacing:"-0.03em", marginBottom:12 }}>Something went wrong</h1>
         <p style={{ fontSize:14, color:"rgba(255,255,255,0.5)", lineHeight:1.75, marginBottom:28 }}>
           EarnedLab hit an unexpected error. We've been notified and are looking into it.

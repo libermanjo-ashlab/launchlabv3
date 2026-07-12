@@ -3,6 +3,7 @@ import { useNavigate, Link, useSearchParams } from "react-router-dom";
 import { api } from "../lib/api";
 import useStore from "../lib/store";
 import { C, FH, FB, btn, inp, Logo } from "../components";
+import { MailCheck, X } from "lucide-react";
 
 // ── FORGOT PASSWORD MODAL ─────────────────────────────────────────────────
 function ForgotPasswordModal({ onClose }) {
@@ -25,11 +26,11 @@ function ForgotPasswordModal({ onClose }) {
   return (
     <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.75)", display:"flex", alignItems:"center", justifyContent:"center", zIndex:999, padding:24 }}>
       <div style={{ background:"#16161F", border:"1px solid rgba(255,255,255,0.1)", borderRadius:20, padding:"32px 28px", width:"100%", maxWidth:420, position:"relative" }}>
-        <button onClick={onClose} style={{ position:"absolute", top:16, right:16, background:"none", border:"none", color:"rgba(255,255,255,0.4)", fontSize:20, cursor:"pointer", lineHeight:1 }}>✕</button>
+        <button onClick={onClose} aria-label="Close" style={{ position:"absolute", top:16, right:16, background:"none", border:"none", color:"rgba(255,255,255,0.4)", cursor:"pointer", display:"flex" }}><X size={16} aria-hidden="true" /></button>
 
         {status === "sent" ? (
           <>
-            <div style={{ fontSize:32, marginBottom:16 }}>📧</div>
+            <div style={{ fontSize:32, marginBottom:16, color:"rgba(255,255,255,0.8)" }}><MailCheck size={32} aria-hidden="true" /></div>
             <div style={{ fontFamily:FH, fontWeight:700, fontSize:20, color:"#fff", marginBottom:12, letterSpacing:"-0.03em" }}>Check your email</div>
             <p style={{ fontSize:14, color:"rgba(255,255,255,0.6)", lineHeight:1.7, marginBottom:20 }}>
               If an account exists for <strong style={{ color:"#fff" }}>{email}</strong>, we've sent a password reset link. It expires in 1 hour.

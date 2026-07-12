@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { api } from "../lib/api";
 import useStore from "../lib/store";
 import { C, FH, FB, btn, btnO, card, Logo } from "../components";
+import { Check, MailCheck } from "lucide-react";
 
 function EmailVerificationBanner({ user, token, setAuth }) {
   const [sent,    setSent]    = useState(false);
@@ -22,10 +23,10 @@ function EmailVerificationBanner({ user, token, setAuth }) {
   return (
     <div style={{ background:C.warnBg, border:`1px solid ${C.warn}30`, borderRadius:12, padding:"12px 18px", marginBottom:20, display:"flex", justifyContent:"space-between", alignItems:"center", gap:12, flexWrap:"wrap" }}>
       <span style={{ fontSize:13, color:C.warn, fontFamily:FB, lineHeight:1.5, fontWeight:500 }}>
-        📧 Please verify your email address to keep your account secure.
+        <MailCheck size={16} style={{display:"inline-block",verticalAlign:"middle",marginRight:6}} aria-hidden="true" />Please verify your email address to keep your account secure.
       </span>
       {sent ? (
-        <span style={{ fontSize:12, color:C.ok, fontFamily:FB, fontWeight:600 }}>✓ Verification email sent!</span>
+        <span style={{ fontSize:12, color:C.ok, fontFamily:FB, fontWeight:600, display:"flex", alignItems:"center", gap:4 }}><Check size={12} strokeWidth={2.5} aria-hidden="true" />Verification email sent!</span>
       ) : (
         <button onClick={resend} disabled={sending} style={{ background:C.warn, border:"none", color:"#fff", borderRadius:8, padding:"6px 14px", fontSize:12, fontWeight:600, cursor:"pointer", fontFamily:FB, flexShrink:0, opacity:sending?0.7:1 }}>
           {sending ? "Sending…" : "Resend email"}
