@@ -2485,16 +2485,36 @@ function MgmtModeToggle({ mode, onChange, allowedModes }) {
 
 // ── STRATEGY & CORRELATION ────────────────────────────────────────────────────
 
+// getValue mirrors how each canvas card aggregates its displayed total so that
+// correlation values always match what the user sees on the canvas.
 const LINK_FIELDS = [
-  { id:"revenue",     label:"Revenue",        path:"revenue.this_month",        snapKey:"revenue",     prefix:"$" },
-  { id:"costs",       label:"Costs",          path:"costs.this_month",          snapKey:"costs",       prefix:"$" },
-  { id:"profit",      label:"Profit",         path:"",                          snapKey:"profit",      prefix:"$" },
-  { id:"loss",        label:"Loss",           path:"",                          snapKey:"loss",        prefix:"$" },
-  { id:"leads",       label:"Leads",          path:"leads.this_month",          snapKey:"leads",       prefix:""  },
-  { id:"clients",     label:"Active Clients", path:"clients.active",            snapKey:"clients",     prefix:""  },
-  { id:"bookings",    label:"Bookings",       path:"bookings.this_month",       snapKey:"bookings",    prefix:""  },
-  { id:"reviews",     label:"Google Reviews", path:"social.google_reviews",     snapKey:"reviews",     prefix:""  },
-  { id:"investments", label:"Investments",    path:"investments.total_ongoing", snapKey:"investments", prefix:"$" },
+  { id:"revenue",     label:"Revenue",
+    getValue: m => m?.revenue?.this_month||0,
+    path:"revenue.this_month",        snapKey:"revenue",     prefix:"$" },
+  { id:"costs",       label:"Costs",
+    getValue: m => (m?.costs?.this_month||0)+(m?.investments?.total_initial||0)+(m?.investments?.total_ongoing||0),
+    path:"costs.this_month",          snapKey:"costs",       prefix:"$" },
+  { id:"profit",      label:"Profit",
+    getValue: m => { const r=m?.revenue?.this_month||0; const c=(m?.costs?.this_month||0)+(m?.investments?.total_initial||0)+(m?.investments?.total_ongoing||0); return Math.max(0,r-c); },
+    path:"",                          snapKey:"profit",      prefix:"$" },
+  { id:"loss",        label:"Loss",
+    getValue: m => { const r=m?.revenue?.this_month||0; const c=(m?.costs?.this_month||0)+(m?.investments?.total_initial||0)+(m?.investments?.total_ongoing||0); return Math.max(0,c-r); },
+    path:"",                          snapKey:"loss",        prefix:"$" },
+  { id:"leads",       label:"Leads",
+    getValue: m => m?.leads?.this_month||0,
+    path:"leads.this_month",          snapKey:"leads",       prefix:""  },
+  { id:"clients",     label:"Active Clients",
+    getValue: m => m?.clients?.active||0,
+    path:"clients.active",            snapKey:"clients",     prefix:""  },
+  { id:"bookings",    label:"Bookings",
+    getValue: m => m?.bookings?.this_month||0,
+    path:"bookings.this_month",       snapKey:"bookings",    prefix:""  },
+  { id:"reviews",     label:"Google Reviews",
+    getValue: m => m?.social?.google_reviews||0,
+    path:"social.google_reviews",     snapKey:"reviews",     prefix:""  },
+  { id:"investments", label:"Investments",
+    getValue: m => (m?.investments?.total_initial||0)+(m?.investments?.total_ongoing||0),
+    path:"investments.total_ongoing", snapKey:"investments", prefix:"$" },
 ];
 
 function _getFieldVal(metrics, path) {
@@ -2529,8 +2549,8 @@ function CorrelationPair({ link, metrics, snapshots, applied, onApplyToStrategy,
   const bF=LINK_FIELDS.find(f=>f.id===link.b);
   if(!aF||!bF) return null;
 
-  const aVal=Number(_getFieldVal(metrics,aF.path)||0);
-  const bVal=Number(_getFieldVal(metrics,bF.path)||0);
+  const aVal=Number((aF.getValue?aF.getValue(metrics):_getFieldVal(metrics,aF.path))||0);
+  const bVal=Number((bF.getValue?bF.getValue(metrics):_getFieldVal(metrics,bF.path))||0);
   const snapA=snapshots.map(s=>s[link.a]||0);
   const snapB=snapshots.map(s=>s[link.b]||0);
   const r=_pearson(snapA,snapB);
@@ -4360,8 +4380,8 @@ function IntraCorrelWidget({ config, snapshots, metrics }) {
   const r=_pearson(snapA,snapB);
   const rLabel=r===null?"Not enough data":r>0.7?"Strong positive":r>0.3?"Moderate positive":r<-0.7?"Strong negative":r<-0.3?"Moderate negative":"Weak";
   const rClr=r===null?C.muted:r>0.3?"#22C55E":r<-0.3?"#EF4444":"#F59E0B";
-  const aVal=_getFieldVal(metrics,aF.path)||0;
-  const bVal=_getFieldVal(metrics,bF.path)||0;
+  const aVal=(aF.getValue?aF.getValue(metrics):_getFieldVal(metrics,aF.path))||0;
+  const bVal=(bF.getValue?bF.getValue(metrics):_getFieldVal(metrics,bF.path))||0;
   const perUnit=aVal>0?(bVal/aVal).toFixed(2):null;
   return (
     <div>
@@ -4634,7 +4654,7 @@ function ManagementCanvas({ businessId, metrics, saveM, integs, hubNotes, setHub
     if(!metrics||!metrics.revenue) return;
     const monthKey=new Date().toISOString().slice(0,7);
     const snapRev  = metrics.revenue?.this_month||0;
-    const snapCost = (metrics.costs?.this_month||0)+(metrics.investments?.total_ongoing||0);
+    const snapCost = (metrics.costs?.this_month||0)+(metrics.investments?.total_initial||0)+(metrics.investments?.total_ongoing||0);
     const snap={
       month:monthKey,
       revenue:snapRev,
@@ -4645,7 +4665,7 @@ function ManagementCanvas({ businessId, metrics, saveM, integs, hubNotes, setHub
       clients:metrics.clients?.active||0,
       bookings:metrics.bookings?.this_month||0,
       reviews:metrics.social?.google_reviews||0,
-      investments:metrics.investments?.total_ongoing||0,
+      investments:(metrics.investments?.total_initial||0)+(metrics.investments?.total_ongoing||0),
     };
     setSnapshots(prev=>{
       const next=[...prev.filter(s=>s.month!==monthKey),snap].slice(-12);
