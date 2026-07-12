@@ -2530,6 +2530,81 @@ function _pearson(xs, ys) {
   return dx*dy===0?null:+(num/(dx*dy)).toFixed(2);
 }
 
+// Raw item arrays for each field — same sources the canvas cards read
+function _fieldItems(metrics, businessId, fieldId) {
+  if (fieldId==="revenue")     return metrics?.revenue?.sources||[];
+  if (fieldId==="costs")       return [...(metrics?.costs?.causes||[]),...(metrics?.investments?.initial||[]),...(metrics?.investments?.ongoing||[])];
+  if (fieldId==="investments") return [...(metrics?.investments?.initial||[]),...(metrics?.investments?.ongoing||[])];
+  if (fieldId==="leads")   { try{ return JSON.parse(localStorage.getItem(`earnedlab_leads_${businessId}`)||"[]"); }catch{ return []; } }
+  if (fieldId==="clients") { try{ return JSON.parse(localStorage.getItem(`earnedlab_clients_${businessId}`)||"[]"); }catch{ return []; } }
+  return null; // profit/loss = derived; bookings/reviews = scalar
+}
+
+// Compute a field's value for a date range using actual item arrays (mirrors canvas card logic)
+function _fieldRangeVal(fieldId, metrics, businessId, mode, cStart, cEnd) {
+  if (fieldId==="bookings") return mode==="week"?(metrics?.bookings?.this_week||0):(metrics?.bookings?.this_month||0);
+  if (fieldId==="reviews")  return metrics?.social?.google_reviews||0;
+  if (fieldId==="profit"||fieldId==="loss") {
+    const rev  = filterDateRange(metrics?.revenue?.sources||[], mode, cStart, cEnd).reduce((a,x)=>a+(x.amount||0),0);
+    const cost = filterDateRange([...(metrics?.costs?.causes||[]),...(metrics?.investments?.initial||[]),...(metrics?.investments?.ongoing||[])], mode, cStart, cEnd).reduce((a,x)=>a+(x.amount||0),0);
+    return fieldId==="profit"?Math.max(0,rev-cost):Math.max(0,cost-rev);
+  }
+  const items = _fieldItems(metrics, businessId, fieldId);
+  if (!items) return 0;
+  const filtered = filterDateRange(items, mode, cStart, cEnd);
+  return (fieldId==="leads"||fieldId==="clients") ? filtered.length : filtered.reduce((a,x)=>a+(x.amount||0),0);
+}
+
+// Generate sub-period time series for sparklines and Pearson r
+function _fieldTimeSeries(fieldId, metrics, businessId, mode, cStart, cEnd) {
+  if (fieldId==="bookings"||fieldId==="reviews") return null; // scalar — no time series
+  const now=new Date(); let buckets=[];
+  if (mode==="week") {
+    for (let i=6;i>=0;i--) { const d=new Date(now.getTime()-i*86400000).toISOString().slice(0,10); buckets.push({s:d,e:d}); }
+  } else if (mode==="month") {
+    const first=new Date(now.getFullYear(),now.getMonth(),1);
+    const last =new Date(now.getFullYear(),now.getMonth()+1,0);
+    for (let d=new Date(first);d<=last;d.setDate(d.getDate()+7)) {
+      const s=d.toISOString().slice(0,10);
+      const e=new Date(Math.min(d.getTime()+6*86400000,last.getTime())).toISOString().slice(0,10);
+      buckets.push({s,e});
+    }
+  } else if (mode==="year") {
+    for (let m=0;m<=now.getMonth();m++) {
+      const s=`${now.getFullYear()}-${String(m+1).padStart(2,"0")}-01`;
+      const e=new Date(now.getFullYear(),m+1,0).toISOString().slice(0,10);
+      buckets.push({s,e});
+    }
+  } else if (mode==="all") {
+    for (let i=11;i>=0;i--) {
+      const d=new Date(now.getFullYear(),now.getMonth()-i,1);
+      const s=d.toISOString().slice(0,7)+"-01";
+      const e=new Date(d.getFullYear(),d.getMonth()+1,0).toISOString().slice(0,10);
+      buckets.push({s,e});
+    }
+  } else if (mode==="custom"&&cStart&&cEnd) {
+    const days=(new Date(cEnd)-new Date(cStart))/86400000;
+    if (days<=1) return null;
+    if (days<=21) {
+      for (let d=new Date(cStart);d.toISOString().slice(0,10)<=cEnd;d.setDate(d.getDate()+1)) { const s=d.toISOString().slice(0,10); buckets.push({s,e:s}); }
+    } else if (days<=90) {
+      for (let d=new Date(cStart);d.toISOString().slice(0,10)<=cEnd;d.setDate(d.getDate()+7)) {
+        const s=d.toISOString().slice(0,10);
+        const e=new Date(Math.min(d.getTime()+6*86400000,new Date(cEnd).getTime())).toISOString().slice(0,10);
+        buckets.push({s,e});
+      }
+    } else {
+      for (let d=new Date(new Date(cStart).getFullYear(),new Date(cStart).getMonth(),1);d.toISOString().slice(0,10)<=cEnd;d.setMonth(d.getMonth()+1)) {
+        const s=d.toISOString().slice(0,7)+"-01";
+        const e=new Date(d.getFullYear(),d.getMonth()+1,0).toISOString().slice(0,10);
+        buckets.push({s,e:e<=cEnd?e:cEnd});
+      }
+    }
+  }
+  if (buckets.length<2) return null;
+  return buckets.map(b=>_fieldRangeVal(fieldId,metrics,businessId,"custom",b.s,b.e));
+}
+
 function MiniSparkline({ data, color=C.muted, w=130, h=44 }) {
   if(!data||data.length<2) return <div style={{ fontSize:10, color:C.muted, fontFamily:FB }}>No trend yet</div>;
   const max=Math.max(...data), min=Math.min(...data), rng=max-min||1;
@@ -2544,26 +2619,37 @@ function MiniSparkline({ data, color=C.muted, w=130, h=44 }) {
   );
 }
 
-function CorrelationPair({ link, metrics, snapshots, applied, onApplyToStrategy, onRemove }) {
+function CorrelationPair({ link, metrics, businessId, applied, onApplyToStrategy, onRemove, corrMode="all", corrStart="", corrEnd="" }) {
+  const [overrideMode, setOverrideMode] = useState(null); // null = use global
+  const [ovStart, setOvStart]           = useState("");
+  const [ovEnd,   setOvEnd]             = useState("");
+  const [showOverride, setShowOverride] = useState(false);
+
   const aF=LINK_FIELDS.find(f=>f.id===link.a);
   const bF=LINK_FIELDS.find(f=>f.id===link.b);
   if(!aF||!bF) return null;
 
-  const aVal=Number((aF.getValue?aF.getValue(metrics):_getFieldVal(metrics,aF.path))||0);
-  const bVal=Number((bF.getValue?bF.getValue(metrics):_getFieldVal(metrics,bF.path))||0);
-  const snapA=snapshots.map(s=>s[link.a]||0);
-  const snapB=snapshots.map(s=>s[link.b]||0);
-  const r=_pearson(snapA,snapB);
-  const perUnit=aVal>0?(bVal/aVal).toFixed(2):null;
+  const mode   = overrideMode || corrMode;
+  const cStart = overrideMode ? ovStart : corrStart;
+  const cEnd   = overrideMode ? ovEnd   : corrEnd;
 
-  const rLabel = r===null?"Not enough data yet":r>0.7?"Strong positive":r>0.3?"Moderate positive":r<-0.7?"Strong negative":r<-0.3?"Moderate negative":"Weak correlation";
+  const aVal    = _fieldRangeVal(link.a, metrics, businessId, mode, cStart, cEnd);
+  const bVal    = _fieldRangeVal(link.b, metrics, businessId, mode, cStart, cEnd);
+  const seriesA = _fieldTimeSeries(link.a, metrics, businessId, mode, cStart, cEnd);
+  const seriesB = _fieldTimeSeries(link.b, metrics, businessId, mode, cStart, cEnd);
+  const r       = (seriesA&&seriesB) ? _pearson(seriesA, seriesB) : null;
+  const perUnit = aVal>0 ? (bVal/aVal).toFixed(2) : null;
+
+  const rangeLabel = mode==="day"?"Today":mode==="week"?"This Week":mode==="month"?"This Month":mode==="year"?"This Year":mode==="all"?"All Time":(cStart&&cEnd)?`${cStart} – ${cEnd}`:"All Time";
+  const rLabel = r===null?"Need more periods for correlation":r>0.7?"Strong positive":r>0.3?"Moderate positive":r<-0.7?"Strong negative":r<-0.3?"Moderate negative":"Weak correlation";
   const rClr   = r===null?C.muted:r>0.3?"#22C55E":r<-0.3?"#EF4444":"#F59E0B";
   const summary = perUnit!==null
-    ? `Each +1 ${aF.label} → ${bF.prefix||aF.prefix}${perUnit} ${bF.label}`
-    : `${aF.label}: ${aF.prefix}${aVal.toLocaleString()} | ${bF.label}: ${bF.prefix}${bVal.toLocaleString()}`;
+    ? `Each +1 ${aF.label} → ${bF.prefix||aF.prefix||""}${perUnit} ${bF.label}`
+    : `${aF.label}: ${aF.prefix||""}${aVal.toLocaleString()} | ${bF.label}: ${bF.prefix||""}${bVal.toLocaleString()}`;
 
   return (
     <div style={{ background:C.surface, borderRadius:12, padding:"14px 16px", marginBottom:10, border:`1px solid ${C.border}` }}>
+      {/* Title row */}
       <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", marginBottom:10 }}>
         <div style={{ flex:1, minWidth:0 }}>
           <div style={{ display:"flex", alignItems:"center", gap:6, flexWrap:"wrap", marginBottom:4 }}>
@@ -2574,19 +2660,54 @@ function CorrelationPair({ link, metrics, snapshots, applied, onApplyToStrategy,
           </div>
           <div style={{ fontSize:11, color:C.muted, fontFamily:FB }}>{summary}</div>
         </div>
-        <button onClick={onRemove} style={{ background:"none", border:"none", color:C.muted, cursor:"pointer", fontSize:14, padding:"0 4px", flexShrink:0 }}>×</button>
+        <button onClick={onRemove} style={{ background:"none", border:"none", color:C.muted, cursor:"pointer", fontSize:14, padding:"0 4px", flexShrink:0, marginLeft:4 }}>×</button>
       </div>
-      <div style={{ display:"flex", gap:16, marginBottom:12 }}>
-        <div>
-          <div style={{ fontSize:10, color:C.muted, fontFamily:FB, marginBottom:4 }}>{aF.label} trend</div>
-          <MiniSparkline data={snapA.length>=2?snapA:null} color="#3B82F6"/>
-        </div>
-        <div>
-          <div style={{ fontSize:10, color:C.muted, fontFamily:FB, marginBottom:4 }}>{bF.label} trend</div>
-          <MiniSparkline data={snapB.length>=2?snapB:null} color={rClr===C.muted?C.muted:rClr}/>
-        </div>
-        {snapA.length<2&&<div style={{ fontSize:10, color:C.muted, fontFamily:FB, alignSelf:"center" }}>Visit monthly to build trend data.</div>}
+
+      {/* Value tiles */}
+      <div style={{ display:"flex", gap:10, marginBottom:12 }}>
+        {[{f:aF,v:aVal,clr:"#3B82F6"},{f:bF,v:bVal,clr:rClr===C.muted?"#64748B":rClr}].map(({f,v,clr})=>(
+          <div key={f.id} style={{ flex:1, background:"#F8FAFC", borderRadius:8, padding:"8px 10px", border:`1px solid ${C.border}` }}>
+            <div style={{ fontSize:10, color:C.muted, fontFamily:FB, marginBottom:2 }}>{f.label}</div>
+            <div style={{ fontFamily:FH, fontWeight:700, fontSize:20, color:clr, letterSpacing:"-0.02em" }}>{f.prefix||""}{v.toLocaleString()}</div>
+            <div style={{ fontSize:9, color:C.muted, fontFamily:FB, marginTop:1 }}>{rangeLabel}</div>
+          </div>
+        ))}
       </div>
+
+      {/* Sparklines */}
+      {(seriesA||seriesB) && (
+        <div style={{ display:"flex", gap:16, marginBottom:10 }}>
+          {seriesA&&<div><div style={{ fontSize:10, color:C.muted, fontFamily:FB, marginBottom:3 }}>{aF.label} trend</div><MiniSparkline data={seriesA.length>=2?seriesA:null} color="#3B82F6"/></div>}
+          {seriesB&&<div><div style={{ fontSize:10, color:C.muted, fontFamily:FB, marginBottom:3 }}>{bF.label} trend</div><MiniSparkline data={seriesB.length>=2?seriesB:null} color={rClr===C.muted?"#64748B":rClr}/></div>}
+        </div>
+      )}
+
+      {/* Per-pair range override */}
+      <div style={{ marginBottom:10 }}>
+        <button onClick={()=>setShowOverride(p=>!p)} style={{ fontSize:10, color:overrideMode?C.primary:C.muted, background:"none", border:"none", cursor:"pointer", fontFamily:FB, padding:0 }}>
+          {overrideMode?`Range: ${rangeLabel} (custom)`:"Override date range"} {showOverride?"▴":"▾"}
+        </button>
+        {showOverride&&(
+          <div style={{ marginTop:6, display:"flex", gap:6, alignItems:"center", flexWrap:"wrap" }}>
+            <select value={overrideMode||""} onChange={e=>setOverrideMode(e.target.value||null)}
+              style={{ fontSize:11, padding:"4px 8px", border:`1px solid ${C.border}`, borderRadius:8, background:C.surface, color:C.text, fontFamily:FB }}>
+              <option value="">Use global range</option>
+              <option value="day">Today</option>
+              <option value="week">This Week</option>
+              <option value="month">This Month</option>
+              <option value="year">This Year</option>
+              <option value="all">All Time</option>
+              <option value="custom">Custom</option>
+            </select>
+            {overrideMode==="custom"&&<>
+              <input type="date" value={ovStart} onChange={e=>setOvStart(e.target.value)} style={{ ...inp(), fontSize:11, padding:"4px 8px", flex:1, minWidth:100 }}/>
+              <span style={{ color:C.muted, fontSize:11 }}>–</span>
+              <input type="date" value={ovEnd}   onChange={e=>setOvEnd(e.target.value)}   style={{ ...inp(), fontSize:11, padding:"4px 8px", flex:1, minWidth:100 }}/>
+            </>}
+          </div>
+        )}
+      </div>
+
       {onApplyToStrategy && (
         <button onClick={()=>onApplyToStrategy({ ...link, aLabel:aF.label, bLabel:bF.label, r, summary })}
           style={{ ...applied?btn("#22C55E","#fff",11):btnO("#475569",11), padding:"5px 12px" }}>
@@ -2672,6 +2793,10 @@ function BusinessStrategySection({ businessId, metrics, snapshots, isPro, isStar
   const [linking, setLinking] = useState(false);
   const [linkA,   setLinkA]   = useState("");
   const [linkB,   setLinkB]   = useState("");
+  // Global date range for all correlation pairs (each pair can also override individually)
+  const [corrMode,  setCorrMode]  = useState("all");
+  const [corrStart, setCorrStart] = useState("");
+  const [corrEnd,   setCorrEnd]   = useState("");
   const [applied,    setApplied]    = useState([]);
   const [timeframe,  setTimeframe]  = useState("3 months");
   const [generating, setGenerating] = useState(false);
@@ -3101,16 +3226,39 @@ function BusinessStrategySection({ businessId, metrics, snapshots, isPro, isStar
               </div>
             )}
 
+            {/* Global date range for all correlation pairs */}
+            {links.length>0&&(
+              <div style={{ display:"flex", gap:8, alignItems:"center", marginBottom:12, flexWrap:"wrap" }}>
+                <span style={{ fontSize:11, color:C.muted, fontFamily:FB, fontWeight:600 }}>Date range:</span>
+                {["all","month","year","custom"].map(m=>(
+                  <button key={m} onClick={()=>setCorrMode(m)}
+                    style={{ fontSize:10, padding:"3px 10px", borderRadius:20, border:`1px solid ${corrMode===m?C.text:C.border}`, background:corrMode===m?C.dark:"transparent", color:corrMode===m?"#fff":C.muted, cursor:"pointer", fontFamily:FB, fontWeight:corrMode===m?600:400 }}>
+                    {m==="all"?"All Time":m==="month"?"This Month":m==="year"?"This Year":"Custom"}
+                  </button>
+                ))}
+                {corrMode==="custom"&&(
+                  <div style={{ display:"flex", gap:4, alignItems:"center" }}>
+                    <input type="date" value={corrStart} onChange={e=>setCorrStart(e.target.value)} style={{ ...inp(), fontSize:11, padding:"3px 7px" }}/>
+                    <span style={{ color:C.muted, fontSize:11 }}>–</span>
+                    <input type="date" value={corrEnd}   onChange={e=>setCorrEnd(e.target.value)}   style={{ ...inp(), fontSize:11, padding:"3px 7px" }}/>
+                  </div>
+                )}
+              </div>
+            )}
+
             <div style={{ marginBottom: links.length>0 ? 16 : 0 }}>
               {links.map(link=>(
                 <CorrelationPair
                   key={link.id}
                   link={link}
                   metrics={metrics}
-                  snapshots={snapshots}
+                  businessId={businessId}
                   applied={!!applied.find(l=>l.id===link.id)}
                   onApplyToStrategy={showStrategy ? (corr)=>toggleApply(corr) : null}
                   onRemove={()=>removeLink(link.id)}
+                  corrMode={corrMode}
+                  corrStart={corrStart}
+                  corrEnd={corrEnd}
                 />
               ))}
             </div>
@@ -4087,7 +4235,7 @@ function EmbeddedWidget({ widget, onUpdateConfig, onRemove, metrics, snapshots, 
           {widget.type==="graph"&&<GraphWidget config={cfg} snapshots={snapshots||[]} metrics={metrics} businessId={businessId} cardRange={cardRange}/>}
           {widget.type==="pie"&&<PieWidget config={cfg} metrics={metrics} businessId={businessId} cardRange={cardRange}/>}
           {widget.type==="draw"&&<DrawingWidget widgetId={widget.id}/>}
-          {widget.type==="corr"&&<IntraCorrelWidget config={cfg} snapshots={snapshots||[]} metrics={metrics}/>}
+          {widget.type==="corr"&&<IntraCorrelWidget config={cfg} metrics={metrics} businessId={businessId}/>}
           {widget.type==="field"&&<CustomFieldWidget config={cfg} metrics={metrics}/>}
           {widget.type==="eq"&&<EquationWidget config={cfg} metrics={metrics} saveM={saveM}/>}
         </>
@@ -4371,18 +4519,23 @@ function DrawingWidget({ widgetId }) {
   );
 }
 
-function IntraCorrelWidget({ config, snapshots, metrics }) {
+function IntraCorrelWidget({ config, metrics, businessId }) {
   const aF=LINK_FIELDS.find(f=>f.id===config.fieldA);
   const bF=LINK_FIELDS.find(f=>f.id===config.fieldB);
   if(!aF||!bF) return <div style={{ fontSize:11, color:C.muted, fontFamily:FB }}>Configure fields above.</div>;
-  const snapA=snapshots.map(s=>s[aF.snapKey||aF.id]||0);
-  const snapB=snapshots.map(s=>s[bF.snapKey||bF.id]||0);
-  const r=_pearson(snapA,snapB);
-  const rLabel=r===null?"Not enough data":r>0.7?"Strong positive":r>0.3?"Moderate positive":r<-0.7?"Strong negative":r<-0.3?"Moderate negative":"Weak";
-  const rClr=r===null?C.muted:r>0.3?"#22C55E":r<-0.3?"#EF4444":"#F59E0B";
-  const aVal=(aF.getValue?aF.getValue(metrics):_getFieldVal(metrics,aF.path))||0;
-  const bVal=(bF.getValue?bF.getValue(metrics):_getFieldVal(metrics,bF.path))||0;
-  const perUnit=aVal>0?(bVal/aVal).toFixed(2):null;
+  const [wMode,  setWMode]  = useState("all");
+  const [wStart, setWStart] = useState("");
+  const [wEnd,   setWEnd]   = useState("");
+  const bid = businessId || config.businessId || "";
+  const aVal    = _fieldRangeVal(aF.id, metrics, bid, wMode, wStart, wEnd);
+  const bVal    = _fieldRangeVal(bF.id, metrics, bid, wMode, wStart, wEnd);
+  const seriesA = _fieldTimeSeries(aF.id, metrics, bid, wMode, wStart, wEnd);
+  const seriesB = _fieldTimeSeries(bF.id, metrics, bid, wMode, wStart, wEnd);
+  const r       = (seriesA&&seriesB)?_pearson(seriesA,seriesB):null;
+  const rLabel  = r===null?"Need more periods":r>0.7?"Strong positive":r>0.3?"Moderate positive":r<-0.7?"Strong negative":r<-0.3?"Moderate negative":"Weak";
+  const rClr    = r===null?C.muted:r>0.3?"#22C55E":r<-0.3?"#EF4444":"#F59E0B";
+  const perUnit = aVal>0?(bVal/aVal).toFixed(2):null;
+  const rangeLabel = wMode==="day"?"Today":wMode==="week"?"This Week":wMode==="month"?"This Month":wMode==="year"?"This Year":wMode==="all"?"All Time":(wStart&&wEnd)?`${wStart}–${wEnd}`:"All Time";
   return (
     <div>
       <div style={{ display:"flex", alignItems:"center", gap:6, flexWrap:"wrap", marginBottom:8 }}>
@@ -4391,12 +4544,36 @@ function IntraCorrelWidget({ config, snapshots, metrics }) {
         <span style={{ fontFamily:FH, fontWeight:700, fontSize:13 }}>{bF.label}</span>
         {r!==null&&<span style={{ fontSize:10, padding:"2px 7px", borderRadius:10, background:rClr+"18", color:rClr, fontFamily:FB, fontWeight:600 }}>{rLabel} (r={r})</span>}
       </div>
-      <div style={{ display:"flex", gap:12, marginBottom:8 }}>
-        <div><div style={{ fontSize:10, color:C.muted, fontFamily:FB, marginBottom:3 }}>{aF.label}</div><MiniSparkline data={snapA.length>=2?snapA:null} color="#3B82F6" w={120} h={50}/></div>
-        <div><div style={{ fontSize:10, color:C.muted, fontFamily:FB, marginBottom:3 }}>{bF.label}</div><MiniSparkline data={snapB.length>=2?snapB:null} color={rClr===C.muted?C.muted:rClr} w={120} h={50}/></div>
+      {/* Range selector */}
+      <div style={{ display:"flex", gap:4, alignItems:"center", marginBottom:8, flexWrap:"wrap" }}>
+        {["all","month","year","custom"].map(m=>(
+          <button key={m} onClick={()=>setWMode(m)} style={{ fontSize:9, padding:"2px 7px", borderRadius:12, border:`1px solid ${wMode===m?C.text:C.border}`, background:wMode===m?C.dark:"transparent", color:wMode===m?"#fff":C.muted, cursor:"pointer", fontFamily:FB }}>
+            {m==="all"?"All Time":m==="month"?"Month":m==="year"?"Year":"Custom"}
+          </button>
+        ))}
+      </div>
+      {wMode==="custom"&&(
+        <div style={{ display:"flex", gap:4, marginBottom:8 }}>
+          <input type="date" value={wStart} onChange={e=>setWStart(e.target.value)} style={{ ...inp(), fontSize:10, padding:"3px 6px", flex:1 }}/>
+          <span style={{ color:C.muted, fontSize:10, alignSelf:"center" }}>–</span>
+          <input type="date" value={wEnd}   onChange={e=>setWEnd(e.target.value)}   style={{ ...inp(), fontSize:10, padding:"3px 6px", flex:1 }}/>
+        </div>
+      )}
+      {/* Value tiles */}
+      <div style={{ display:"flex", gap:6, marginBottom:8 }}>
+        {[{f:aF,v:aVal,c:"#3B82F6"},{f:bF,v:bVal,c:rClr===C.muted?"#64748B":rClr}].map(({f,v,c})=>(
+          <div key={f.id} style={{ flex:1, background:"#F8FAFC", borderRadius:6, padding:"6px 8px", border:`1px solid ${C.border}` }}>
+            <div style={{ fontSize:9, color:C.muted, fontFamily:FB }}>{f.label}</div>
+            <div style={{ fontFamily:FH, fontWeight:700, fontSize:15, color:c }}>{f.prefix||""}{v.toLocaleString()}</div>
+            <div style={{ fontSize:8, color:C.muted, fontFamily:FB }}>{rangeLabel}</div>
+          </div>
+        ))}
+      </div>
+      <div style={{ display:"flex", gap:10, marginBottom:6 }}>
+        {seriesA&&<div><div style={{ fontSize:9, color:C.muted, fontFamily:FB, marginBottom:2 }}>{aF.label}</div><MiniSparkline data={seriesA.length>=2?seriesA:null} color="#3B82F6" w={110} h={44}/></div>}
+        {seriesB&&<div><div style={{ fontSize:9, color:C.muted, fontFamily:FB, marginBottom:2 }}>{bF.label}</div><MiniSparkline data={seriesB.length>=2?seriesB:null} color={rClr===C.muted?"#64748B":rClr} w={110} h={44}/></div>}
       </div>
       {perUnit&&<div style={{ fontSize:11, color:C.muted, fontFamily:FB }}>Each +1 {aF.label} → {bF.prefix||""}{perUnit} {bF.label}</div>}
-      {snapA.length<2&&<div style={{ fontSize:10, color:C.muted, fontFamily:FB }}>Visit monthly to build trend data.</div>}
     </div>
   );
 }
