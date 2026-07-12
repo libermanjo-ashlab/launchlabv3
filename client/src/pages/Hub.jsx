@@ -3485,7 +3485,8 @@ function BusinessStrategySection({ businessId, metrics, snapshots, isPro, isStar
       {expanded&&(
         <div style={{ padding:"20px 22px" }}>
 
-          {/* ── Correlation Analysis — available in all modes ── */}
+          {/* ── Correlation Analysis — Correlation mode only ── */}
+          {mgmtMode==="correlation"&&(
           <div style={{ marginBottom: isPro ? 0 : 0 }}>
             <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:12 }}>
               <div>
@@ -3567,6 +3568,7 @@ function BusinessStrategySection({ businessId, metrics, snapshots, isPro, isStar
               ))}
             </div>
           </div>
+          )}
 
           {/* ── AI Strategy Generator — Business Insights and Autopilot modes only ── */}
           {showStrategy ? (
