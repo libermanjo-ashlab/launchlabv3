@@ -8,51 +8,51 @@ import { generatePostImageBlob } from "../lib/postImageCanvas";
 
 // ── GUIDED TOUR ───────────────────────────────────────────────────────────────
 
-function _GuidedTour_removed({ business, user, onDone }) {
+function GuidedTour({ business, user, onDone }) {
   const [step, setStep] = useState(0);
   const firstName = (user?.name||"").split(" ")[0] || "there";
   const bizName = business?.name || "your business";
-  const idea = (() => { try { return JSON.parse(business?.ideaData||"{}"); } catch { return {}; } })();
 
   const steps = [
     {
       emoji: "👋",
       title: `Welcome to ${bizName}`,
-      body: `Hey ${firstName} — this is your business command center. Everything runs from here. Let me walk you through it in about a minute.`,
+      body: `Hey ${firstName} — your business is live. This is your command center. Everything you need to run, grow, and manage ${bizName} is here. This takes about 90 seconds.`,
+    },
+    {
+      emoji: "📋",
+      title: "Business Canvas",
+      body: `The canvas is where you log your numbers — Revenue, Costs, Leads, Clients, Bookings, Investments. Each card tracks actual entries with dates. The more you log, the smarter your agents become. Start by adding a revenue entry or a lead.`,
+      cta: "Canvas → Add your first metric →",
     },
     {
       emoji: "✅",
-      title: "Your Tasks",
-      body: `Tasks are your business to-do list that actually does things. Some — like writing a business plan, 30-day content calendar, or website — can be generated instantly by your AI. Others, like registering your business name or getting a license, need your action. Either way, every completed task stores its output here permanently. You can add, remove, or customize any task.`,
-      cta: "Open the Tasks tab to see yours →",
+      title: "Tasks",
+      body: `Tasks are your business to-do list — and many of them execute themselves. Generate a full business plan, 30-day content calendar, or a live website with one click. Others (like registering your business) need your action. Every completed task stores its output permanently in Files.`,
+      cta: "Tasks tab → click any AI task to run it →",
     },
     {
       emoji: "📊",
       title: "Marketing Agent",
-      body: `Your Marketing Agent reads your real numbers — revenue, clients, social following${idea.name ? ` — all specific to ${idea.name}` : ""} — and surfaces the top opportunities ranked by impact. Run an analysis any time you want to know what to do next.`,
-      cta: "Marketing Agent → Run analysis",
+      body: `Your Marketing Agent reads your canvas metrics, connected integrations, and business profile to rank your best growth opportunities by impact. Run a marketing analysis to get a prioritised channel plan — outreach, social, content, ads — tailored to your actual numbers.`,
+      cta: "Marketing Agent tab → Run analysis →",
     },
     {
       emoji: "⚙️",
       title: "Management Agent",
-      body: `The Management Agent makes those opportunities happen. It can update your live website, produce new content, and adjust your strategy — all based on the metrics you log. The more you track, the smarter it gets.`,
-      cta: "Management Agent → Log your numbers",
+      body: `The Management Agent has three modes. Correlation Analysis lets you compare any two metrics statistically to find what drives growth. Business Insights generates an AI strategy report you review and approve. Operations Autopilot runs the strategy cycle automatically each week and syncs directly to your Marketing Agent.`,
+      cta: "Management Agent tab → choose a mode →",
     },
     {
       emoji: "🔗",
-      title: "Your Hub",
-      body: `The Hub is where you connect your tools and store your files. Add your Calendly booking link, Instagram handle, business domain, and more — the agents use this context to give better output. All generated files (website, business plan, content calendar) live in the Files Archive and are always accessible.`,
-      cta: "Hub → Connect your first tool",
-    },
-    {
-      emoji: "🤖",
-      title: "Autopilot (Pro Autopilot plan)",
-      body: `On the Pro Autopilot plan your agents run on their own schedule — no input needed. They check performance, find opportunities, and push improvements automatically. You stay in control but stop doing the daily work.`,
+      title: "Integrations & Files",
+      body: `Connect your tools under Integrations — Calendly, Instagram, your website, payment processors — and the agents use that live context in every analysis. All generated documents (business plans, content calendars, websites) are saved permanently in Files and can be re-opened any time.`,
+      cta: "Hub tab → Integrations → connect one tool →",
     },
     {
       emoji: "🚀",
-      title: `You're ready, ${firstName}.`,
-      body: `That's the full picture. Start by checking your tasks — several can be done right now with one click. Your agents are standing by whenever you're ready.`,
+      title: `You're set, ${firstName}.`,
+      body: `Start with Tasks — several AI tasks can run right now with one click. Then log a few canvas metrics and run your first Marketing analysis. The more data you give your agents, the more specific and useful their output becomes.`,
     },
   ];
 
@@ -5494,6 +5494,7 @@ export default function Hub() {
   const effIsPro      = effPlan === "pro" || effPlan === "pro_autopilot";
   const effIsAutopilot = effPlan === "pro_autopilot";
   const effIsStarter   = !effIsPro;
+  const [showTour,   setShowTour]   = useState(false);
   const [genLoading, setGenLoading] = useState({});
   const [genError,   setGenError]   = useState("");
   const [prefs,      setPrefs]      = useState({ audience:"local", stage:"starting", goals:"", targetMarket:"" });
@@ -5502,8 +5503,6 @@ export default function Hub() {
   const [hubLoading, setHubLoading] = useState(false);
   const [mgmtQ,      setMgmtQ]     = useState("");
   const [mgmtAns,    setMgmtAns]   = useState("");
-  const [chatOpen,   setChatOpen]   = useState(false);
-  const [chatMsgs,   setChatMsgs]   = useState([{ role:"ai", text:"I'm here to help. Ask about setup steps, strategy, or anything about your business." }]);
   const [showTrialExpiredModal, setShowTrialExpiredModal] = useState(false);
   const [insightsBudget, setInsightsBudget] = useState(null);
   const [notesOpen,  setNotesOpen]  = useState(false);
@@ -5546,7 +5545,10 @@ export default function Hub() {
   const age     = user?.age;
   const isMinor = age && age < 18;
 
-  // Tour removed
+  useEffect(()=>{
+    const toured = localStorage.getItem(`earnedlab_toured_${businessId}`);
+    if (!toured) setShowTour(true);
+  },[businessId]);
 
   useEffect(()=>{ api.subscriptions.me().then(setPlanInfo).catch(()=>{}); },[]);
   useEffect(()=>{
@@ -5670,6 +5672,11 @@ export default function Hub() {
   const managementName = agentNames.management || "Your Operations Manager";
   const hubAgentName   = agentNames.hub        || "Your Intelligence Agent";
 
+  const dismissTour = () => {
+    localStorage.setItem(`earnedlab_toured_${businessId}`, "1");
+    setShowTour(false);
+  };
+
   const runOverviewBrief = async (question) => {
     setBriefLoading(true); setOverviewBrief("");
 
@@ -5754,8 +5761,6 @@ export default function Hub() {
 
   const askHub  = async()=>{ if(!hubQ.trim())return; setHubLoading(true); setHubAns(""); try{const{suggestion}=await api.metrics.suggest(businessId,hubQ,prefs);setHubAns(suggestion);}catch(e){setHubAns("Error: "+e.message);} setHubLoading(false); };
   const askMgmt = async()=>{ if(!mgmtQ.trim())return; setHubLoading(true); try{const{suggestion}=await api.metrics.suggest(businessId,mgmtQ,prefs);setMgmtAns(suggestion);}catch(e){setMgmtAns("Error: "+e.message);} setHubLoading(false); setMgmtQ(""); };
-  const sendChat = async msg=>{ setChatMsgs(p=>[...p,{role:"user",text:msg}]); try{const{reply}=await api.generate.chat(msg,businessId);setChatMsgs(p=>[...p,{role:"ai",text:reply}]);}catch{setChatMsgs(p=>[...p,{role:"ai",text:"Sorry, couldn't process that."}]);} };
-
   const VIEWABLE_FIELDS = {
     instagram:"handle", tiktok:"handle", twitter:"handle",
     facebook:"handle",  linkedin:"handle",
@@ -5810,6 +5815,8 @@ export default function Hub() {
   return (
     <div style={{ display:"flex", minHeight:"100vh", fontFamily:FB }}>
       <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
+
+      {showTour && <GuidedTour business={business} user={user} onDone={dismissTour} />}
 
       {/* Expired trial: intercept interactive clicks; data remains fully visible/scrollable */}
       {showTrialExpiredModal && (
@@ -6231,11 +6238,9 @@ export default function Hub() {
         </div>
       </div>
 
-      {chatOpen && <GuidePanel messages={chatMsgs} onClose={()=>setChatOpen(false)} onSend={sendChat} businessId={businessId}/>}
-
       {/* Floating Notes Panel */}
       {notesOpen && (
-        <div style={{ position:"fixed", bottom:120, right:chatOpen?360:24, zIndex:200, width:310, background:"#fff", borderRadius:14, boxShadow:"0 8px 40px rgba(0,0,0,0.15)", border:"1px solid #E5E7EB", overflow:"hidden" }}>
+        <div style={{ position:"fixed", bottom:120, right:24, zIndex:200, width:310, background:"#fff", borderRadius:14, boxShadow:"0 8px 40px rgba(0,0,0,0.15)", border:"1px solid #E5E7EB", overflow:"hidden" }}>
           <div style={{ padding:"12px 14px", borderBottom:"1px solid #F3F4F6", display:"flex", justifyContent:"space-between", alignItems:"center" }}>
             <span style={{ fontFamily:FH, fontWeight:700, fontSize:13, color:"#111827" }}>
               Notes {hubNotes.length>0 && <span style={{ background:C.dark, color:"#fff", borderRadius:10, padding:"1px 6px", fontSize:10, marginLeft:4 }}>{hubNotes.length}</span>}
@@ -6290,12 +6295,8 @@ export default function Hub() {
         </div>
       )}
 
-      <button onClick={()=>setNotesOpen(o=>!o)} style={{ background:notesOpen?"#F3F4F6":"#fff", color:notesOpen?C.text:"#6B7280", border:`1px solid ${notesOpen?C.border:"#E5E7EB"}`, borderRadius:24, padding:"10px 16px", fontSize:13, fontWeight:500, cursor:"pointer", position:"fixed", bottom:72, right:chatOpen?336:24, boxShadow:"0 2px 10px rgba(0,0,0,0.08)", zIndex:99, transition:"right 0.25s", fontFamily:FB, display:"flex", alignItems:"center", gap:6 }}>
+      <button onClick={()=>setNotesOpen(o=>!o)} style={{ background:notesOpen?"#F3F4F6":"#fff", color:notesOpen?C.text:"#6B7280", border:`1px solid ${notesOpen?C.border:"#E5E7EB"}`, borderRadius:24, padding:"10px 16px", fontSize:13, fontWeight:500, cursor:"pointer", position:"fixed", bottom:24, right:24, boxShadow:"0 2px 10px rgba(0,0,0,0.08)", zIndex:99, fontFamily:FB, display:"flex", alignItems:"center", gap:6 }}>
         Notes{hubNotes.length>0 && <span style={{ background:C.dark, color:"#fff", borderRadius:10, padding:"1px 6px", fontSize:10 }}>{hubNotes.length}</span>}
-      </button>
-
-      <button onClick={()=>setChatOpen(o=>!o)} style={{ background:C.grad, color:"#fff", border:"none", borderRadius:24, padding:"10px 20px", fontSize:13, fontWeight:500, cursor:"pointer", position:"fixed", bottom:24, right:chatOpen?336:24, boxShadow:`0 4px 20px rgba(124,58,237,0.3)`, zIndex:100, transition:"right 0.25s", fontFamily:FB }}>
-        Ask guide
       </button>
 
       <AutoNotifications notifications={autoNotifs} onDismiss={dismissNotif} />

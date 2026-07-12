@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import useStore from "../lib/store";
 import { api } from "../lib/api";
-import { C, FH, FB, btn, btnO, inp, lbl, card, WorkflowRail, GuidePanel, ErrorBox, DownloadBtn, Spinner } from "../components";
+import { C, FH, FB, btn, btnO, inp, lbl, card, WorkflowRail, ErrorBox, DownloadBtn, Spinner } from "../components";
 
 const CAT_CLR = { Legal:C.primary, Financial:"#059669", Digital:C.accent, Operations:"#D97706", Marketing:"#DB2777" };
 
@@ -17,8 +17,6 @@ export default function Creation() {
   const [editingOut,   setEditingOut]   = useState(null);
   const [addingTask,   setAddingTask]   = useState(false);
   const [newTaskForm,  setNewTaskForm]  = useState({ name:"", category:"Operations", description:"" });
-  const [chatOpen,     setChatOpen]     = useState(false);
-  const [chatMsgs,     setChatMsgs]     = useState([{ role:"ai", text:"I am here to help with your setup. Ask me anything about any of these tasks." }]);
   const [outputs,      setOutputs]      = useState({});
   const navigate = useNavigate();
 
@@ -92,13 +90,6 @@ export default function Creation() {
     setEditingOut(null);
   };
 
-  const sendChat = async msg => {
-    setChatMsgs(p=>[...p,{role:"user",text:msg}]);
-    try {
-      const {reply}=await api.generate.chat(msg,businessId);
-      setChatMsgs(p=>[...p,{role:"ai",text:reply}]);
-    } catch { setChatMsgs(p=>[...p,{role:"ai",text:"Sorry, could not process that."}]); }
-  };
 
   const goLive = async () => {
     await api.businesses.update(businessId,{status:"live"}).catch(()=>{});
@@ -325,8 +316,6 @@ export default function Creation() {
         </div>
       </div>
 
-      {chatOpen&&<GuidePanel messages={chatMsgs} onClose={()=>setChatOpen(false)} onSend={sendChat} businessId={businessId}/>}
-      <button onClick={()=>setChatOpen(o=>!o)} style={{...btn(C.primary),position:"fixed",bottom:24,right:chatOpen?336:24,fontSize:13,borderRadius:24,boxShadow:"0 4px 20px rgba(124,58,237,0.3)",zIndex:100,transition:"right 0.25s"}}>Ask guide</button>
     </div>
   );
 }
