@@ -22,7 +22,7 @@ router.get("/plans", (req, res) => {
     plans: [
       { id:"starter",       ...PLAN_INFO.starter,       features:["Marketing insights & analysis","Revenue & lead tracking","Business planning tools","Email support"] },
       { id:"pro",           ...PLAN_INFO.pro,           features:["Everything in Starter","Management agent implements changes for you","Live website updates on demand","Marketing + Management working together","Priority support"] },
-      { id:"pro_autopilot", ...PLAN_INFO.pro_autopilot, features:["Everything in Pro","Agents run automatically on a schedule","No manual input required","White-glove onboarding","Dedicated support"] },
+      { id:"pro_autopilot", ...PLAN_INFO.pro_autopilot, features:["Everything in Pro","Agents run automatically on a schedule","No manual input required","Dedicated support"] },
     ],
     trial: { days:7, marketingRuns:TRIAL_LIMITS.marketingRuns, managementImplements:TRIAL_LIMITS.managementImplements },
   });

@@ -273,7 +273,7 @@ function Pricing({ onCta }) {
     {
       id:"pro_autopilot", name:"Pro Autopilot", price:199, color:"#DB2777",
       tagline:"Fully autonomous — just watch it run.",
-      features:["Everything in Pro","Agents run automatically on a schedule","No manual input required","White-glove onboarding","Dedicated support"],
+      features:["Everything in Pro","Agents run automatically on a schedule","No manual input required","Dedicated support"],
       cta:"Start free trial",
     },
   ];
