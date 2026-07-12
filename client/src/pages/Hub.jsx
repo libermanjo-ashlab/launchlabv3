@@ -748,7 +748,8 @@ function TasksPanel({ businessId, businessName, businessOutputs, hubNotes, stick
   const [selected,   setSelected]   = useState(new Set());
   const [bulkBusy,   setBulkBusy]   = useState(false);
 
-  const isStarterPlan = !planInfo?.isAdmin && planInfo?.plan !== "pro" && planInfo?.plan !== "pro_autopilot";
+  const _effPlan = (planInfo?.isAdmin && !planInfo?.simulating) ? "pro_autopilot" : (planInfo?.simulating || planInfo?.plan);
+  const isStarterPlan = _effPlan !== "pro" && _effPlan !== "pro_autopilot";
 
   useEffect(() => {
     api.tasks.list(businessId).then(d => { const t = d.tasks||[]; setTasks(t); onTasksChanged?.(t); }).catch(()=>{}).finally(()=>setLoading(false));
@@ -4610,14 +4611,21 @@ function ManagementCanvas({ businessId, metrics, saveM, integs, hubNotes, setHub
                      : isPro       ? ["correlation","insights"]
                      :               ["correlation"];
   const defaultMode  = isAutopilot ? "autopilot" : isPro ? "insights" : "correlation";
+  // Read saved mode without validating against allowedModes — plan props may still be false
+  // (planInfo not yet loaded). Validation/restore happens in the effect below.
   const [mgmtMode, setMgmtMode] = useState(()=>{
-    try { const s=localStorage.getItem(MODE_KEY); if(s&&allowedModes.includes(s)) return s; } catch {}
-    return defaultMode;
+    try { const s=localStorage.getItem(MODE_KEY); if(s) return s; } catch {}
+    return "correlation";
   });
   const saveMode = (m) => { setMgmtMode(m); try{localStorage.setItem(MODE_KEY,m);}catch{} };
-  // Clamp to max allowed if plan changes
+  // When plan props resolve (planInfo loads), restore saved mode if now allowed,
+  // or clamp down if the current mode exceeds the plan.
   useEffect(()=>{
-    if(!allowedModes.includes(mgmtMode)) saveMode(allowedModes[allowedModes.length-1]);
+    try {
+      const saved = localStorage.getItem(MODE_KEY);
+      if (saved && allowedModes.includes(saved)) { if (saved !== mgmtMode) setMgmtMode(saved); return; }
+    } catch {}
+    if (!allowedModes.includes(mgmtMode)) saveMode(defaultMode);
   },[isAutopilot, isPro]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Monthly snapshots for correlation trend data
@@ -4970,6 +4978,14 @@ export default function Hub() {
   const [searchParams] = useSearchParams();
   const [tab,        setTab]        = useState(searchParams.get("tab") || "overview");
   const [planInfo,   setPlanInfo]   = useState(null);
+  // Admins without an active simulation get full access; admins who are simulating a plan
+  // are treated exactly as that plan so barriers render correctly during testing.
+  const effPlan = (planInfo?.isAdmin && !planInfo?.simulating)
+    ? "pro_autopilot"
+    : (planInfo?.simulating || planInfo?.plan);
+  const effIsPro      = effPlan === "pro" || effPlan === "pro_autopilot";
+  const effIsAutopilot = effPlan === "pro_autopilot";
+  const effIsStarter   = !effIsPro;
   const [showTour,   setShowTour]   = useState(false);
   const [genLoading, setGenLoading] = useState({});
   const [genError,   setGenError]   = useState("");
@@ -5375,8 +5391,7 @@ export default function Hub() {
 
               {/* Daily Insights */}
               {(()=>{
-                const plan = planInfo?.plan;
-                const rawLimit = insightsBudget?.limit || (plan==="pro_autopilot"?110000:plan==="pro"?50000:20000);
+                const rawLimit = insightsBudget?.limit || (effPlan==="pro_autopilot"?110000:effPlan==="pro"?50000:20000);
                 const rawUsed  = insightsBudget?.used  || 0;
                 const usedIns  = Math.round(rawUsed  / 1.5);
                 const limitIns = Math.round(rawLimit / 1.5);
@@ -5634,7 +5649,7 @@ export default function Hub() {
                 tasks={tasks}
                 outputs={outputs}
                 isMinor={!!isMinor}
-                isAutopilotPlan={planInfo?.plan === "pro_autopilot"}
+                isAutopilotPlan={effIsAutopilot}
                 notesByTarget={sharedNotesByTarget}
                 onDropNote={sharedDropNote}
                 onUnstickNote={sharedUnstickNote}
@@ -5706,9 +5721,9 @@ export default function Hub() {
                 sidebarOpen={mgmtSidebarOpen}
                 setSidebarOpen={setMgmtSidebarOpen}
                 deleteNote={deleteHubNote}
-                isPro={planInfo?.plan==="pro"||planInfo?.plan==="pro_autopilot"||planInfo?.isAdmin}
-                isStarter={!planInfo?.isAdmin&&planInfo?.plan!=="pro"&&planInfo?.plan!=="pro_autopilot"}
-                isAutopilot={planInfo?.plan==="pro_autopilot"||planInfo?.isAdmin}
+                isPro={effIsPro}
+                isStarter={effIsStarter}
+                isAutopilot={effIsAutopilot}
                 onNotify={pushNotif}
                 refreshTasks={refreshTasks}
                 insightsBudget={insightsBudget}
