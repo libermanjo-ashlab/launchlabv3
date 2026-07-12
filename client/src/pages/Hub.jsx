@@ -2619,11 +2619,143 @@ function MiniSparkline({ data, color=C.muted, w=130, h=44 }) {
   );
 }
 
+// Dual-line chart: both series normalised independently on the same canvas
+function DualLineChart({ seriesA, seriesB, labelA, labelB, colorA="#3B82F6", colorB="#F59E0B", h=150 }) {
+  if (!seriesA||!seriesB||seriesA.length<2) return null;
+  const n   = Math.min(seriesA.length, seriesB.length);
+  const sA  = seriesA.slice(0,n), sB = seriesB.slice(0,n);
+  const pad = { t:16, b:18, l:6, r:6 };
+  // each series gets its own y-scale so both fill the chart height
+  const scaleY = (arr) => { const mn=Math.min(...arr), mx=Math.max(...arr), rng=mx-mn||1; return v=>pad.t+(h-pad.t-pad.b)*(1-(v-mn)/rng); };
+  const yA = scaleY(sA), yB = scaleY(sB);
+  const xOf = i => pad.l + (n>1 ? i/(n-1) : 0.5) * (400-pad.l-pad.r); // logical coords; SVG viewBox handles width
+  const polyA = sA.map((v,i)=>`${xOf(i)},${yA(v)}`).join(" ");
+  const polyB = sB.map((v,i)=>`${xOf(i)},${yB(v)}`).join(" ");
+  const areaA = `M${xOf(0)},${h-pad.b} `+sA.map((v,i)=>`L${xOf(i)},${yA(v)}`).join(" ")+` L${xOf(n-1)},${h-pad.b} Z`;
+  const areaB = `M${xOf(0)},${h-pad.b} `+sB.map((v,i)=>`L${xOf(i)},${yB(v)}`).join(" ")+` L${xOf(n-1)},${h-pad.b} Z`;
+  return (
+    <div style={{ marginBottom:12 }}>
+      {/* Legend */}
+      <div style={{ display:"flex", gap:14, marginBottom:6 }}>
+        {[{lbl:labelA,clr:colorA},{lbl:labelB,clr:colorB}].map(({lbl,clr})=>(
+          <div key={lbl} style={{ display:"flex", alignItems:"center", gap:5 }}>
+            <svg width={18} height={4}><rect y={1} width={18} height={2} rx={1} fill={clr}/></svg>
+            <span style={{ fontSize:10, color:C.muted, fontFamily:FB }}>{lbl}</span>
+          </div>
+        ))}
+      </div>
+      <svg viewBox={`0 0 400 ${h}`} style={{ width:"100%", display:"block", overflow:"visible" }}>
+        {/* Grid lines */}
+        {[0.25,0.5,0.75].map(f=>(
+          <line key={f} x1={pad.l} y1={pad.t+(h-pad.t-pad.b)*f} x2={400-pad.r} y2={pad.t+(h-pad.t-pad.b)*f}
+            stroke="#E2E8F0" strokeWidth={0.8} strokeDasharray="4,4"/>
+        ))}
+        {/* Area fills */}
+        <path d={areaA} fill={colorA} fillOpacity={0.07}/>
+        <path d={areaB} fill={colorB} fillOpacity={0.07}/>
+        {/* Lines */}
+        <polyline points={polyA} fill="none" stroke={colorA} strokeWidth={2.2} strokeLinecap="round" strokeLinejoin="round"/>
+        <polyline points={polyB} fill="none" stroke={colorB} strokeWidth={2.2} strokeLinecap="round" strokeLinejoin="round"/>
+        {/* Dots */}
+        {sA.map((v,i)=><circle key={`a${i}`} cx={xOf(i)} cy={yA(v)} r={3} fill={colorA}/>)}
+        {sB.map((v,i)=><circle key={`b${i}`} cx={xOf(i)} cy={yB(v)} r={3} fill={colorB}/>)}
+        {/* End-point value labels */}
+        <text x={xOf(n-1)+6} y={yA(sA[n-1])+4} fontSize={9} fill={colorA} fontFamily="sans-serif">{sA[n-1].toLocaleString()}</text>
+        <text x={xOf(n-1)+6} y={yB(sB[n-1])+4} fontSize={9} fill={colorB} fontFamily="sans-serif">{sB[n-1].toLocaleString()}</text>
+      </svg>
+    </div>
+  );
+}
+
+// Statistical insights computed from the two time series
+function _corrStats(seriesA, seriesB, aF, bF) {
+  if (!seriesA||!seriesB||seriesA.length<2) return [];
+  const n  = Math.min(seriesA.length, seriesB.length);
+  const sA = seriesA.slice(0,n), sB = seriesB.slice(0,n);
+  const mean = a => a.reduce((s,v)=>s+v,0)/a.length;
+  const std  = a => { const m=mean(a); return Math.sqrt(a.reduce((s,v)=>s+(v-m)**2,0)/a.length); };
+  const chg  = a => a[0]===0 ? null : +((a[n-1]-a[0])/Math.abs(a[0])*100).toFixed(1);
+  const r    = _pearson(sA,sB);
+  const insights = [];
+
+  // 1. R² explained variance
+  if (r!==null) {
+    const r2 = +(r*r*100).toFixed(1);
+    insights.push({ label:"Explained Variance (R²)", value:`${r2}%`,
+      desc: r2>50?`${aF.label} accounts for ${r2}% of the variation in ${bF.label} — strong predictive link`
+          : r2>20?`${aF.label} accounts for ${r2}% of ${bF.label} variation — moderate relationship`
+          :`Only ${r2}% of ${bF.label} variation is explained by ${aF.label}`,
+      clr: r2>50?"#22C55E":r2>20?"#F59E0B":C.muted });
+  }
+
+  // 2. Trend direction — A
+  const cA = chg(sA);
+  if (cA!==null) insights.push({ label:`${aF.label} Trend`, value:`${cA>0?"+":""}${cA}%`,
+    desc: cA>0?`${aF.label} grew ${cA}% over this period`:cA<0?`${aF.label} fell ${Math.abs(cA)}% over this period`:`${aF.label} was flat`,
+    clr: cA>0?"#22C55E":cA<0?"#EF4444":C.muted });
+
+  // 3. Trend direction — B
+  const cB = chg(sB);
+  if (cB!==null) insights.push({ label:`${bF.label} Trend`, value:`${cB>0?"+":""}${cB}%`,
+    desc: cB>0?`${bF.label} grew ${cB}% over this period`:cB<0?`${bF.label} fell ${Math.abs(cB)}% over this period`:`${bF.label} was flat`,
+    clr: cB>0?"#22C55E":cB<0?"#EF4444":C.muted });
+
+  // 4. Volatility — A (coefficient of variation)
+  const mA=mean(sA); if (mA>0) {
+    const cv=+(std(sA)/mA*100).toFixed(1);
+    insights.push({ label:`${aF.label} Volatility`, value:`CV ${cv}%`,
+      desc: cv>50?`${aF.label} is highly erratic (${cv}% CV) — results are unpredictable period-to-period`
+          : cv>20?`${aF.label} shows moderate fluctuation (${cv}% CV)`:`${aF.label} is consistent (${cv}% CV)`,
+      clr: cv>50?"#EF4444":cv>20?"#F59E0B":"#22C55E" });
+  }
+
+  // 5. Volatility — B
+  const mB=mean(sB); if (mB>0) {
+    const cv=+(std(sB)/mB*100).toFixed(1);
+    insights.push({ label:`${bF.label} Volatility`, value:`CV ${cv}%`,
+      desc: cv>50?`${bF.label} is highly erratic (${cv}% CV)`
+          : cv>20?`${bF.label} shows moderate fluctuation (${cv}% CV)`:`${bF.label} is consistent (${cv}% CV)`,
+      clr: cv>50?"#EF4444":cv>20?"#F59E0B":"#22C55E" });
+  }
+
+  // 6. Lag correlation — does A lead B by 1 period?
+  if (n>2 && r!==null) {
+    const rLag=_pearson(sA.slice(0,-1),sB.slice(1));
+    if (rLag!==null) {
+      const stronger=Math.abs(rLag)>Math.abs(r)+0.05;
+      insights.push({ label:"Leading Indicator", value:stronger?`${aF.label} leads`:"Concurrent",
+        desc: stronger?`${aF.label} predicts ${bF.label} 1 period ahead (lag r=${rLag} vs concurrent r=${r})`
+            :`${aF.label} and ${bF.label} move together — neither leads the other`,
+        clr: stronger?"#8B5CF6":C.muted });
+    }
+  }
+
+  // 7. B-per-A ratio trend
+  const ratios=sA.map((a,i)=>a>0?sB[i]/a:null).filter(x=>x!==null);
+  if (ratios.length>=2) {
+    const rt=ratios[ratios.length-1]>ratios[0]+0.01?"increasing":ratios[ratios.length-1]<ratios[0]-0.01?"decreasing":"stable";
+    const px=bF.prefix||"";
+    insights.push({ label:`${px}${bF.label} per ${aF.label} ratio`,
+      value:rt==="increasing"?"Growing ↑":rt==="decreasing"?"Shrinking ↓":"Stable →",
+      desc:`For every unit of ${aF.label}, ${bF.label} is ${rt} over this period (${px}${ratios[0].toFixed(2)} → ${px}${ratios[ratios.length-1].toFixed(2)})`,
+      clr:rt==="increasing"?"#22C55E":rt==="decreasing"?"#EF4444":C.muted });
+  }
+
+  // 8. Peak period
+  const pkA=sA.indexOf(Math.max(...sA)), pkB=sB.indexOf(Math.max(...sB));
+  insights.push({ label:"Peak Periods", value:`Period ${pkA+1} / ${pkB+1}`,
+    desc:`${aF.label} peaked at period ${pkA+1} (${sA[pkA].toLocaleString()}); ${bF.label} peaked at period ${pkB+1} (${sB[pkB].toLocaleString()})`,
+    clr:C.muted });
+
+  return insights;
+}
+
 function CorrelationPair({ link, metrics, businessId, applied, onApplyToStrategy, onRemove, corrMode="all", corrStart="", corrEnd="" }) {
-  const [overrideMode, setOverrideMode] = useState(null); // null = use global
-  const [ovStart, setOvStart]           = useState("");
-  const [ovEnd,   setOvEnd]             = useState("");
+  const [overrideMode, setOverrideMode] = useState(null);
+  const [ovStart, setOvStart] = useState("");
+  const [ovEnd,   setOvEnd]   = useState("");
   const [showOverride, setShowOverride] = useState(false);
+  const [showStats, setShowStats] = useState(true);
 
   const aF=LINK_FIELDS.find(f=>f.id===link.a);
   const bF=LINK_FIELDS.find(f=>f.id===link.b);
@@ -2639,18 +2771,21 @@ function CorrelationPair({ link, metrics, businessId, applied, onApplyToStrategy
   const seriesB = _fieldTimeSeries(link.b, metrics, businessId, mode, cStart, cEnd);
   const r       = (seriesA&&seriesB) ? _pearson(seriesA, seriesB) : null;
   const perUnit = aVal>0 ? (bVal/aVal).toFixed(2) : null;
+  const stats   = _corrStats(seriesA, seriesB, aF, bF);
 
+  const colorB     = r===null?C.muted:r>0.3?"#22C55E":r<-0.3?"#EF4444":"#F59E0B";
   const rangeLabel = mode==="day"?"Today":mode==="week"?"This Week":mode==="month"?"This Month":mode==="year"?"This Year":mode==="all"?"All Time":(cStart&&cEnd)?`${cStart} – ${cEnd}`:"All Time";
-  const rLabel = r===null?"Need more periods for correlation":r>0.7?"Strong positive":r>0.3?"Moderate positive":r<-0.7?"Strong negative":r<-0.3?"Moderate negative":"Weak correlation";
-  const rClr   = r===null?C.muted:r>0.3?"#22C55E":r<-0.3?"#EF4444":"#F59E0B";
-  const summary = perUnit!==null
+  const rLabel     = r===null?"Need more periods":r>0.7?"Strong positive":r>0.3?"Moderate positive":r<-0.7?"Strong negative":r<-0.3?"Moderate negative":"Weak correlation";
+  const rClr       = r===null?C.muted:r>0.3?"#22C55E":r<-0.3?"#EF4444":"#F59E0B";
+  const summary    = perUnit!==null
     ? `Each +1 ${aF.label} → ${bF.prefix||aF.prefix||""}${perUnit} ${bF.label}`
     : `${aF.label}: ${aF.prefix||""}${aVal.toLocaleString()} | ${bF.label}: ${bF.prefix||""}${bVal.toLocaleString()}`;
 
   return (
-    <div style={{ background:C.surface, borderRadius:12, padding:"14px 16px", marginBottom:10, border:`1px solid ${C.border}` }}>
-      {/* Title row */}
-      <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", marginBottom:10 }}>
+    <div style={{ background:C.surface, borderRadius:12, padding:"16px 18px", marginBottom:12, border:`1px solid ${C.border}` }}>
+
+      {/* Header */}
+      <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", marginBottom:12 }}>
         <div style={{ flex:1, minWidth:0 }}>
           <div style={{ display:"flex", alignItems:"center", gap:6, flexWrap:"wrap", marginBottom:4 }}>
             <span style={{ fontFamily:FH, fontWeight:700, fontSize:13 }}>{aF.label}</span>
@@ -2660,32 +2795,60 @@ function CorrelationPair({ link, metrics, businessId, applied, onApplyToStrategy
           </div>
           <div style={{ fontSize:11, color:C.muted, fontFamily:FB }}>{summary}</div>
         </div>
-        <button onClick={onRemove} style={{ background:"none", border:"none", color:C.muted, cursor:"pointer", fontSize:14, padding:"0 4px", flexShrink:0, marginLeft:4 }}>×</button>
+        <button onClick={onRemove} style={{ background:"none", border:"none", color:C.muted, cursor:"pointer", fontSize:14, padding:"0 4px", flexShrink:0, marginLeft:6 }}>×</button>
       </div>
 
       {/* Value tiles */}
-      <div style={{ display:"flex", gap:10, marginBottom:12 }}>
-        {[{f:aF,v:aVal,clr:"#3B82F6"},{f:bF,v:bVal,clr:rClr===C.muted?"#64748B":rClr}].map(({f,v,clr})=>(
-          <div key={f.id} style={{ flex:1, background:"#F8FAFC", borderRadius:8, padding:"8px 10px", border:`1px solid ${C.border}` }}>
+      <div style={{ display:"flex", gap:10, marginBottom:14 }}>
+        {[{f:aF,v:aVal,clr:"#3B82F6"},{f:bF,v:bVal,clr:colorB==="text"?C.muted:colorB}].map(({f,v,clr})=>(
+          <div key={f.id} style={{ flex:1, background:"#F8FAFC", borderRadius:8, padding:"9px 12px", border:`1px solid ${C.border}` }}>
             <div style={{ fontSize:10, color:C.muted, fontFamily:FB, marginBottom:2 }}>{f.label}</div>
-            <div style={{ fontFamily:FH, fontWeight:700, fontSize:20, color:clr, letterSpacing:"-0.02em" }}>{f.prefix||""}{v.toLocaleString()}</div>
-            <div style={{ fontSize:9, color:C.muted, fontFamily:FB, marginTop:1 }}>{rangeLabel}</div>
+            <div style={{ fontFamily:FH, fontWeight:700, fontSize:22, color:clr, letterSpacing:"-0.02em", lineHeight:1 }}>{f.prefix||""}{v.toLocaleString()}</div>
+            <div style={{ fontSize:9, color:C.muted, fontFamily:FB, marginTop:3 }}>{rangeLabel}</div>
           </div>
         ))}
       </div>
 
-      {/* Sparklines */}
-      {(seriesA||seriesB) && (
-        <div style={{ display:"flex", gap:16, marginBottom:10 }}>
-          {seriesA&&<div><div style={{ fontSize:10, color:C.muted, fontFamily:FB, marginBottom:3 }}>{aF.label} trend</div><MiniSparkline data={seriesA.length>=2?seriesA:null} color="#3B82F6"/></div>}
-          {seriesB&&<div><div style={{ fontSize:10, color:C.muted, fontFamily:FB, marginBottom:3 }}>{bF.label} trend</div><MiniSparkline data={seriesB.length>=2?seriesB:null} color={rClr===C.muted?"#64748B":rClr}/></div>}
+      {/* Dual-line chart */}
+      {seriesA&&seriesB&&seriesA.length>=2&&(
+        <DualLineChart
+          seriesA={seriesA} seriesB={seriesB}
+          labelA={aF.label}  labelB={bF.label}
+          colorA="#3B82F6"   colorB={rClr===C.muted?"#F59E0B":rClr}
+          h={150}
+        />
+      )}
+      {(!seriesA||seriesA.length<2)&&(
+        <div style={{ fontSize:11, color:C.muted, fontFamily:FB, textAlign:"center", padding:"14px 0", marginBottom:10, background:"#F8FAFC", borderRadius:8, border:`1px dashed ${C.border}` }}>
+          Add more data across different periods to see trend lines
+        </div>
+      )}
+
+      {/* Statistical insights */}
+      {stats.length>0&&(
+        <div style={{ marginBottom:12 }}>
+          <button onClick={()=>setShowStats(p=>!p)}
+            style={{ fontSize:10, fontWeight:600, color:C.muted, background:"none", border:"none", cursor:"pointer", fontFamily:FB, padding:"0 0 6px 0", display:"flex", alignItems:"center", gap:4 }}>
+            Statistical Insights ({stats.length}) {showStats?"▴":"▾"}
+          </button>
+          {showStats&&(
+            <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:6 }}>
+              {stats.map((s,i)=>(
+                <div key={i} style={{ background:"#F8FAFC", borderRadius:8, padding:"8px 10px", border:`1px solid ${C.border}` }}>
+                  <div style={{ fontSize:9, color:C.muted, fontFamily:FB, textTransform:"uppercase", letterSpacing:"0.04em", marginBottom:2 }}>{s.label}</div>
+                  <div style={{ fontFamily:FH, fontWeight:700, fontSize:13, color:s.clr, marginBottom:2 }}>{s.value}</div>
+                  <div style={{ fontSize:10, color:C.muted, fontFamily:FB, lineHeight:1.4 }}>{s.desc}</div>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       )}
 
       {/* Per-pair range override */}
       <div style={{ marginBottom:10 }}>
         <button onClick={()=>setShowOverride(p=>!p)} style={{ fontSize:10, color:overrideMode?C.primary:C.muted, background:"none", border:"none", cursor:"pointer", fontFamily:FB, padding:0 }}>
-          {overrideMode?`Range: ${rangeLabel} (custom)`:"Override date range"} {showOverride?"▴":"▾"}
+          {overrideMode?`Range: ${rangeLabel} (override)`:"Override date range"} {showOverride?"▴":"▾"}
         </button>
         {showOverride&&(
           <div style={{ marginTop:6, display:"flex", gap:6, alignItems:"center", flexWrap:"wrap" }}>
@@ -2708,7 +2871,7 @@ function CorrelationPair({ link, metrics, businessId, applied, onApplyToStrategy
         )}
       </div>
 
-      {onApplyToStrategy && (
+      {onApplyToStrategy&&(
         <button onClick={()=>onApplyToStrategy({ ...link, aLabel:aF.label, bLabel:bF.label, r, summary })}
           style={{ ...applied?btn("#22C55E","#fff",11):btnO("#475569",11), padding:"5px 12px" }}>
           {applied?"✓ Applied to strategy":"Apply to strategy"}
