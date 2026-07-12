@@ -6,7 +6,7 @@ import { C, FH, FB, btn, btnO, card, inp, lbl, GuidePanel, Logo } from "../compo
 import {
   Building2, ChartNoAxesCombined, Check, CircleCheck, CircleCheckBig, CircleX,
   Clapperboard, ClipboardList, Folder, Heart, KeyRound, LayoutDashboard,
-  Lightbulb, LockKeyhole, Mail, MailCheck, MessageCircle, NotebookPen,
+  Lightbulb, LockKeyhole, Mail, MailCheck, Menu, MessageCircle, NotebookPen,
   Pencil, Pin, Plug, Settings2, Share2, Sparkles, TriangleAlert, Video, X, Zap,
 } from "lucide-react";
 import AgentPanel from "./MarketingAgent";
@@ -5548,6 +5548,8 @@ export default function Hub() {
   });
   const [autoNotifs, setAutoNotifs] = useState([]);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [isMobile, setIsMobile] = useState(() => window.innerWidth < 640);
+  const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
   const [agentNames, setAgentNames] = useState(()=>{
     try{ return JSON.parse(localStorage.getItem(`el_agent_names_${businessId}`)||"{}"); }catch{ return {}; }
   });
@@ -5605,6 +5607,12 @@ export default function Hub() {
     document.addEventListener("click", handler, true);
     return () => document.removeEventListener("click", handler, true);
   }, [planInfo?.locked]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    const onResize = () => setIsMobile(window.innerWidth < 640);
+    window.addEventListener("resize", onResize);
+    return () => window.removeEventListener("resize", onResize);
+  }, []);
 
   const addHubNote = async () => {
     if (!noteText.trim()) return;
@@ -5900,8 +5908,27 @@ export default function Hub() {
         </div>
       )}
 
+      {/* Mobile top bar */}
+      {isMobile && (
+        <div style={{ position:"fixed", top:0, left:0, right:0, height:52, background:C.dark, display:"flex", alignItems:"center", justifyContent:"space-between", padding:"0 16px", zIndex:120, borderBottom:"1px solid rgba(255,255,255,0.08)" }}>
+          <button onClick={() => setMobileSidebarOpen(o => !o)} style={{ background:"none", border:"none", cursor:"pointer", color:"rgba(255,255,255,0.7)", padding:6, display:"flex", alignItems:"center", justifyContent:"center", minHeight:44, minWidth:44 }} aria-label="Open menu">
+            <Menu size={20} aria-hidden="true" />
+          </button>
+          <div style={{ display:"flex", alignItems:"center", gap:7 }}>
+            <Logo size={18}/>
+            <span style={{ fontFamily:FH, fontWeight:700, fontSize:13, background:C.grad, WebkitBackgroundClip:"text", WebkitTextFillColor:"transparent", letterSpacing:"-0.03em" }}>EarnedLab</span>
+          </div>
+          <div style={{ width:44 }} />
+        </div>
+      )}
+
+      {/* Mobile sidebar overlay backdrop */}
+      {isMobile && mobileSidebarOpen && (
+        <div onClick={() => setMobileSidebarOpen(false)} style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.55)", zIndex:129 }} />
+      )}
+
       {/* Sidebar */}
-      <div style={{ width:sidebarCollapsed?52:230, background:C.dark, display:"flex", flexDirection:"column", flexShrink:0, position:"relative", overflow:"hidden", transition:"width 0.2s ease" }}>
+      <div style={{ width: isMobile ? 230 : (sidebarCollapsed ? 52 : 230), background:C.dark, display:"flex", flexDirection:"column", flexShrink:0, position: isMobile ? "fixed" : "relative", top: isMobile ? 0 : undefined, left: isMobile ? (mobileSidebarOpen ? 0 : -230) : undefined, bottom: isMobile ? 0 : undefined, overflow:"hidden", transition: isMobile ? "left 0.25s ease" : "width 0.2s ease", zIndex: isMobile ? 130 : undefined }}>
         {/* Collapse toggle */}
         <button
           onClick={()=>setSidebarCollapsed(p=>!p)}
@@ -5917,7 +5944,7 @@ export default function Hub() {
               <Logo size={22}/>
             </div>
             {navItems.map(({id,label})=>(
-              <div key={id} onClick={()=>setTab(id)} title={label}
+              <div key={id} onClick={()=>{ setTab(id); if(isMobile) setMobileSidebarOpen(false); }} title={label}
                 style={{ width:36, height:36, borderRadius:8, display:"flex", alignItems:"center", justifyContent:"center", cursor:"pointer", background:tab===id?"rgba(255,255,255,0.12)":"transparent", marginBottom:2 }}>
                 <span style={{ fontSize:13, color:tab===id?"#fff":"rgba(255,255,255,0.45)", fontWeight:tab===id?700:400, fontFamily:FB }}>
                   {label.slice(0,2)}
@@ -5948,7 +5975,7 @@ export default function Hub() {
 
             <nav style={{ padding:"10px 6px", flex:1 }}>
               {navItems.map(({id,label})=>(
-                <div key={id} onClick={()=>setTab(id)} style={{ padding:"9px 12px", borderRadius:8, marginBottom:2, background:tab===id?"rgba(255,255,255,0.1)":"transparent", color:tab===id?"#fff":"rgba(255,255,255,0.55)", cursor:"pointer", fontSize:12, fontWeight:tab===id?600:400, fontFamily:FB, borderLeft:tab===id?"2px solid rgba(255,255,255,0.4)":"2px solid transparent", transition:"all 0.12s", display:"flex", justifyContent:"space-between", alignItems:"center", overflow:"hidden" }}>
+                <div key={id} onClick={()=>{ setTab(id); if(isMobile) setMobileSidebarOpen(false); }} style={{ padding:"9px 12px", borderRadius:8, marginBottom:2, background:tab===id?"rgba(255,255,255,0.1)":"transparent", color:tab===id?"#fff":"rgba(255,255,255,0.55)", cursor:"pointer", fontSize:12, fontWeight:tab===id?600:400, fontFamily:FB, borderLeft:tab===id?"2px solid rgba(255,255,255,0.4)":"2px solid transparent", transition:"all 0.12s", display:"flex", justifyContent:"space-between", alignItems:"center", overflow:"hidden", minHeight:44 }}>
                   <span style={{ overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap", flex:1, minWidth:0 }}>{label}</span>
                   {id==="tasks" && tasksTotal > 0 && (
                     <span style={{ fontSize:9, background:"rgba(255,255,255,0.1)", color:"rgba(255,255,255,0.5)", padding:"1px 6px", borderRadius:20, fontWeight:700, flexShrink:0, marginLeft:4 }}>{tasksDone}/{tasksTotal}</span>
@@ -5979,15 +6006,15 @@ export default function Hub() {
                 );
               })()}
 
-              <div onClick={()=>navigate("/dashboard")} style={{ padding:"7px 10px", borderRadius:7, color:"rgba(255,255,255,0.3)", cursor:"pointer", fontSize:11, fontFamily:FB, marginTop:14 }}>All businesses</div>
+              <div onClick={()=>{ navigate("/dashboard"); if(isMobile) setMobileSidebarOpen(false); }} style={{ padding:"7px 10px", borderRadius:7, color:"rgba(255,255,255,0.3)", cursor:"pointer", fontSize:11, fontFamily:FB, marginTop:14, minHeight:44, display:"flex", alignItems:"center" }}>All businesses</div>
             </nav>
           </>
         )}
       </div>
 
       {/* Main content */}
-      <div style={{ flex:1, overflowY:"auto", background:C.bg }}>
-        <div style={{ padding:"28px 32px 80px", maxWidth:1100 }}>
+      <div style={{ flex:1, overflowY:"auto", background:C.bg, paddingTop: isMobile ? 52 : 0 }}>
+        <div style={{ padding: isMobile ? "16px 16px 80px" : "28px 32px 80px", maxWidth:1100 }}>
 
           {/* OVERVIEW */}
           {tab==="overview" && (()=>{

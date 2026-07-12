@@ -1,5 +1,7 @@
+import { useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { C, FH, FB, btn, Logo } from "../components";
+import { Check } from "lucide-react";
 
 const dark = "#0A0A0F";
 const surface = "rgba(255,255,255,0.04)";
@@ -11,6 +13,8 @@ const SUPPORT = "support@earnedlab.com";
 
 // ── Nav ────────────────────────────────────────────────────────────────────
 function Nav({ onCta }) {
+  const [menuOpen, setMenuOpen] = useState(false);
+
   return (
     <nav style={{ position:"fixed", top:0, left:0, right:0, zIndex:50, backdropFilter:"blur(16px)", WebkitBackdropFilter:"blur(16px)", background:"rgba(10,10,15,0.85)", borderBottom:`1px solid ${border}`, height:58, display:"flex", alignItems:"center", padding:"0 28px" }}>
       <div style={{ maxWidth:1080, margin:"0 auto", width:"100%", display:"flex", alignItems:"center", justifyContent:"space-between" }}>
@@ -18,14 +22,51 @@ function Nav({ onCta }) {
           <Logo size={20}/>
           <span style={{ fontFamily:FH, fontWeight:700, fontSize:14, background:C.grad, WebkitBackgroundClip:"text", WebkitTextFillColor:"transparent", letterSpacing:"-0.02em" }}>EARNEDLAB</span>
         </div>
-        <div style={{ display:"flex", alignItems:"center", gap:6 }}>
+
+        {/* Desktop nav links */}
+        <div className="nav-desktop" style={{ display:"flex", alignItems:"center", gap:6 }}>
           <a href="#how-it-works" style={{ fontSize:13, color:muted, textDecoration:"none", padding:"6px 12px", fontFamily:FB }}>How it works</a>
           <a href="#pricing" style={{ fontSize:13, color:muted, textDecoration:"none", padding:"6px 12px", fontFamily:FB }}>Pricing</a>
           <a href="#faq" style={{ fontSize:13, color:muted, textDecoration:"none", padding:"6px 12px", fontFamily:FB, marginRight:8 }}>FAQ</a>
           <Link to="/signup" style={{ fontSize:13, color:"rgba(255,255,255,0.7)", textDecoration:"none", padding:"6px 16px", fontFamily:FB, fontWeight:500, border:`1px solid ${border}`, borderRadius:8 }}>Sign in</Link>
           <button onClick={onCta} style={{ ...btn(C.grad,"#fff",13), padding:"8px 18px", borderRadius:8, letterSpacing:"-0.01em" }}>Start free →</button>
         </div>
+
+        {/* Mobile hamburger */}
+        <button
+          className="nav-mobile"
+          onClick={() => setMenuOpen(o => !o)}
+          aria-label={menuOpen ? "Close menu" : "Open menu"}
+          style={{ display:"none", background:"none", border:"none", cursor:"pointer", padding:6, color:"rgba(255,255,255,0.75)" }}>
+          <svg width="22" height="22" viewBox="0 0 22 22" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+            {menuOpen
+              ? <><line x1="4" y1="4" x2="18" y2="18"/><line x1="18" y1="4" x2="4" y2="18"/></>
+              : <><line x1="3" y1="7" x2="19" y2="7"/><line x1="3" y1="11" x2="19" y2="11"/><line x1="3" y1="15" x2="19" y2="15"/></>
+            }
+          </svg>
+        </button>
       </div>
+
+      {/* Mobile dropdown menu */}
+      {menuOpen && (
+        <div style={{ position:"absolute", top:58, left:0, right:0, background:"rgba(10,10,15,0.97)", borderBottom:`1px solid ${border}`, display:"flex", flexDirection:"column", padding:"8px 0 16px", zIndex:51 }}>
+          <a href="#how-it-works" onClick={() => setMenuOpen(false)} style={{ fontSize:15, color:muted, textDecoration:"none", padding:"12px 28px", fontFamily:FB }}>How it works</a>
+          <a href="#pricing" onClick={() => setMenuOpen(false)} style={{ fontSize:15, color:muted, textDecoration:"none", padding:"12px 28px", fontFamily:FB }}>Pricing</a>
+          <a href="#faq" onClick={() => setMenuOpen(false)} style={{ fontSize:15, color:muted, textDecoration:"none", padding:"12px 28px", fontFamily:FB }}>FAQ</a>
+          <div style={{ height:1, background:border, margin:"8px 28px" }} />
+          <Link to="/signup" onClick={() => setMenuOpen(false)} style={{ fontSize:15, color:"rgba(255,255,255,0.7)", textDecoration:"none", padding:"12px 28px", fontFamily:FB, fontWeight:500 }}>Sign in</Link>
+          <div style={{ padding:"8px 28px 0" }}>
+            <button onClick={() => { setMenuOpen(false); onCta(); }} style={{ ...btn(C.grad,"#fff",14), width:"100%", padding:"12px", borderRadius:10, letterSpacing:"-0.01em" }}>Start free →</button>
+          </div>
+        </div>
+      )}
+
+      <style>{`
+        @media (max-width: 640px) {
+          .nav-desktop { display: none !important; }
+          .nav-mobile  { display: flex !important; }
+        }
+      `}</style>
     </nav>
   );
 }
@@ -59,7 +100,7 @@ function Hero({ onCta }) {
           <span style={{ fontSize:13, color:subtle, fontFamily:FB }}>7 days free · No credit card required · Cancel anytime</span>
         </div>
 
-        <div style={{ display:"flex", justifyContent:"center", gap:48, marginTop:56 }}>
+        <div style={{ display:"flex", justifyContent:"center", gap:"clamp(20px,5vw,48px)", marginTop:56, flexWrap:"wrap" }}>
           {[["30 min","to launch"],["7 days","to first dollar"],["$0","to get started"]].map(([big,small]) => (
             <div key={small}>
               <div style={{ fontFamily:FH, fontWeight:700, fontSize:26, color:"#fff", letterSpacing:"-0.04em" }}>{big}</div>
@@ -110,6 +151,38 @@ function HowItWorks() {
               </div>
               <h3 style={{ fontFamily:FH, fontWeight:600, fontSize:18, color:"#fff", letterSpacing:"-0.03em", marginBottom:10 }}>{s.title}</h3>
               <p style={{ fontSize:13, color:muted, lineHeight:1.7 }}>{s.body}</p>
+            </div>
+          ))}
+        </div>
+      </div>
+    </section>
+  );
+}
+
+// ── Who is this for ───────────────────────────────────────────────────────
+function WhoIsItFor() {
+  const profiles = [
+    { label:"First-time entrepreneurs", desc:"Never started a business before? EarnedLab guides you from zero — no jargon, no prior knowledge needed." },
+    { label:"Side hustlers with a day job", desc:"Limited time? The agents run in the background. You check in when it suits you." },
+    { label:"Freelancers going independent", desc:"Turn your existing skills into a real business with proper branding, a website, and a growth plan." },
+    { label:"Parents & career-switchers", desc:"Looking for flexible income that works around your schedule? EarnedLab matches you to ideas that fit your reality." },
+  ];
+
+  return (
+    <section style={{ padding:"96px 24px", borderTop:`1px solid ${border}` }}>
+      <div style={{ maxWidth:960, margin:"0 auto" }}>
+        <div style={{ textAlign:"center", marginBottom:64 }}>
+          <div style={{ fontSize:11, fontWeight:700, color:"#4ADE80", textTransform:"uppercase", letterSpacing:"0.1em", fontFamily:FB, marginBottom:14 }}>WHO IT'S FOR</div>
+          <h2 style={{ fontFamily:FH, fontWeight:700, fontSize:"clamp(28px,4vw,40px)", color:"#fff", letterSpacing:"-0.04em", margin:"0 0 14px" }}>Built for people starting from scratch.</h2>
+          <p style={{ fontSize:15, color:muted, fontFamily:FB, maxWidth:520, margin:"0 auto" }}>You don't need a business degree, a network, or technical skills. You need an idea and 30 minutes.</p>
+        </div>
+
+        <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit,minmax(220px,1fr))", gap:20 }}>
+          {profiles.map((p) => (
+            <div key={p.label} style={{ background:surface, border:`1px solid ${border}`, borderRadius:16, padding:"24px 20px" }}>
+              <div style={{ width:8, height:8, borderRadius:"50%", background:"#4ADE80", marginBottom:16, boxShadow:"0 0 10px #4ADE8066" }} />
+              <h3 style={{ fontFamily:FH, fontWeight:600, fontSize:16, color:"#fff", letterSpacing:"-0.02em", marginBottom:10 }}>{p.label}</h3>
+              <p style={{ fontSize:13, color:muted, lineHeight:1.7, margin:0 }}>{p.desc}</p>
             </div>
           ))}
         </div>
@@ -228,8 +301,8 @@ function Pricing({ onCta }) {
               <p style={{ fontSize:13, color:muted, lineHeight:1.6, marginBottom:24, fontFamily:FB }}>{t.tagline}</p>
               <ul style={{ margin:"0 0 28px", padding:0, listStyle:"none", display:"flex", flexDirection:"column", gap:10 }}>
                 {t.features.map((f) => (
-                  <li key={f} style={{ display:"flex", gap:10, fontSize:13, color:muted, lineHeight:1.5 }}>
-                    <span style={{ color:t.color, fontWeight:700, flexShrink:0 }}>✓</span>{f}
+                  <li key={f} style={{ display:"flex", gap:10, alignItems:"flex-start", fontSize:13, color:muted, lineHeight:1.5 }}>
+                    <Check size={14} color={t.color} strokeWidth={2.5} style={{ flexShrink:0, marginTop:2 }} aria-hidden="true" />{f}
                   </li>
                 ))}
               </ul>
@@ -252,9 +325,12 @@ function Pricing({ onCta }) {
 // ── FAQ ───────────────────────────────────────────────────────────────────
 function FAQ() {
   const faqs = [
+    { q:"I'm a complete beginner — is EarnedLab right for me?", a:"Yes. EarnedLab is designed for people who have never started a business before. You don't need any technical skills, marketing knowledge, or prior experience. The platform guides you step by step and the AI agents handle the complex parts automatically." },
     { q:"How long does setup actually take?", a:"Most users finish the discovery questionnaire in about 5 minutes and have a live business in under 30. EarnedLab handles the research, idea selection, and initial setup automatically." },
+    { q:"What type of side businesses can I start?", a:"Service businesses work best — freelancing, consulting, coaching, cleaning, photography, tutoring, bookkeeping, handyman services, and similar local or online service businesses. E-commerce and physical products are not currently supported." },
+    { q:"How is EarnedLab different from just asking ChatGPT?", a:"ChatGPT gives you advice. EarnedLab actually builds and runs things. It creates your website, deploys it live, tracks your revenue and leads, generates marketing content, and implements changes automatically. It's an active platform, not a conversation." },
+    { q:"How much money do I need to start?", a:"You can start for $0 in out-of-pocket costs beyond the EarnedLab subscription. EarnedLab builds your website on a free hosting tier. Most service businesses don't require inventory or equipment — just your time and skills." },
     { q:"Do I need any technical skills?", a:"None at all. EarnedLab handles everything from website creation to deployment. If you can send an email, you can use this." },
-    { q:"What kind of businesses does EarnedLab work for?", a:"Service businesses, freelancing, and local businesses work best — consulting, coaching, cleaning, photography, tutoring, and similar. We're not the right fit for e-commerce or physical products yet." },
     { q:"What happens at the end of the trial?", a:"Your account moves to a read-only view. Your data and business are saved. Upgrade any time to resume the agents. We'll email you before the trial ends." },
     { q:"Can I cancel anytime?", a:"Yes, with one click from your billing settings. No calls, no forms, no questions. Your subscription ends at the current billing period." },
   ];
@@ -337,6 +413,7 @@ export default function Landing() {
       <Nav onCta={goSignup} />
       <Hero onCta={goSignup} />
       <HowItWorks />
+      <WhoIsItFor />
       <Agents />
       <Pricing onCta={goSignup} />
       <FAQ />
