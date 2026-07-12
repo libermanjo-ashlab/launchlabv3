@@ -8,7 +8,7 @@ import { generatePostImageBlob } from "../lib/postImageCanvas";
 
 // ── GUIDED TOUR ───────────────────────────────────────────────────────────────
 
-function GuidedTour({ business, user, onDone }) {
+function _GuidedTour_removed({ business, user, onDone }) {
   const [step, setStep] = useState(0);
   const firstName = (user?.name||"").split(" ")[0] || "there";
   const bizName = business?.name || "your business";
@@ -2442,9 +2442,9 @@ function MgmtModeToggle({ mode, onChange, allowedModes }) {
   const [highlightPlan, setHighlightPlan] = useState("pro");
 
   const opts = [
-    { value:"correlation", label:"Correlation Analysis", desc:"Statistical metric analysis — no AI required",     minPlan:null },
-    { value:"insights",    label:"Business Insights",    desc:"AI strategy generation, manual review & approval", minPlan:"pro",          minPlanBadge:"Pro" },
-    { value:"autopilot",   label:"Operations Autopilot", desc:"Fully automated strategy, sync, and execution",    minPlan:"pro_autopilot", minPlanBadge:"Autopilot" },
+    { value:"correlation", label:"Correlation Analysis", desc:"", minPlan:null },
+    { value:"insights",    label:"Business Insights",    desc:"", minPlan:"pro",          minPlanBadge:"Pro" },
+    { value:"autopilot",   label:"Operations Autopilot", desc:"", minPlan:"pro_autopilot", minPlanBadge:"Autopilot" },
   ];
 
   return (
@@ -3491,13 +3491,6 @@ function BusinessStrategySection({ businessId, metrics, snapshots, isPro, isStar
             <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:12 }}>
               <div>
                 <div style={{ fontFamily:FH, fontWeight:700, fontSize:14, marginBottom:2 }}>Metric Correlations</div>
-                <div style={{ fontSize:11, color:C.muted, fontFamily:FB }}>
-                  {mgmtMode==="correlation"
-                    ? "Discover statistical relationships between your business metrics"
-                    : applied.length>0
-                      ? `${applied.length} applied to strategy: ${applied.map(l=>l.aLabel+"→"+l.bLabel).join(", ")}`
-                      : "Apply correlations to influence your AI strategy generation"}
-                </div>
               </div>
               <button onClick={()=>setLinking(l=>!l)} style={{ ...btnO(C.muted,11), padding:"5px 12px", flexShrink:0 }}>
                 {linking?"Cancel":"+ Add Pair"}
@@ -3659,10 +3652,7 @@ function BusinessStrategySection({ businessId, metrics, snapshots, isPro, isStar
               {mgmtMode==="correlation" ? (
                 /* Correlation mode: pure stat-based insights, no AI */
                 <div>
-                  <div style={{ fontFamily:FH, fontWeight:700, fontSize:13, marginBottom:4, color:C.text }}>Statistical Business Insights</div>
-                  <div style={{ fontSize:11, color:C.muted, fontFamily:FB, marginBottom:12, lineHeight:1.5 }}>
-                    Algorithmic analysis of your metric correlations — no AI required.
-                  </div>
+                  <div style={{ fontFamily:FH, fontWeight:700, fontSize:13, marginBottom:12, color:C.text }}>Statistical Business Insights</div>
                   <StatStrategyInsights
                     links={links} metrics={metrics} businessId={businessId}
                     corrMode={corrMode} corrStart={corrStart} corrEnd={corrEnd}
@@ -5504,7 +5494,6 @@ export default function Hub() {
   const effIsPro      = effPlan === "pro" || effPlan === "pro_autopilot";
   const effIsAutopilot = effPlan === "pro_autopilot";
   const effIsStarter   = !effIsPro;
-  const [showTour,   setShowTour]   = useState(false);
   const [genLoading, setGenLoading] = useState({});
   const [genError,   setGenError]   = useState("");
   const [prefs,      setPrefs]      = useState({ audience:"local", stage:"starting", goals:"", targetMarket:"" });
@@ -5557,10 +5546,7 @@ export default function Hub() {
   const age     = user?.age;
   const isMinor = age && age < 18;
 
-  useEffect(()=>{
-    const toured = localStorage.getItem(`earnedlab_toured_${businessId}`);
-    if (!toured) setShowTour(true);
-  },[businessId]);
+  // Tour removed
 
   useEffect(()=>{ api.subscriptions.me().then(setPlanInfo).catch(()=>{}); },[]);
   useEffect(()=>{
@@ -5675,10 +5661,6 @@ export default function Hub() {
   // Re-fetch tasks when switching to tasks tab to keep count current
   useEffect(()=>{ if (tab==="tasks") refreshTasks(); },[tab]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const dismissTour = () => {
-    localStorage.setItem(`earnedlab_toured_${businessId}`, "1");
-    setShowTour(false);
-  };
 
   const idea     = (()=>{ try{return JSON.parse(business?.ideaData||"{}");}catch{return {};} })();
   const getOutput= type => outputs.find(o=>o.type===type);
@@ -5829,8 +5811,6 @@ export default function Hub() {
     <div style={{ display:"flex", minHeight:"100vh", fontFamily:FB }}>
       <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
 
-      {showTour && <GuidedTour business={business} user={user} onDone={dismissTour} />}
-
       {/* Expired trial: intercept interactive clicks; data remains fully visible/scrollable */}
       {showTrialExpiredModal && (
         <div style={{ position:"fixed", inset:0, zIndex:300, display:"flex", alignItems:"center", justifyContent:"center", background:"rgba(0,0,0,0.55)" }}
@@ -5931,7 +5911,6 @@ export default function Hub() {
               })()}
 
               <div onClick={()=>navigate("/dashboard")} style={{ padding:"7px 10px", borderRadius:7, color:"rgba(255,255,255,0.3)", cursor:"pointer", fontSize:11, fontFamily:FB, marginTop:14 }}>All businesses</div>
-              <div onClick={()=>setShowTour(true)} style={{ padding:"7px 10px", borderRadius:7, color:"rgba(255,255,255,0.25)", cursor:"pointer", fontSize:11, fontFamily:FB }}>Replay tour</div>
             </nav>
           </>
         )}
