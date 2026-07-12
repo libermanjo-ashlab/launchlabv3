@@ -2487,35 +2487,41 @@ function MgmtModeToggle({ mode, onChange, allowedModes }) {
 
 // getValue mirrors how each canvas card aggregates its displayed total so that
 // correlation values always match what the user sees on the canvas.
+// sentiment: "positive" = going up is good; "negative" = going up is bad.
 const LINK_FIELDS = [
-  { id:"revenue",     label:"Revenue",
+  { id:"revenue",     label:"Revenue",        sentiment:"positive",
     getValue: m => m?.revenue?.this_month||0,
     path:"revenue.this_month",        snapKey:"revenue",     prefix:"$" },
-  { id:"costs",       label:"Costs",
+  { id:"costs",       label:"Costs",          sentiment:"negative",
     getValue: m => (m?.costs?.this_month||0)+(m?.investments?.total_initial||0)+(m?.investments?.total_ongoing||0),
     path:"costs.this_month",          snapKey:"costs",       prefix:"$" },
-  { id:"profit",      label:"Profit",
+  { id:"profit",      label:"Profit",         sentiment:"positive",
     getValue: m => { const r=m?.revenue?.this_month||0; const c=(m?.costs?.this_month||0)+(m?.investments?.total_initial||0)+(m?.investments?.total_ongoing||0); return Math.max(0,r-c); },
     path:"",                          snapKey:"profit",      prefix:"$" },
-  { id:"loss",        label:"Loss",
+  { id:"loss",        label:"Loss",           sentiment:"negative",
     getValue: m => { const r=m?.revenue?.this_month||0; const c=(m?.costs?.this_month||0)+(m?.investments?.total_initial||0)+(m?.investments?.total_ongoing||0); return Math.max(0,c-r); },
     path:"",                          snapKey:"loss",        prefix:"$" },
-  { id:"leads",       label:"Leads",
+  { id:"leads",       label:"Leads",          sentiment:"positive",
     getValue: m => m?.leads?.this_month||0,
     path:"leads.this_month",          snapKey:"leads",       prefix:""  },
-  { id:"clients",     label:"Active Clients",
+  { id:"clients",     label:"Active Clients", sentiment:"positive",
     getValue: m => m?.clients?.active||0,
     path:"clients.active",            snapKey:"clients",     prefix:""  },
-  { id:"bookings",    label:"Bookings",
+  { id:"bookings",    label:"Bookings",       sentiment:"positive",
     getValue: m => m?.bookings?.this_month||0,
     path:"bookings.this_month",       snapKey:"bookings",    prefix:""  },
-  { id:"reviews",     label:"Google Reviews",
-    getValue: m => m?.social?.google_reviews||0,
-    path:"social.google_reviews",     snapKey:"reviews",     prefix:""  },
-  { id:"investments", label:"Investments",
+  { id:"investments", label:"Investments",    sentiment:"negative",
     getValue: m => (m?.investments?.total_initial||0)+(m?.investments?.total_ongoing||0),
     path:"investments.total_ongoing", snapKey:"investments", prefix:"$" },
 ];
+
+// Semantic colour: green when metric moves in a "good" direction, red when "bad"
+function _semanticClr(sentiment, series) {
+  if (!series||series.length<2) return C.text;
+  const delta = series[series.length-1] - series[0];
+  if (Math.abs(delta)<0.001) return C.muted;
+  return (sentiment==="positive") === (delta>0) ? "#22C55E" : "#EF4444";
+}
 
 function _getFieldVal(metrics, path) {
   return path.split(".").reduce((o,k)=>o?.[k], metrics)||0;
@@ -2688,17 +2694,23 @@ function _corrStats(seriesA, seriesB, aF, bF) {
       clr: r2>50?"#22C55E":r2>20?"#F59E0B":C.muted });
   }
 
-  // 2. Trend direction — A
+  // 2. Trend direction — A (semantic: positive-sentiment up = good, negative-sentiment up = bad)
   const cA = chg(sA);
-  if (cA!==null) insights.push({ label:`${aF.label} Trend`, value:`${cA>0?"+":""}${cA}%`,
-    desc: cA>0?`${aF.label} grew ${cA}% over this period`:cA<0?`${aF.label} fell ${Math.abs(cA)}% over this period`:`${aF.label} was flat`,
-    clr: cA>0?"#22C55E":cA<0?"#EF4444":C.muted });
+  if (cA!==null) {
+    const goodA = aF.sentiment==="positive" ? cA>0 : cA<0;
+    insights.push({ label:`${aF.label} Trend`, value:`${cA>0?"+":""}${cA}%`,
+      desc: cA>0?`${aF.label} grew ${cA}% over this period`:cA<0?`${aF.label} fell ${Math.abs(cA)}% over this period`:`${aF.label} was flat`,
+      clr: cA===0?C.muted:goodA?"#22C55E":"#EF4444" });
+  }
 
-  // 3. Trend direction — B
+  // 3. Trend direction — B (semantic)
   const cB = chg(sB);
-  if (cB!==null) insights.push({ label:`${bF.label} Trend`, value:`${cB>0?"+":""}${cB}%`,
-    desc: cB>0?`${bF.label} grew ${cB}% over this period`:cB<0?`${bF.label} fell ${Math.abs(cB)}% over this period`:`${bF.label} was flat`,
-    clr: cB>0?"#22C55E":cB<0?"#EF4444":C.muted });
+  if (cB!==null) {
+    const goodB = bF.sentiment==="positive" ? cB>0 : cB<0;
+    insights.push({ label:`${bF.label} Trend`, value:`${cB>0?"+":""}${cB}%`,
+      desc: cB>0?`${bF.label} grew ${cB}% over this period`:cB<0?`${bF.label} fell ${Math.abs(cB)}% over this period`:`${bF.label} was flat`,
+      clr: cB===0?C.muted:goodB?"#22C55E":"#EF4444" });
+  }
 
   // 4. Volatility — A (coefficient of variation)
   const mA=mean(sA); if (mA>0) {
@@ -2730,15 +2742,16 @@ function _corrStats(seriesA, seriesB, aF, bF) {
     }
   }
 
-  // 7. B-per-A ratio trend
+  // 7. B-per-A ratio trend (semantic: good if B-sentiment says growing is good)
   const ratios=sA.map((a,i)=>a>0?sB[i]/a:null).filter(x=>x!==null);
   if (ratios.length>=2) {
     const rt=ratios[ratios.length-1]>ratios[0]+0.01?"increasing":ratios[ratios.length-1]<ratios[0]-0.01?"decreasing":"stable";
     const px=bF.prefix||"";
+    const ratioGood = rt==="stable" ? null : (bF.sentiment==="positive") === (rt==="increasing");
     insights.push({ label:`${px}${bF.label} per ${aF.label} ratio`,
       value:rt==="increasing"?"Growing ↑":rt==="decreasing"?"Shrinking ↓":"Stable →",
       desc:`For every unit of ${aF.label}, ${bF.label} is ${rt} over this period (${px}${ratios[0].toFixed(2)} → ${px}${ratios[ratios.length-1].toFixed(2)})`,
-      clr:rt==="increasing"?"#22C55E":rt==="decreasing"?"#EF4444":C.muted });
+      clr:ratioGood===null?C.muted:ratioGood?"#22C55E":"#EF4444" });
   }
 
   // 8. Peak period
@@ -2773,7 +2786,10 @@ function CorrelationPair({ link, metrics, businessId, applied, onApplyToStrategy
   const perUnit = aVal>0 ? (bVal/aVal).toFixed(2) : null;
   const stats   = _corrStats(seriesA, seriesB, aF, bF);
 
-  const colorB     = r===null?C.muted:r>0.3?"#22C55E":r<-0.3?"#EF4444":"#F59E0B";
+  const sClrA      = _semanticClr(aF.sentiment, seriesA);
+  const sClrB      = _semanticClr(bF.sentiment, seriesB);
+  const tileClrA   = (sClrA===C.text||sClrA===C.muted) ? "#3B82F6" : sClrA;
+  const tileClrB   = (sClrB===C.text||sClrB===C.muted) ? "#64748B" : sClrB;
   const rangeLabel = mode==="day"?"Today":mode==="week"?"This Week":mode==="month"?"This Month":mode==="year"?"This Year":mode==="all"?"All Time":(cStart&&cEnd)?`${cStart} – ${cEnd}`:"All Time";
   const rLabel     = r===null?"Need more periods":r>0.7?"Strong positive":r>0.3?"Moderate positive":r<-0.7?"Strong negative":r<-0.3?"Moderate negative":"Weak correlation";
   const rClr       = r===null?C.muted:r>0.3?"#22C55E":r<-0.3?"#EF4444":"#F59E0B";
@@ -2800,7 +2816,7 @@ function CorrelationPair({ link, metrics, businessId, applied, onApplyToStrategy
 
       {/* Value tiles */}
       <div style={{ display:"flex", gap:10, marginBottom:14 }}>
-        {[{f:aF,v:aVal,clr:"#3B82F6"},{f:bF,v:bVal,clr:colorB==="text"?C.muted:colorB}].map(({f,v,clr})=>(
+        {[{f:aF,v:aVal,clr:tileClrA},{f:bF,v:bVal,clr:tileClrB}].map(({f,v,clr})=>(
           <div key={f.id} style={{ flex:1, background:"#F8FAFC", borderRadius:8, padding:"9px 12px", border:`1px solid ${C.border}` }}>
             <div style={{ fontSize:10, color:C.muted, fontFamily:FB, marginBottom:2 }}>{f.label}</div>
             <div style={{ fontFamily:FH, fontWeight:700, fontSize:22, color:clr, letterSpacing:"-0.02em", lineHeight:1 }}>{f.prefix||""}{v.toLocaleString()}</div>
@@ -2814,7 +2830,7 @@ function CorrelationPair({ link, metrics, businessId, applied, onApplyToStrategy
         <DualLineChart
           seriesA={seriesA} seriesB={seriesB}
           labelA={aF.label}  labelB={bF.label}
-          colorA="#3B82F6"   colorB={rClr===C.muted?"#F59E0B":rClr}
+          colorA={tileClrA}  colorB={tileClrB}
           h={150}
         />
       )}
@@ -2941,6 +2957,131 @@ function buildMarketingPayload(strategy, timeframe, metrics) {
   }
 
   return lines.join("\n").trim();
+}
+
+function StatStrategyInsights({ links, metrics, businessId, corrMode, corrStart, corrEnd }) {
+  if (!links||links.length===0) return (
+    <div style={{ background:"#F8FAFC", borderRadius:10, padding:"16px 18px", border:`1px solid ${C.border}` }}>
+      <div style={{ fontSize:12, color:C.muted, fontFamily:FB, lineHeight:1.6 }}>
+        Add at least one metric pair above to see statistical business insights.
+      </div>
+    </div>
+  );
+
+  const pairs = links.map(link=>{
+    const aF=LINK_FIELDS.find(f=>f.id===link.a);
+    const bF=LINK_FIELDS.find(f=>f.id===link.b);
+    if(!aF||!bF) return null;
+    const aVal=_fieldRangeVal(link.a,metrics,businessId,corrMode,corrStart,corrEnd);
+    const bVal=_fieldRangeVal(link.b,metrics,businessId,corrMode,corrStart,corrEnd);
+    const sA=_fieldTimeSeries(link.a,metrics,businessId,corrMode,corrStart,corrEnd);
+    const sB=_fieldTimeSeries(link.b,metrics,businessId,corrMode,corrStart,corrEnd);
+    const r=(sA&&sB)?_pearson(sA,sB):null;
+    const n=sA&&sB?Math.min(sA.length,sB.length):0;
+    const chgA=sA&&sA.length>=2&&sA[0]!==0?+((sA[n-1]-sA[0])/Math.abs(sA[0])*100).toFixed(1):null;
+    const chgB=sB&&sB.length>=2&&sB[0]!==0?+((sB[n-1]-sB[0])/Math.abs(sB[0])*100).toFixed(1):null;
+    return {aF,bF,aVal,bVal,sA,sB,r,chgA,chgB};
+  }).filter(Boolean);
+
+  const insights = [];
+  const seen = new Set();
+  const add = (ins) => { if(!seen.has(ins.title)){seen.add(ins.title);insights.push(ins);} };
+
+  pairs.forEach(({aF,bF,r,aVal,bVal,chgA,chgB})=>{
+    // Strong / moderate correlations
+    if(r!==null){
+      const abs=Math.abs(r);
+      const dir=r>0?"positive":"negative";
+      if(abs>0.7){
+        let text;
+        if(r>0&&aF.sentiment==="positive"&&bF.sentiment==="positive")
+          text=`${aF.label} and ${bF.label} grow together (r=${r}). Doubling down on ${aF.label} acquisition is likely to lift ${bF.label}.`;
+        else if(r>0&&aF.sentiment==="negative"&&bF.sentiment==="negative")
+          text=`Both ${aF.label} and ${bF.label} rise together. This compounding cost pressure warrants a cost structure review.`;
+        else if(r>0&&aF.sentiment==="positive"&&bF.sentiment==="negative")
+          text=`As ${aF.label} grows, ${bF.label} also rises (r=${r}). Strong growth is driving up costs — evaluate whether the margin holds.`;
+        else if(r<0&&aF.sentiment==="positive"&&bF.sentiment==="negative")
+          text=`Rising ${aF.label} correlates with falling ${bF.label} (r=${r}). This is an efficiency win — scaling ${aF.label} appears to reduce ${bF.label}.`;
+        else
+          text=`${aF.label} and ${bF.label} have a strong ${dir} relationship (r=${r}). Monitor this pair closely as they move predictably together.`;
+        add({icon:"◆",clr:"#22C55E",title:`${aF.label} ↔ ${bF.label}: Strong ${dir} correlation (r=${r})`,text});
+      } else if(abs>0.3){
+        add({icon:"◇",clr:"#F59E0B",
+          title:`${aF.label} ↔ ${bF.label}: Moderate correlation (r=${r})`,
+          text:`${aF.label} and ${bF.label} show a directional relationship but results aren't fully predictable. More data periods will clarify the signal.`});
+      } else if(abs<=0.3&&r!==null){
+        add({icon:"○",clr:C.muted,
+          title:`${aF.label} ↔ ${bF.label}: Weak correlation (r=${r})`,
+          text:`These two metrics move independently. Optimising one will likely not move the other.`});
+      }
+    }
+    // Trend warnings: negative-sentiment metric rising
+    if(aF.sentiment==="negative"&&chgA!==null&&chgA>10)
+      add({icon:"▲",clr:"#EF4444",
+        title:`${aF.label} up ${chgA}% this period`,
+        text:`${aF.label} has grown ${chgA}% over the selected range. Review whether this increase is planned investment or uncontrolled overhead.`});
+    if(bF.sentiment==="negative"&&chgB!==null&&chgB>10)
+      add({icon:"▲",clr:"#EF4444",
+        title:`${bF.label} up ${chgB}% this period`,
+        text:`${bF.label} has grown ${chgB}% over the selected range. Identify the largest contributors and evaluate whether the spend is generating returns.`});
+    // Growth signals: positive-sentiment metric rising
+    if(aF.sentiment==="positive"&&chgA!==null&&chgA>5)
+      add({icon:"↑",clr:"#22C55E",
+        title:`${aF.label} growing ${chgA}%`,
+        text:`${aF.label} is trending upward by ${chgA}%. Identify which specific actions or channels drove this and reinforce them.`});
+    if(bF.sentiment==="positive"&&chgB!==null&&chgB>5)
+      add({icon:"↑",clr:"#22C55E",
+        title:`${bF.label} growing ${chgB}%`,
+        text:`${bF.label} is on a ${chgB}% upward trend. This is a positive signal — analyse what's working and scale it.`});
+    // Specific conversion insight: leads → revenue
+    const isLeadRev = (aF.id==="leads"&&bF.id==="revenue")||(aF.id==="revenue"&&bF.id==="leads");
+    if(isLeadRev&&aVal>0&&bVal>0){
+      const leads=aF.id==="leads"?aVal:bVal;
+      const rev  =aF.id==="revenue"?aVal:bVal;
+      const rpl  =(rev/leads).toFixed(2);
+      add({icon:"→",clr:"#8B5CF6",
+        title:`Revenue per Lead: $${rpl}`,
+        text:`Each lead is currently generating $${rpl} in revenue on average. Improving lead quality or conversion rate would directly lift this.`});
+    }
+    // Specific margin insight: revenue + costs or profit
+    const isRevCost = (aF.id==="revenue"&&bF.id==="costs")||(aF.id==="costs"&&bF.id==="revenue");
+    if(isRevCost&&aVal>0&&bVal>0){
+      const rev  =aF.id==="revenue"?aVal:bVal;
+      const cost =aF.id==="costs"?aVal:bVal;
+      const margin=((rev-cost)/rev*100).toFixed(1);
+      const marginNum=parseFloat(margin);
+      add({icon:"%",clr:marginNum>30?"#22C55E":marginNum>0?"#F59E0B":"#EF4444",
+        title:`Margin: ${margin}%`,
+        text:marginNum>30?`Healthy ${margin}% margin. Focus on scaling revenue while keeping cost growth proportional.`
+            :marginNum>0?`Thin ${margin}% margin. A 10% cost reduction or revenue increase would have outsized profitability impact.`
+            :`Negative margin (${margin}%). Costs exceed revenue — prioritise revenue growth or an immediate cost audit.`});
+    }
+  });
+
+  if(insights.length===0) return (
+    <div style={{ background:"#F8FAFC", borderRadius:10, padding:"16px 18px", border:`1px solid ${C.border}` }}>
+      <div style={{ fontSize:12, color:C.muted, fontFamily:FB, lineHeight:1.6 }}>
+        Add more data across multiple time periods to generate statistical business insights.
+      </div>
+    </div>
+  );
+
+  return (
+    <div>
+      {insights.map((ins,i)=>(
+        <div key={i} style={{ background:"#F8FAFC", borderRadius:10, padding:"12px 14px", marginBottom:8,
+          border:`1px solid ${ins.clr}20`, borderLeft:`3px solid ${ins.clr}` }}>
+          <div style={{ display:"flex", gap:8, alignItems:"flex-start" }}>
+            <span style={{ fontSize:13, color:ins.clr, flexShrink:0, lineHeight:1.5, fontWeight:700 }}>{ins.icon}</span>
+            <div>
+              <div style={{ fontFamily:FH, fontWeight:700, fontSize:12, color:C.text, marginBottom:3 }}>{ins.title}</div>
+              <div style={{ fontSize:11, color:C.muted, fontFamily:FB, lineHeight:1.5 }}>{ins.text}</div>
+            </div>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
 }
 
 function BusinessStrategySection({ businessId, metrics, snapshots, isPro, isStarter=false, mgmtMode="correlation", saveM, isAutopilot=false, onNotify, refreshTasks, insightsBudget, refreshBudget }) {
@@ -3511,21 +3652,36 @@ function BusinessStrategySection({ businessId, metrics, snapshots, isPro, isStar
               )}
             </div>
           ) : (
-            /* Not showing strategy — show upgrade prompt */
+            /* Not showing AI strategy */
             <div style={{ borderTop:`1px solid ${C.border}`, marginTop: links.length>0 ? 4 : 0, paddingTop:16 }}>
-              <div style={{ background:"#F8FAFC", borderRadius:10, padding:"16px 18px", border:`1px solid ${C.border}` }}>
-                <div style={{ fontFamily:FH, fontWeight:600, fontSize:13, marginBottom:4, color:C.text }}>AI Business Strategy</div>
-                <div style={{ fontSize:12, color:C.muted, fontFamily:FB, marginBottom:10, lineHeight:1.6 }}>
-                  {!isPro
-                    ? "Upgrade to Business Insights (Pro plan) to generate AI-powered strategy reports using your correlation data."
-                    : "Switch to Business Insights or Operations Autopilot mode to generate AI-powered strategy."}
+              {mgmtMode==="correlation" ? (
+                /* Correlation mode: pure stat-based insights, no AI */
+                <div>
+                  <div style={{ fontFamily:FH, fontWeight:700, fontSize:13, marginBottom:4, color:C.text }}>Statistical Business Insights</div>
+                  <div style={{ fontSize:11, color:C.muted, fontFamily:FB, marginBottom:12, lineHeight:1.5 }}>
+                    Algorithmic analysis of your metric correlations — no AI required.
+                  </div>
+                  <StatStrategyInsights
+                    links={links} metrics={metrics} businessId={businessId}
+                    corrMode={corrMode} corrStart={corrStart} corrEnd={corrEnd}
+                  />
                 </div>
-                {!isPro && (
-                  <ProGate isPro={false} label="Upgrade to Business Insights">
-                    <div style={{ height:48 }}/>
-                  </ProGate>
-                )}
-              </div>
+              ) : (
+                /* Insights / Autopilot mode not active — upgrade prompt */
+                <div style={{ background:"#F8FAFC", borderRadius:10, padding:"16px 18px", border:`1px solid ${C.border}` }}>
+                  <div style={{ fontFamily:FH, fontWeight:600, fontSize:13, marginBottom:4, color:C.text }}>AI Business Strategy</div>
+                  <div style={{ fontSize:12, color:C.muted, fontFamily:FB, marginBottom:10, lineHeight:1.6 }}>
+                    {!isPro
+                      ? "Upgrade to Business Insights (Pro plan) to generate AI-powered strategy reports using your correlation data."
+                      : "Switch to Business Insights or Operations Autopilot mode to generate AI-powered strategy."}
+                  </div>
+                  {!isPro && (
+                    <ProGate isPro={false} label="Upgrade to Business Insights">
+                      <div style={{ height:48 }}/>
+                    </ProGate>
+                  )}
+                </div>
+              )}
             </div>
           )}
 
