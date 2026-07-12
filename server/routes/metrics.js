@@ -140,47 +140,114 @@ router.post("/:businessId/strategy", requireAuth, async (req, res, next) => {
     const prefs = metrics.prefs || {};
 
     const { timeframe="3 months", correlations=[], snapshots=[] } = req.body;
-    const revenueM = metrics.revenue?.this_month||0;
-    const cost     = metrics.revenue?.cost||0;
-    const profit   = metrics.revenue?.profit||(revenueM - cost);
 
+    // ── Accurate financials: sum actual item arrays ────────────────────────────
+    const revSources  = metrics.revenue?.sources||[];
+    const costCauses  = metrics.costs?.causes||[];
+    const invInitial  = metrics.investments?.initial||[];
+    const invOngoing  = metrics.investments?.ongoing||[];
+
+    const totalRev  = revSources.reduce((s,x)=>s+(x.amount||0),0) || metrics.revenue?.this_month||0;
+    const totalCost = [...costCauses,...invInitial,...invOngoing].reduce((s,x)=>s+(x.amount||0),0)
+                      || (metrics.costs?.this_month||0)+(metrics.investments?.total_initial||0)+(metrics.investments?.total_ongoing||0);
+    const totalInv  = [...invInitial,...invOngoing].reduce((s,x)=>s+(x.amount||0),0)
+                      || (metrics.investments?.total_initial||0)+(metrics.investments?.total_ongoing||0);
+    const profit    = totalRev - totalCost;
+
+    const topRevSrcs = [...revSources].sort((a,b)=>(b.amount||0)-(a.amount||0))
+      .slice(0,4).map(s=>`${s.name||s.label||"Source"}: $${s.amount||0}`);
+    const topCosts   = [...costCauses,...invInitial,...invOngoing].sort((a,b)=>(b.amount||0)-(a.amount||0))
+      .slice(0,4).map(c=>`${c.name||c.label||"Cost"}: $${c.amount||0}`);
+
+    // ── Business profile ───────────────────────────────────────────────────────
+    const bp      = metrics.businessProfile || {};
+    const prods   = (bp.products||[]).slice(0,5).map(p=>`${p.name||""}${p.price?` ($${p.price})`:""}`).filter(Boolean);
+    const social  = metrics.social||{};
+    const bookings= metrics.bookings||{};
+
+    // ── Stage / audience context ───────────────────────────────────────────────
+    const stageCtx    = prefs.stage==="scaling"?"currently scaling up":prefs.stage==="established"?"an established business":prefs.stage==="growing"?"in a growth phase with early clients":"early-stage / just starting";
+    const audienceCtx = prefs.audience==="local"?`local market (${biz.location})`:prefs.audience==="national"?"national audience":prefs.audience==="global"?"global / online audience":prefs.targetMarket||biz.location||"local market";
+
+    // ── Connected integrations ─────────────────────────────────────────────────
+    const integrations = await prisma.integration.findMany({ where:{ businessId:req.params.businessId, status:"connected" } });
+    const connChans    = integrations.map(i=>{
+      const f = typeof i.fields==="string"?(()=>{ try{return JSON.parse(i.fields);}catch{return {};} })():i.fields||{};
+      return `${i.provider}${f.handle?` @${f.handle}`:f.address?` (${f.address})`:f.bookingUrl?` (${f.bookingUrl})`:""}`;
+    });
+
+    // ── Latest marketing analysis ──────────────────────────────────────────────
+    const mktgOut  = await prisma.businessOutput.findFirst({ where:{ businessId:req.params.businessId, type:"marketing_insights" } });
+    const mktgNote = await prisma.businessOutput.findFirst({ where:{ businessId:req.params.businessId, type:"marketing_notes" } });
+    let mktgSummary = "none run yet";
+    if (mktgOut?.content) {
+      try {
+        const md = JSON.parse(mktgOut.content);
+        const topRecs = (md.insights||[]).slice(0,4).map(i=>i.title||i.recommendation||"").filter(Boolean).join("; ");
+        const summary = md.report?.analysis?.summary || md.overview?.summary || "";
+        mktgSummary = [summary, topRecs ? `Top recommendations: ${topRecs}` : ""].filter(Boolean).join(" ");
+      } catch { mktgSummary = "available but unreadable"; }
+    }
+    // Include any management→marketing sync notes as additional context
+    const noteContext = mktgNote?.content ? (() => {
+      const lines = mktgNote.content.split("\n").filter(l => l.startsWith("[MANAGEMENT → MARKETING]") || l.startsWith("CHANNEL") || l.startsWith("•")).slice(0, 8);
+      return lines.length ? lines.join(" | ") : "";
+    })() : "";
+
+    // ── Historical trend ───────────────────────────────────────────────────────
+    const snapText = snapshots.slice(-4).map(s=>
+      `${s.month}: rev=$${s.revenue||0}, costs=$${s.cost||0}, leads=${s.leads||0}, clients=${s.clients||0}`
+    ).join(" | ") || "no prior history";
+
+    // ── Correlation data ───────────────────────────────────────────────────────
     const corrText = correlations.length
-      ? correlations.map(c=>`${c.aLabel} → ${c.bLabel}: ${c.summary}${c.r!=null?` (r=${c.r})`:""}`)
-          .join("; ")
-      : "none provided";
+      ? correlations.map(c=>`${c.aLabel} → ${c.bLabel}: ${c.summary||""}${c.r!=null?` (r=${c.r})`:""}`)
+          .filter(Boolean).join("; ")
+      : "none";
 
-    const snapText = snapshots.slice(-4).map(s =>
-      `${s.month}: rev=$${s.revenue}, cost=$${s.cost||0}, leads=${s.leads}, clients=${s.clients||0}`
-    ).join(" | ") || "no history";
+    // ── Build prompt ───────────────────────────────────────────────────────────
+    const contextBlock = [
+      `BUSINESS: ${biz.name} | ${idea.name||"service business"} | ${biz.location||""} | ${stageCtx} | audience: ${audienceCtx}`,
+      bp.uniqueValueProp                ? `Value proposition: ${bp.uniqueValueProp}`                : "",
+      bp.brandVoice                     ? `Brand voice: ${bp.brandVoice}`                           : "",
+      prods.length                      ? `Products/services: ${prods.join(", ")}`                  : "",
+      prefs.goals                       ? `Owner goal: ${prefs.goals}`                              : "",
+      `FINANCIALS (${timeframe}): Revenue $${totalRev.toLocaleString()}, Costs $${totalCost.toLocaleString()}, Investments $${totalInv.toLocaleString()}, Profit ${profit>=0?"$"+profit.toLocaleString():"($"+Math.abs(profit).toLocaleString()+" loss)"}`,
+      topRevSrcs.length                 ? `Top revenue sources: ${topRevSrcs.join(" | ")}`          : "",
+      topCosts.length                   ? `Top cost items: ${topCosts.join(" | ")}`                 : "",
+      `PIPELINE: ${metrics.leads?.total||0} total leads, ${metrics.clients?.active||0} active clients, ${bookings.this_month||0} bookings this month`,
+      social.instagram||social.tiktok||social.twitter_followers
+        ? `Social: ${[social.instagram?`Instagram ${social.instagram}`:social.instagram_followers?`Instagram ${social.instagram_followers}`:"",social.tiktok?`TikTok ${social.tiktok}`:social.tiktok_followers?`TikTok ${social.tiktok_followers}`:"",social.twitter_followers?`Twitter ${social.twitter_followers}`:""].filter(Boolean).join(", ")}`
+        : "",
+      connChans.length                  ? `Connected channels: ${connChans.join(", ")}`             : "Connected channels: none yet",
+      `TREND (recent months): ${snapText}`,
+      `CORRELATIONS: ${corrText}`,
+      `MARKETING ANALYSIS: ${mktgSummary}`,
+      noteContext                       ? `Prior strategy notes: ${noteContext}`                     : "",
+    ].filter(Boolean).join("\n");
 
     const msg = await ai.messages.create({
-      model:"claude-sonnet-4-6", max_tokens:2400,
-      messages:[{ role:"user", content:`
-You are the management agent for "${biz.name}" (${idea.name||"service business"}, stage: ${prefs.stage||"starting"}).
-Current metrics: revenue $${revenueM}/mo, costs $${cost}/mo, profit $${profit}/mo, ${metrics.clients?.active||0} active clients, ${metrics.leads?.this_month||0} leads/month.
-Goal: ${prefs.goals||"grow revenue and client base"}
-Trend (last months): ${snapText}
-Key correlations: ${corrText}
-Strategy timeframe: ${timeframe}
+      model:"claude-sonnet-4-6", max_tokens:2800,
+      messages:[{ role:"user", content:`You are the management agent for "${biz.name}". Generate a ${timeframe} business strategy grounded entirely in the real data below. Every suggestion must reference the actual products, channels, numbers, and goals shown. No generic filler.
 
-Return ONLY a valid JSON object with this exact structure (no markdown, no explanation):
+${contextBlock}
+
+Return ONLY a valid JSON object (no markdown, no explanation):
 {
-  "budget": { "monthly": <integer>, "total": <integer>, "rationale": "<1 sentence specific to this business>" },
-  "outreach": { "monthlySpend": <integer>, "suggestions": ["<specific action 1>", "<specific action 2>", "<specific action 3>"] },
-  "scaling": { "monthlySpend": <integer>, "suggestions": ["<specific action 1>", "<specific action 2>", "<specific action 3>"] },
-  "conservation": { "monthlySavings": <integer>, "actions": ["<specific action 1>", "<specific action 2>", "<specific action 3>"] },
-  "building": { "monthlySpend": <integer>, "suggestions": ["<specific action 1>", "<specific action 2>", "<specific action 3>"] },
+  "budget": { "monthly": <integer>, "total": <integer>, "rationale": "<1 sentence citing actual revenue/cost figures>" },
+  "outreach": { "monthlySpend": <integer>, "suggestions": ["<specific action citing a real channel or metric>", "<specific action>", "<specific action>"] },
+  "scaling": { "monthlySpend": <integer>, "suggestions": ["<specific action citing products/services or current client base>", "<specific action>", "<specific action>"] },
+  "conservation": { "monthlySavings": <integer>, "actions": ["<specific cost item to reduce or eliminate>", "<specific action>", "<specific action>"] },
+  "building": { "monthlySpend": <integer>, "suggestions": ["<specific asset or system to build>", "<specific action>", "<specific action>"] },
   "taskSchedule": [
-    { "period": "Week 1", "tasks": ["<task>", "<task>", "<task>"] },
-    { "period": "Week 2", "tasks": ["<task>", "<task>", "<task>"] },
-    { "period": "Week 3-4", "tasks": ["<task>", "<task>", "<task>"] },
-    { "period": "Month 2", "tasks": ["<task>", "<task>", "<task>"] },
-    { "period": "Month 3+", "tasks": ["<task>", "<task>", "<task>"] }
+    { "period": "Week 1", "tasks": ["<specific task>", "<specific task>", "<specific task>"] },
+    { "period": "Week 2", "tasks": ["<specific task>", "<specific task>", "<specific task>"] },
+    { "period": "Week 3-4", "tasks": ["<specific task>", "<specific task>", "<specific task>"] },
+    { "period": "Month 2", "tasks": ["<specific task>", "<specific task>", "<specific task>"] },
+    { "period": "Month 3+", "tasks": ["<specific task>", "<specific task>", "<specific task>"] }
   ],
-  "predictedOutcomes": ["<outcome 1>", "<outcome 2>", "<outcome 3>"]
-}
-All items must be specific to "${biz.name}" and "${idea.name||"this business type"}". No generic filler.
-` }],
+  "predictedOutcomes": ["<measurable outcome with a specific number>", "<outcome>", "<outcome>"]
+}` }],
     });
 
     const raw = msg.content[0]?.text || "";
