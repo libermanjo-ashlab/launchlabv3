@@ -3149,7 +3149,25 @@ function BusinessStrategySection({ businessId, metrics, snapshots, isPro, isStar
     const runCorrs     = opts.correlations ?? applied;
     setGenerating(true); setStratErr("");
     try{
-      const{strategy:s}=await api.metrics.strategy(businessId,{ timeframe:runTimeframe, correlations:runCorrs, snapshots });
+      // Compute accurate all-time financials using the same filterDateRange logic as the canvas cards.
+      // Passing these from the frontend avoids server-side re-derivation bugs and localStorage inaccessibility.
+      const _rv = _fieldRangeVal("revenue",     metrics, businessId, "all", "", "");
+      const _co = _fieldRangeVal("costs",       metrics, businessId, "all", "", "");
+      const _iv = _fieldRangeVal("investments", metrics, businessId, "all", "", "");
+      const _pr = _fieldRangeVal("profit",      metrics, businessId, "all", "", "");
+      const _ls = _fieldRangeVal("loss",        metrics, businessId, "all", "", "");
+      const _ld = _fieldRangeVal("leads",       metrics, businessId, "all", "", "");
+      const _cl = _fieldRangeVal("clients",     metrics, businessId, "all", "", "");
+      const _bk = metrics?.bookings?.this_month || 0;
+      const topRevSrcs = [...(metrics?.revenue?.sources||[])].sort((a,b)=>(b.amount||0)-(a.amount||0)).slice(0,4)
+                          .map(s=>`${s.name||"Source"}: $${s.amount||0}`);
+      const topCostItems = [...(metrics?.costs?.causes||[]),...(metrics?.investments?.initial||[]),...(metrics?.investments?.ongoing||[])]
+                          .sort((a,b)=>(b.amount||0)-(a.amount||0)).slice(0,4)
+                          .map(c=>`${c.name||"Cost"}: $${c.amount||0}`);
+      const financials = { revenue:_rv, costs:_co, investments:_iv, profit:_pr, loss:_ls,
+                           leads:_ld, activeClients:_cl, bookingsThisMonth:_bk,
+                           topRevSources:topRevSrcs, topCostItems };
+      const{strategy:s}=await api.metrics.strategy(businessId,{ timeframe:runTimeframe, correlations:runCorrs, snapshots, financials });
       setStrategy(s); try{localStorage.setItem(STRAT_KEY,JSON.stringify(s));}catch{}
       setStratTab("budget");
       const ranAt = new Date().toISOString();

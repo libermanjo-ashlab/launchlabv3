@@ -139,25 +139,30 @@ router.post("/:businessId/strategy", requireAuth, async (req, res, next) => {
     let idea = {}; try { idea = JSON.parse(biz.ideaData||"{}"); } catch {}
     const prefs = metrics.prefs || {};
 
-    const { timeframe="3 months", correlations=[], snapshots=[] } = req.body;
+    const { timeframe="3 months", correlations=[], snapshots=[], financials={} } = req.body;
 
-    // ── Accurate financials: sum actual item arrays ────────────────────────────
-    const revSources  = metrics.revenue?.sources||[];
-    const costCauses  = metrics.costs?.causes||[];
-    const invInitial  = metrics.investments?.initial||[];
-    const invOngoing  = metrics.investments?.ongoing||[];
+    // ── Financials: use frontend-computed values when provided (same filterDateRange logic as canvas cards).
+    // Fall back to server-side derivation only when the client doesn't send them.
+    const revSources = metrics.revenue?.sources||[];
+    const costCauses = metrics.costs?.causes||[];
+    const invInitial = metrics.investments?.initial||[];
+    const invOngoing = metrics.investments?.ongoing||[];
 
-    const totalRev  = revSources.reduce((s,x)=>s+(x.amount||0),0) || metrics.revenue?.this_month||0;
-    const totalCost = [...costCauses,...invInitial,...invOngoing].reduce((s,x)=>s+(x.amount||0),0)
-                      || (metrics.costs?.this_month||0)+(metrics.investments?.total_initial||0)+(metrics.investments?.total_ongoing||0);
-    const totalInv  = [...invInitial,...invOngoing].reduce((s,x)=>s+(x.amount||0),0)
-                      || (metrics.investments?.total_initial||0)+(metrics.investments?.total_ongoing||0);
-    const profit    = totalRev - totalCost;
+    const totalRev  = financials.revenue  ?? revSources.reduce((s,x)=>s+(x.amount||0),0);
+    const totalCost = financials.costs    ?? [...costCauses,...invInitial,...invOngoing].reduce((s,x)=>s+(x.amount||0),0);
+    const totalInv  = financials.investments ?? [...invInitial,...invOngoing].reduce((s,x)=>s+(x.amount||0),0);
+    const profit    = financials.profit   ?? Math.max(0, totalRev - totalCost);
+    const loss      = financials.loss     ?? Math.max(0, totalCost - totalRev);
+    const leadCount = financials.leads         ?? (metrics.leads?.total||0);
+    const clientCnt = financials.activeClients ?? (metrics.clients?.active||0);
+    const bookingsMo= financials.bookingsThisMonth ?? (metrics.bookings?.this_month||0);
 
-    const topRevSrcs = [...revSources].sort((a,b)=>(b.amount||0)-(a.amount||0))
-      .slice(0,4).map(s=>`${s.name||s.label||"Source"}: $${s.amount||0}`);
-    const topCosts   = [...costCauses,...invInitial,...invOngoing].sort((a,b)=>(b.amount||0)-(a.amount||0))
-      .slice(0,4).map(c=>`${c.name||c.label||"Cost"}: $${c.amount||0}`);
+    const topRevSrcs = financials.topRevSources?.length
+      ? financials.topRevSources
+      : [...revSources].sort((a,b)=>(b.amount||0)-(a.amount||0)).slice(0,4).map(s=>`${s.name||"Source"}: $${s.amount||0}`);
+    const topCosts   = financials.topCostItems?.length
+      ? financials.topCostItems
+      : [...costCauses,...invInitial,...invOngoing].sort((a,b)=>(b.amount||0)-(a.amount||0)).slice(0,4).map(c=>`${c.name||"Cost"}: $${c.amount||0}`);
 
     // ── Business profile ───────────────────────────────────────────────────────
     const bp      = metrics.businessProfile || {};
@@ -212,10 +217,10 @@ router.post("/:businessId/strategy", requireAuth, async (req, res, next) => {
       bp.brandVoice                     ? `Brand voice: ${bp.brandVoice}`                           : "",
       prods.length                      ? `Products/services: ${prods.join(", ")}`                  : "",
       prefs.goals                       ? `Owner goal: ${prefs.goals}`                              : "",
-      `FINANCIALS (${timeframe}): Revenue $${totalRev.toLocaleString()}, Costs $${totalCost.toLocaleString()}, Investments $${totalInv.toLocaleString()}, Profit ${profit>=0?"$"+profit.toLocaleString():"($"+Math.abs(profit).toLocaleString()+" loss)"}`,
+      `FINANCIALS: Revenue $${totalRev.toLocaleString()}, Costs $${totalCost.toLocaleString()}, Investments $${totalInv.toLocaleString()}, Profit $${profit.toLocaleString()}${loss>0?`, Loss $${loss.toLocaleString()}`:""}`,
       topRevSrcs.length                 ? `Top revenue sources: ${topRevSrcs.join(" | ")}`          : "",
       topCosts.length                   ? `Top cost items: ${topCosts.join(" | ")}`                 : "",
-      `PIPELINE: ${metrics.leads?.total||0} total leads, ${metrics.clients?.active||0} active clients, ${bookings.this_month||0} bookings this month`,
+      `PIPELINE: ${leadCount} leads, ${clientCnt} active clients, ${bookingsMo} bookings this month`,
       social.instagram||social.tiktok||social.twitter_followers
         ? `Social: ${[social.instagram?`Instagram ${social.instagram}`:social.instagram_followers?`Instagram ${social.instagram_followers}`:"",social.tiktok?`TikTok ${social.tiktok}`:social.tiktok_followers?`TikTok ${social.tiktok_followers}`:"",social.twitter_followers?`Twitter ${social.twitter_followers}`:""].filter(Boolean).join(", ")}`
         : "",
