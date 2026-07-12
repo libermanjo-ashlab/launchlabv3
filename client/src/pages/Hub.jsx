@@ -5698,32 +5698,28 @@ export default function Hub() {
   const runOverviewBrief = async (question) => {
     setBriefLoading(true); setOverviewBrief("");
 
-    // ── gather all real data ──────────────────────────────────────────────────
+    // ── financials: use same _fieldRangeVal logic as canvas cards ─────────────
+    const totalRev  = _fieldRangeVal("revenue",     metrics, businessId, "all", "", "");
+    const totalCosts= _fieldRangeVal("costs",       metrics, businessId, "all", "", "");
+    const totalInv  = _fieldRangeVal("investments", metrics, businessId, "all", "", "");
+    const profit    = _fieldRangeVal("profit",      metrics, businessId, "all", "", "");
+    const loss      = _fieldRangeVal("loss",        metrics, businessId, "all", "", "");
+    const leadCount = _fieldRangeVal("leads",       metrics, businessId, "all", "", "");
+    const clientCnt = _fieldRangeVal("clients",     metrics, businessId, "all", "", "");
+
+    const topRevSrcs = [...(metrics?.revenue?.sources||[])]
+      .sort((a,b)=>(b.amount||0)-(a.amount||0)).slice(0,3)
+      .map(s=>`${s.name||"Source"}: $${s.amount||0}`);
+    const topCostItems = [...(metrics?.costs?.causes||[]),...(metrics?.investments?.initial||[]),...(metrics?.investments?.ongoing||[])]
+      .sort((a,b)=>(b.amount||0)-(a.amount||0)).slice(0,3)
+      .map(c=>`${c.name||"Cost"}: $${c.amount||0}`);
+
+    // ── tasks ─────────────────────────────────────────────────────────────────
     const allTasks  = tasks.filter(t=>t.category!=="notes");
     const doneTasks = allTasks.filter(t=>t.status==="done");
     const pendTasks = allTasks.filter(t=>t.status!=="done"&&t.category!=="campaign");
 
-    // Revenue: sum of actual source entries
-    const revSources  = metrics?.revenue?.sources||[];
-    const totalRev    = revSources.reduce((s,x)=>s+(x.amount||0),0) || metrics?.revenue?.this_month||0;
-    const topRevSrcs  = [...revSources].sort((a,b)=>(b.amount||0)-(a.amount||0)).slice(0,3).map(s=>`${s.name||s.label||"Source"}: $${s.amount||0}`);
-
-    // Costs: causes + all investments
-    const costCauses  = metrics?.costs?.causes||[];
-    const invInitial  = metrics?.investments?.initial||[];
-    const invOngoing  = metrics?.investments?.ongoing||[];
-    const totalCosts  = [...costCauses,...invInitial,...invOngoing].reduce((s,x)=>s+(x.amount||0),0)
-                        || (metrics?.costs?.this_month||0)+(metrics?.investments?.total_initial||0)+(metrics?.investments?.total_ongoing||0);
-    const totalInv    = [...invInitial,...invOngoing].reduce((s,x)=>s+(x.amount||0),0) || (metrics?.investments?.total_initial||0)+(metrics?.investments?.total_ongoing||0);
-    const profit      = totalRev - totalCosts;
-
-    // Leads + clients from localStorage (same source as canvas cards)
-    let leadArr=[],clientArr=[];
-    try { leadArr   = JSON.parse(localStorage.getItem(`earnedlab_leads_${businessId}`)||"[]"); }   catch{}
-    try { clientArr = JSON.parse(localStorage.getItem(`earnedlab_clients_${businessId}`)||"[]"); } catch{}
-    const activeClients = clientArr.filter(c=>c.status==="active"||!c.status).length || metrics?.clients?.active||0;
-
-    // Social & booking channels
+    // ── integrations, social, bookings ────────────────────────────────────────
     const social   = metrics?.social||{};
     const bookings = metrics?.bookings||{};
     const connChs  = integs.filter(i=>i.status==="connected").map(i=>{
@@ -5731,48 +5727,52 @@ export default function Hub() {
       return `${i.provider}${f.handle?` @${f.handle}`:f.address?` (${f.address})`:f.bookingUrl?` (${f.bookingUrl})`:""}`;
     });
 
-    // Products/services
-    const prods = (metrics?.businessProfile?.products||[]).slice(0,4).map(p=>`${p.name||""}${p.price?` ($${p.price})`:""}`).filter(Boolean);
+    // ── business profile ──────────────────────────────────────────────────────
+    const bp    = metrics?.businessProfile||{};
+    const prods = (bp.products||[]).slice(0,4).map(p=>`${p.name||""}${p.price?` ($${p.price})`:""}`).filter(Boolean);
 
-    // Marketing + strategy snapshots
+    // ── marketing agent output ────────────────────────────────────────────────
     const mktgOut = getOutput("marketing_insights") || getOutput("marketing_notes");
     let mktgData  = null;
     try { if(mktgOut?.content) mktgData = JSON.parse(mktgOut.content); } catch {}
-    const lastStrat = (()=>{ try{ const s=localStorage.getItem(`earnedlab_strat_${businessId}`); return s?JSON.parse(s):null; }catch{ return null; } })();
-    const chanByInsight = {};
-    if(mktgData?.insights) mktgData.insights.forEach(ins=>{
-      const ch = ins.channel||ins.implementationChannel||"general";
-      (chanByInsight[ch]=chanByInsight[ch]||[]).push(ins.title||ins.recommendation||"");
-    });
 
-    // ── build context block ───────────────────────────────────────────────────
+    // ── latest generated strategy ─────────────────────────────────────────────
+    const lastStrat = (()=>{ try{ const s=localStorage.getItem(`earnedlab_strat_${businessId}`); return s?JSON.parse(s):null; }catch{ return null; } })();
+
+    // ── context block ─────────────────────────────────────────────────────────
     const ctx = [
       `Business: ${business?.name||"—"} | ${idea?.name||""} | ${business?.location||""}`,
-      prods.length ? `Products/services: ${prods.join(", ")}` : "",
-      `Financials: Revenue $${totalRev.toLocaleString()}, Costs $${totalCosts.toLocaleString()}, Investments $${totalInv.toLocaleString()}, Profit ${profit>=0?"$"+profit.toLocaleString():"($"+Math.abs(profit).toLocaleString()+" loss)"}`,
-      topRevSrcs.length ? `Top revenue sources: ${topRevSrcs.join(" | ")}` : "",
-      `Pipeline: ${leadArr.length} leads total, ${activeClients} active clients, bookings this week ${bookings.this_week||0} / this month ${bookings.this_month||0}`,
-      social.instagram_followers||social.tiktok_followers||social.twitter_followers
-        ? `Social following: ${[social.instagram_followers?`Instagram ${social.instagram_followers}`:"",social.tiktok_followers?`TikTok ${social.tiktok_followers}`:"",social.twitter_followers?`Twitter ${social.twitter_followers}`:""].filter(Boolean).join(", ")}`
+      bp.uniqueValueProp ? `Value proposition: ${bp.uniqueValueProp}` : "",
+      prods.length       ? `Products/services: ${prods.join(", ")}` : "",
+      prefs?.goals       ? `Owner goal: ${prefs.goals}` : "",
+      `Financials: Revenue $${totalRev.toLocaleString()}, Costs $${totalCosts.toLocaleString()}, Investments $${totalInv.toLocaleString()}, Profit $${profit.toLocaleString()}${loss>0?`, Loss $${loss.toLocaleString()}`:""}`,
+      topRevSrcs.length    ? `Top revenue sources: ${topRevSrcs.join(" | ")}` : "",
+      topCostItems.length  ? `Top cost items: ${topCostItems.join(" | ")}` : "",
+      `Pipeline: ${leadCount} leads, ${clientCnt} active clients, ${bookings.this_month||0} bookings this month / ${bookings.this_week||0} this week`,
+      social.instagram||social.instagram_followers||social.tiktok||social.tiktok_followers
+        ? `Social: ${[
+            (social.instagram||social.instagram_followers)?`Instagram ${social.instagram||social.instagram_followers}`:"",
+            (social.tiktok||social.tiktok_followers)?`TikTok ${social.tiktok||social.tiktok_followers}`:"",
+            social.twitter_followers?`Twitter ${social.twitter_followers}`:"",
+          ].filter(Boolean).join(", ")}`
         : "",
       connChs.length ? `Connected channels: ${connChs.join(", ")}` : "Connected channels: none",
       `Tasks: ${doneTasks.length}/${allTasks.length} done. Completed: ${doneTasks.slice(-6).map(t=>t.name).join(", ")||"none"}. Pending: ${pendTasks.slice(0,6).map(t=>t.name).join(", ")||"none"}`,
       mktgData
-        ? `Marketing analysis (${mktgData.ranAt?new Date(mktgData.ranAt).toLocaleDateString():"recent"}): ${mktgData.report?.analysis?.summary||mktgData.overview?.summary||""}. Top recommendations: ${(mktgData.insights||[]).slice(0,4).map(i=>i.title||i.recommendation).join("; ")||"none"}`
+        ? `Marketing analysis (${mktgData.ranAt?new Date(mktgData.ranAt).toLocaleDateString():"recent"}): ${mktgData.report?.analysis?.summary||mktgData.overview?.summary||""}. Top recommendations: ${(mktgData.insights||[]).slice(0,4).map(i=>i.title||i.recommendation).filter(Boolean).join("; ")||"none"}`
         : "Marketing analysis: not run yet",
       lastStrat
-        ? `Business strategy: Budget $${lastStrat.budget?.monthly||0}/mo. Outreach focus: ${(lastStrat.outreach?.suggestions||[]).slice(0,2).join("; ")||"none"}. Targets: ${(lastStrat.predictedOutcomes||[]).slice(0,2).join("; ")||"none"}`
+        ? `Business strategy (${lastStrat.timeframe||""}): Budget $${lastStrat.budget?.monthly||0}/mo. Outreach: ${(lastStrat.outreach?.suggestions||[]).slice(0,2).join("; ")||"none"}. Targets: ${(lastStrat.predictedOutcomes||[]).slice(0,2).join("; ")||"none"}`
         : "Business strategy: not generated yet",
     ].filter(Boolean).join("\n");
 
-    const format = "Plain text only. No markdown, no asterisks, no bullet dashes, no bold, no headers. Write in clear short sentences. Use numbers from the data.";
+    const format = "Plain text only. No markdown, no asterisks, no bullet points, no bold, no headers. Short clear sentences. Cite exact numbers from the data.";
     const q = question
-      ? `${format}\n\nBUSINESS DATA:\n${ctx}\n\nUser question: "${question}"\n\nAnswer using only the real data above. Be specific and cite exact numbers.`
-      : `${format}\n\nBUSINESS DATA:\n${ctx}\n\nGive a concise 3-sentence status briefing: overall financial health, the single highest-priority action right now, and one specific insight from the data.`;
+      ? `${format}\n\nBUSINESS DATA:\n${ctx}\n\nUser question: "${question}"\n\nAnswer using only the real data above. Be specific.`
+      : `${format}\n\nBUSINESS DATA:\n${ctx}\n\nGive a 3-sentence briefing: overall financial health with specific numbers, the single most important action right now, and one insight from the data.`;
 
     try{
       const { suggestion } = await api.metrics.suggest(businessId, q, prefs);
-      // Strip any markdown characters the model may still emit
       const clean = (suggestion||"").replace(/\*\*/g,"").replace(/\*/g,"").replace(/^#{1,3}\s/gm,"").replace(/^-\s/gm,"");
       setOverviewBrief(clean);
     }catch(e){ setOverviewBrief("Unable to load briefing — check your connection."); }

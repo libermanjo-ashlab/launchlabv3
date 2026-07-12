@@ -112,17 +112,23 @@ router.post("/:businessId/suggest", requireAuth, async (req, res, next) => {
     if (/\bnational\b/i.test(q))        suggestedPrefsUpdate.audience = "national";
     if (/\bestablish/i.test(q))         suggestedPrefsUpdate.stage    = "established";
 
-    const msg = await ai.messages.create({
-      model:"claude-sonnet-4-6", max_tokens:600,
-      messages:[{ role:"user", content:`
-You are the management agent for "${biz.name}" (${idea.name||"service business"}, ${stageCtx}, ${audienceCtx}).
-Current metrics: revenue $${metrics.revenue?.this_month||0}/mo, ${metrics.clients?.active||0} active clients, ${metrics.leads?.this_month||0} leads this month, ${metrics.social?.instagram||0} Instagram followers.
+    // When the frontend already built a full context block (overview brief / ask chat),
+    // pass it straight through — don't wrap it in a stale metrics header that would
+    // contradict the accurate data the client computed.
+    const isFullContext = q.includes("BUSINESS DATA:");
+
+    const promptContent = isFullContext
+      ? q
+      : `You are the management agent for "${biz.name}" (${idea.name||"service business"}, ${stageCtx}, ${audienceCtx}).
 ${prefs.goals ? `Owner goal: ${prefs.goals}` : ""}
 
 The user said: "${q||"What should I focus on this week?"}"
 
-Give a specific, actionable answer in 2-3 sentences. Focus on the most impactful next step. Do not use location-specific phrases unless audience is local. No double quotes or apostrophes.
-` }],
+Give a specific, actionable answer in 2-3 sentences. Focus on the most impactful next step. Plain text only, no markdown, no asterisks. No double quotes or apostrophes.`;
+
+    const msg = await ai.messages.create({
+      model:"claude-sonnet-4-6", max_tokens:700,
+      messages:[{ role:"user", content:promptContent }],
     });
 
     res.json({ suggestion: msg.content[0]?.text||"", prefsUpdate: Object.keys(suggestedPrefsUpdate).length ? suggestedPrefsUpdate : null });
