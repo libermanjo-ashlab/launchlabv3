@@ -88,11 +88,3 @@ model Integration {
   updatedAt    DateTime @updatedAt
   @@unique([businessId, provider])
 }
-model OAuthClient {
-  id           String   @id @default(cuid())
-  clientId     String   @unique
-  clientSecret String
-  name         String   @default("Unknown")
-  redirectUris String   @default("[]")
-  createdAt    DateTime @default(now())
-}

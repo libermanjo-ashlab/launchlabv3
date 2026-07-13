@@ -2,13 +2,13 @@ const express = require("express");
 const cors    = require("cors");
 const crypto  = require("crypto");
 const jwt     = require("jsonwebtoken");
-const { PrismaClient } = require("@prisma/client");
 
-const prisma   = new PrismaClient();
 const openCors = cors({ origin: "*" });
 
-// Short-lived auth codes (10-min TTL, cleaned up every minute)
-const authCodes = new Map();
+// In-memory stores — OAuth clients re-register on reconnect; codes are 10-min lived
+const oauthClients = new Map(); // clientId → { clientSecret, name, redirectUris[] }
+const authCodes    = new Map(); // code → { userId, clientId, redirectUri, codeChallenge, expiresAt }
+
 setInterval(() => {
   const now = Date.now();
   for (const [k, v] of authCodes) if (v.expiresAt < now) authCodes.delete(k);
@@ -30,13 +30,10 @@ publicRouter.post("/register", openCors, async (req, res) => {
     }
     const clientId     = crypto.randomBytes(16).toString("hex");
     const clientSecret = crypto.randomBytes(32).toString("hex");
-    await prisma.oAuthClient.create({
-      data: {
-        clientId,
-        clientSecret,
-        name: String(client_name || "Unknown").slice(0, 200),
-        redirectUris: JSON.stringify(redirect_uris),
-      },
+    oauthClients.set(clientId, {
+      clientSecret,
+      name:         String(client_name || "Unknown").slice(0, 200),
+      redirectUris: redirect_uris,
     });
     return res.status(201).json({
       client_id:            clientId,
@@ -78,7 +75,7 @@ publicRouter.post("/token", openCors, async (req, res) => {
       if (digest !== entry.codeChallenge) return res.status(400).json({ error: "invalid_grant", error_description: "PKCE verification failed" });
     }
 
-    const client = await prisma.oAuthClient.findUnique({ where: { clientId: client_id } });
+    const client = oauthClients.get(client_id);
     if (!client || client.clientSecret !== client_secret) {
       return res.status(401).json({ error: "invalid_client" });
     }
@@ -117,11 +114,10 @@ apiRouter.post("/approve", async (req, res) => {
     const { client_id, redirect_uri, code_challenge, state } = req.body || {};
     if (!client_id || !redirect_uri) return res.status(400).json({ error: "missing params" });
 
-    const client = await prisma.oAuthClient.findUnique({ where: { clientId: client_id } });
+    const client = oauthClients.get(client_id);
     if (!client) return res.status(400).json({ error: "Unknown client" });
 
-    const allowed = JSON.parse(client.redirectUris);
-    if (!allowed.includes(redirect_uri)) return res.status(400).json({ error: "redirect_uri not registered" });
+    if (!client.redirectUris.includes(redirect_uri)) return res.status(400).json({ error: "redirect_uri not registered" });
 
     const code = crypto.randomBytes(24).toString("hex");
     authCodes.set(code, {
@@ -144,16 +140,12 @@ apiRouter.post("/approve", async (req, res) => {
 });
 
 // Returns the app name for the consent screen
-apiRouter.get("/client-info", openCors, async (req, res) => {
-  try {
-    const { client_id } = req.query;
-    if (!client_id) return res.status(400).json({ error: "client_id required" });
-    const client = await prisma.oAuthClient.findUnique({ where: { clientId: client_id } });
-    if (!client) return res.status(404).json({ error: "Not found" });
-    return res.json({ name: client.name });
-  } catch (err) {
-    return res.status(500).json({ error: "Server error" });
-  }
+apiRouter.get("/client-info", openCors, (req, res) => {
+  const { client_id } = req.query;
+  if (!client_id) return res.status(400).json({ error: "client_id required" });
+  const client = oauthClients.get(client_id);
+  if (!client) return res.status(404).json({ error: "Not found" });
+  return res.json({ name: client.name });
 });
 
 module.exports = { publicRouter, apiRouter };
