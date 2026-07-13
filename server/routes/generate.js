@@ -2,7 +2,8 @@ const router      = require("express").Router();
 const requireAuth = require("../middleware/auth");
 const { PrismaClient } = require("@prisma/client");
 const ai = require("../services/ai");
-const { addDailyTokens, TOKEN_EST } = require("../services/dailyBudget");
+const { addDailyTokens, getDailyTokens, DAILY_TOKEN_LIMITS, tokenBudget, TOKEN_EST } = require("../services/dailyBudget");
+const { getEffectivePlan } = require("../services/plans");
 
 const prisma = new PrismaClient();
 
@@ -118,6 +119,23 @@ router.post("/chat", requireAuth, async (req, res, next) => {
   try {
     const { message, businessId } = req.body;
     if (!message) return res.status(400).json({ error:"message is required" });
+
+    // Budget enforcement
+    if (businessId) {
+      const user = await prisma.user.findUnique({ where:{ id:req.userId } });
+      const effective = getEffectivePlan(user);
+      const dailyUsed = await getDailyTokens(businessId);
+      const tokenLimit = DAILY_TOKEN_LIMITS[effective.plan] || DAILY_TOKEN_LIMITS.starter;
+      if (dailyUsed + TOKEN_EST.chat > tokenLimit) {
+        return res.status(429).json({
+          error: `Daily insights limit reached on the ${effective.plan} plan. Resets at midnight UTC.`,
+          tokenLimitReached: true,
+          tokenBudget: tokenBudget(effective.plan, dailyUsed),
+        });
+      }
+      addDailyTokens(businessId, TOKEN_EST.chat).catch(() => {});
+    }
+
     let context = { businessName:"your business" };
     if (businessId) {
       const biz = await prisma.business.findFirst({ where:{ id:businessId, userId:req.userId } });
@@ -128,7 +146,6 @@ router.post("/chat", requireAuth, async (req, res, next) => {
         context = { businessName:biz.name, businessType:idea.name, location:biz.location, age:user?.age };
       }
     }
-    if (businessId) addDailyTokens(businessId, TOKEN_EST.chat).catch(() => {});
     const reply = await ai.chatResponse(message, context);
     res.json({ reply });
   } catch(e) { next(e); }

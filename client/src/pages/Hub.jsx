@@ -5993,7 +5993,7 @@ export default function Hub() {
                 return (
                   <div style={{ padding:"6px 6px", marginTop:14, borderTop:"1px solid rgba(255,255,255,0.06)", paddingTop:12 }}>
                     <div style={{ display:"flex", justifyContent:"space-between", marginBottom:4 }}>
-                      <span style={{ fontSize:9, color:"rgba(255,255,255,0.35)", fontFamily:FB, textTransform:"uppercase", letterSpacing:"0.05em" }}>Daily AI budget</span>
+                      <span style={{ fontSize:9, color:"rgba(255,255,255,0.35)", fontFamily:FB, textTransform:"uppercase", letterSpacing:"0.05em" }}>Daily insights</span>
                       <span style={{ fontSize:9, color:"rgba(255,255,255,0.35)", fontFamily:FB }}>
                         {fmtK(rawUsed)}/{fmtK(rawLimit)}
                       </span>

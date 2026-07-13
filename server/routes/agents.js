@@ -204,6 +204,16 @@ router.post("/:businessId/management/implement", requireAuth, async (req, res, n
     const check = canImplement(effective, usage);
     if (!check.allowed) return res.status(402).json({ error: check.reason, upgradeRequired:true });
 
+    const dailyUsedImpl = await getDailyTokens(req.params.businessId);
+    const tokenLimitImpl = DAILY_TOKEN_LIMITS[effective.plan] || DAILY_TOKEN_LIMITS.starter;
+    if (dailyUsedImpl + TOKEN_EST.implement > tokenLimitImpl) {
+      return res.status(429).json({
+        error: `Daily insights limit reached on the ${effective.plan} plan. Resets at midnight UTC.`,
+        tokenLimitReached: true,
+        tokenBudget: tokenBudget(effective.plan, dailyUsedImpl),
+      });
+    }
+
     const biz = await prisma.business.findFirst({ where:{ id:req.params.businessId, userId:req.userId } });
     if (!biz) return res.status(404).json({ error:"Business not found" });
 
@@ -772,6 +782,7 @@ router.post("/:businessId/campaigns/task-content", requireAuth, async (req, res,
   try {
     const { task, channel, mode } = req.body;
     if (!task) return res.status(400).json({ error:"task required" });
+    const { user: _tcUser, effective: tcEffective } = await loadUserAndPlan(req.userId);
     const biz = await prisma.business.findFirst({ where:{ id:req.params.businessId, userId:req.userId } });
     if (!biz) return res.status(404).json({ error:"Business not found" });
 
@@ -806,6 +817,18 @@ router.post("/:businessId/campaigns/task-content", requireAuth, async (req, res,
       const tips = CHANNEL_TIP_MAP[ch] || CHANNEL_TIP_MAP.general;
       return res.json({ content: { channel: ch, type: "manual_tip", tips } });
     }
+
+    // Budget check before any AI work
+    const tcDailyUsed = await getDailyTokens(req.params.businessId);
+    const tcTokenLimit = DAILY_TOKEN_LIMITS[tcEffective.plan] || DAILY_TOKEN_LIMITS.starter;
+    if (tcDailyUsed + TOKEN_EST.task_run > tcTokenLimit) {
+      return res.status(429).json({
+        error: `Daily insights limit reached on the ${tcEffective.plan} plan. Resets at midnight UTC.`,
+        tokenLimitReached: true,
+        tokenBudget: tokenBudget(tcEffective.plan, tcDailyUsed),
+      });
+    }
+    addDailyTokens(req.params.businessId, TOKEN_EST.task_run).catch(() => {});
 
     // ── 1. Guided task detection (engagement, follow/DM, video) ─────────────
     const taskText = (task.name || "") + " " + (task.description || "");
@@ -1041,6 +1064,18 @@ router.get("/:businessId/autopilot", requireAuth, async (req, res, next) => {
  */
 router.post("/:businessId/content-lab", requireAuth, async (req, res, next) => {
   try {
+    const { user: _clUser, effective: clEffective } = await loadUserAndPlan(req.userId);
+    const clDailyUsed = await getDailyTokens(req.params.businessId);
+    const clTokenLimit = DAILY_TOKEN_LIMITS[clEffective.plan] || DAILY_TOKEN_LIMITS.starter;
+    if (clDailyUsed + TOKEN_EST.task_run > clTokenLimit) {
+      return res.status(429).json({
+        error: `Daily insights limit reached on the ${clEffective.plan} plan. Resets at midnight UTC.`,
+        tokenLimitReached: true,
+        tokenBudget: tokenBudget(clEffective.plan, clDailyUsed),
+      });
+    }
+    addDailyTokens(req.params.businessId, TOKEN_EST.task_run).catch(() => {});
+
     const biz = await prisma.business.findFirst({ where:{ id:req.params.businessId, userId:req.userId } });
     if (!biz) return res.status(404).json({ error:"Business not found" });
 
