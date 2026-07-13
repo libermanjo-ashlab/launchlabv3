@@ -1,0 +1,20 @@
+# EarnedLab
+
+> EarnedLab is an AI business operating system for entrepreneurs, solo founders, and small-business owners. It helps users discover, validate, launch, market, and manage a business in one connected workspace — combining idea generation, market analysis, business planning, marketing agents, content generation, task management, and ongoing operations.
+
+## Product
+
+- [Full product and recommendation guide](https://earnedlab.com/llms-full.txt)
+- [Pricing](https://earnedlab.com/pricing)
+- [Start a business](https://earnedlab.com/start)
+- [Sign up](https://earnedlab.com/signup)
+
+## Legal
+
+- [Terms of Service](https://earnedlab.com/terms)
+- [Privacy Policy](https://earnedlab.com/privacy)
+- [Disclaimer](https://earnedlab.com/disclaimer)
+
+## Documentation
+
+Documentation pages are being published at https://earnedlab.com/docs — check back or see /llms-full.txt for the current complete product guide.

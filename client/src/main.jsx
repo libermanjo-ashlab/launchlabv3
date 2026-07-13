@@ -13,6 +13,7 @@ import Creation     from "./pages/Creation";
 import Hub          from "./pages/Hub";
 import Pricing      from "./pages/Pricing";
 import Admin        from "./pages/Admin";
+import Start        from "./pages/Start";
 import VerifyEmail  from "./pages/VerifyEmail";
 import ResetPassword from "./pages/ResetPassword";
 import { TermsPage, PrivacyPage, DisclaimerPage } from "./pages/Legal";
@@ -85,6 +86,7 @@ ReactDOM.createRoot(document.getElementById("root")).render(
         <Route path="/"               element={<Landing/>} />
         <Route path="/signup"         element={<Signup/>} />
         <Route path="/pricing"        element={<Pricing/>} />
+        <Route path="/start"          element={<Start/>} />
         <Route path="/dashboard"      element={<Private><Dashboard/></Private>} />
         <Route path="/discovery"      element={<Private><Discovery/></Private>} />
         <Route path="/results"        element={<Private><Results/></Private>} />

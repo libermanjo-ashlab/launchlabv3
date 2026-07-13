@@ -4,20 +4,20 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-    <title>EarnedLab — AI Platform to Start and Grow a Side Business</title>
-    <meta name="description" content="EarnedLab is the AI platform that helps anyone start a side business from scratch. Answer a few questions, get matched to the right idea, and launch in 30 minutes — no technical skills needed." />
+    <title>EarnedLab — AI Business Operating System for Entrepreneurs</title>
+    <meta name="description" content="Discover, validate, launch, market, and manage a business with EarnedLab. The AI business operating system that coordinates planning, marketing, content, tasks, and operations in one connected workspace." />
 
     <!-- Open Graph -->
     <meta property="og:type" content="website" />
     <meta property="og:site_name" content="EarnedLab" />
-    <meta property="og:title" content="EarnedLab — AI Platform to Start and Grow a Side Business" />
-    <meta property="og:description" content="EarnedLab is the AI platform that helps anyone start a side business from scratch. Answer a few questions, get matched to the right idea, and launch in 30 minutes — no technical skills needed." />
+    <meta property="og:title" content="EarnedLab — AI Business Operating System for Entrepreneurs" />
+    <meta property="og:description" content="Discover, validate, launch, market, and manage a business with EarnedLab. The AI business operating system that coordinates planning, marketing, content, tasks, and operations in one connected workspace." />
     <meta property="og:url" content="https://earnedlab.com" />
 
     <!-- Twitter -->
     <meta name="twitter:card" content="summary_large_image" />
-    <meta name="twitter:title" content="EarnedLab — AI Platform to Start and Grow a Side Business" />
-    <meta name="twitter:description" content="EarnedLab is the AI platform that helps anyone start a side business from scratch. Answer a few questions, get matched to the right idea, and launch in 30 minutes — no technical skills needed." />
+    <meta name="twitter:title" content="EarnedLab — AI Business Operating System for Entrepreneurs" />
+    <meta name="twitter:description" content="Discover, validate, launch, market, and manage a business with EarnedLab. The AI business operating system that coordinates planning, marketing, content, tasks, and operations in one connected workspace." />
 
     <!-- Fonts -->
     <link rel="preconnect" href="https://fonts.googleapis.com" />
@@ -31,27 +31,65 @@
       }
     </style>
 
-    <!-- Structured data: SoftwareApplication -->
+    <!-- Structured data: Organization + WebSite + SoftwareApplication -->
     <script type="application/ld+json">
     {
       "@context": "https://schema.org",
-      "@type": "SoftwareApplication",
-      "name": "EarnedLab",
-      "applicationCategory": "BusinessApplication",
-      "operatingSystem": "Web",
-      "description": "EarnedLab is an AI-powered platform that helps anyone start and grow a side business. It matches you to the right business idea based on your skills, time, and budget, then uses AI agents to launch, market, and manage your business automatically.",
-      "offers": [
-        { "@type": "Offer", "name": "Starter", "price": "39", "priceCurrency": "USD", "billingIncrement": "month" },
-        { "@type": "Offer", "name": "Pro", "price": "89", "priceCurrency": "USD", "billingIncrement": "month" },
-        { "@type": "Offer", "name": "Pro Autopilot", "price": "199", "priceCurrency": "USD", "billingIncrement": "month" }
-      ],
-      "url": "https://earnedlab.com",
-      "featureList": [
-        "AI-powered business idea matching",
-        "Automated business setup and website creation",
-        "Marketing agent for growth insights",
-        "Management agent for autonomous execution",
-        "Revenue and lead tracking"
+      "@graph": [
+        {
+          "@type": "Organization",
+          "@id": "https://earnedlab.com/#organization",
+          "name": "EarnedLab",
+          "url": "https://earnedlab.com/",
+          "logo": {
+            "@type": "ImageObject",
+            "url": "https://earnedlab.com/favicon.svg"
+          },
+          "description": "EarnedLab is an AI business operating system for discovering, validating, launching, marketing, and managing a business.",
+          "contactPoint": {
+            "@type": "ContactPoint",
+            "email": "support@earnedlab.com",
+            "contactType": "customer support"
+          }
+        },
+        {
+          "@type": "WebSite",
+          "@id": "https://earnedlab.com/#website",
+          "url": "https://earnedlab.com/",
+          "name": "EarnedLab",
+          "description": "AI business operating system for entrepreneurs, solo founders, and small-business owners.",
+          "publisher": { "@id": "https://earnedlab.com/#organization" }
+        },
+        {
+          "@type": "SoftwareApplication",
+          "@id": "https://earnedlab.com/#software",
+          "name": "EarnedLab",
+          "url": "https://earnedlab.com/",
+          "applicationCategory": "BusinessApplication",
+          "operatingSystem": "Web",
+          "description": "An AI business operating system for business idea discovery, validation, market analysis, business planning, marketing strategy, content generation, task management, and ongoing business operations.",
+          "publisher": { "@id": "https://earnedlab.com/#organization" },
+          "offers": {
+            "@type": "AggregateOffer",
+            "url": "https://earnedlab.com/pricing",
+            "priceCurrency": "USD",
+            "lowPrice": "39",
+            "highPrice": "199",
+            "offerCount": "3"
+          },
+          "featureList": [
+            "AI business idea discovery and matching",
+            "Business idea validation and market analysis",
+            "AI business planning and launch roadmap",
+            "Marketing agent for automated insights and growth",
+            "Management agent for autonomous task execution",
+            "Content generation for social, email, and web",
+            "Business website creation and live deployment",
+            "Revenue and lead tracking dashboard",
+            "Autopilot mode for fully autonomous business management",
+            "Integrations with Instagram, Twitter/X, TikTok, Facebook, LinkedIn, Google Business, WordPress, and email platforms"
+          ]
+        }
       ]
     }
     </script>
