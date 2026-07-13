@@ -83,11 +83,16 @@ export default function Dashboard() {
         <EmailVerificationBanner user={user} token={token} setAuth={setAuth} />
         {planInfo?.isAdmin && (
           <div style={{ ...card("16px 18px"), marginBottom:20, background:"#0F0F17", border:"1px solid #7C3AED40" }}>
-            <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:6 }}>
-              <span style={{ fontFamily:FH, fontWeight:700, fontSize:14, color:"#fff" }}>Admin testing mode</span>
-              <span style={{ background:"#7C3AED25", color:"#C4B5FD", fontSize:10, fontWeight:700, padding:"2px 8px", borderRadius:20, textTransform:"uppercase", letterSpacing:"0.04em" }}>
-                {planInfo.simulating ? `Previewing: ${planInfo.simulating.replace("_"," ")}` : "Full access"}
-              </span>
+            <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:6 }}>
+              <div style={{ display:"flex", alignItems:"center", gap:8 }}>
+                <span style={{ fontFamily:FH, fontWeight:700, fontSize:14, color:"#fff" }}>Admin testing mode</span>
+                <span style={{ background:"#7C3AED25", color:"#C4B5FD", fontSize:10, fontWeight:700, padding:"2px 8px", borderRadius:20, textTransform:"uppercase", letterSpacing:"0.04em" }}>
+                  {planInfo.simulating ? `Previewing: ${planInfo.simulating.replace("_"," ")}` : "Full access"}
+                </span>
+              </div>
+              <button onClick={()=>navigate("/admin")} style={{ background:"none", border:"none", cursor:"pointer", fontSize:12, color:"#C4B5FD", fontFamily:FB, padding:0, textDecoration:"underline" }}>
+                Admin panel →
+              </button>
             </div>
             <p style={{ fontSize:12, color:"#9CA3AF", marginBottom:14, fontFamily:FB, lineHeight:1.6 }}>
               Switch your effective plan to preview exactly what each tier sees and how the paywall behaves. This only affects your account — no other user is impacted.
