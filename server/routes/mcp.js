@@ -208,8 +208,8 @@ router.get("/", (req, res) => {
     name:            "EarnedLab",
     description:     "AI business operating system for entrepreneurs, solo founders, and small-business owners.",
     mcp_version:     MCP_VERSION,
-    endpoint:        "https://earnedlab.com/api/mcp",
-    docs:            "https://earnedlab.com/docs/api-mcp.md",
+    endpoint:        "https://www.earnedlab.com/api/mcp",
+    docs:            "https://www.earnedlab.com/docs/api-mcp.md",
     tools:           TOOL_DEFS.map(t => ({ name: t.name, description: t.description.slice(0, 120) })),
     auth:            "Bearer token (EarnedLab JWT) required only for write tools: create_earnedlab_workspace, update_business_workspace",
   });
