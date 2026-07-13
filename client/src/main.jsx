@@ -1,7 +1,8 @@
-import React from "react";
+import React, { useEffect } from "react";
 import ReactDOM from "react-dom/client";
 import { BrowserRouter, Routes, Route, Navigate, useNavigate } from "react-router-dom";
 import * as Sentry from "@sentry/react";
+import posthog from "posthog-js";
 import useStore from "./lib/store";
 import Landing      from "./pages/Landing";
 import Signup       from "./pages/Signup";
@@ -11,6 +12,7 @@ import Results      from "./pages/Results";
 import Creation     from "./pages/Creation";
 import Hub          from "./pages/Hub";
 import Pricing      from "./pages/Pricing";
+import Admin        from "./pages/Admin";
 import VerifyEmail  from "./pages/VerifyEmail";
 import ResetPassword from "./pages/ResetPassword";
 import { TermsPage, PrivacyPage, DisclaimerPage } from "./pages/Legal";
@@ -24,6 +26,28 @@ if (import.meta.env.VITE_SENTRY_DSN) {
     tracesSampleRate: 0.1,
     integrations: [Sentry.browserTracingIntegration()],
   });
+}
+
+if (import.meta.env.VITE_POSTHOG_KEY) {
+  posthog.init(import.meta.env.VITE_POSTHOG_KEY, {
+    api_host: import.meta.env.VITE_POSTHOG_HOST || "https://us.i.posthog.com",
+    person_profiles: "identified_only",
+    capture_pageview: true,
+  });
+}
+
+// Identifies the logged-in user to PostHog whenever auth state changes
+function UserTracker() {
+  const user = useStore(s => s.user);
+  useEffect(() => {
+    if (!import.meta.env.VITE_POSTHOG_KEY) return;
+    if (user?.id) {
+      posthog.identify(user.id, { email: user.email, name: user.name, plan: user.plan });
+    } else {
+      posthog.reset();
+    }
+  }, [user?.id]);
+  return null;
 }
 
 function Private({ children }) {
@@ -56,6 +80,7 @@ function NotFound() {
 ReactDOM.createRoot(document.getElementById("root")).render(
   <AppErrorBoundary>
     <BrowserRouter>
+      <UserTracker />
       <Routes>
         <Route path="/"               element={<Landing/>} />
         <Route path="/signup"         element={<Signup/>} />
@@ -65,6 +90,7 @@ ReactDOM.createRoot(document.getElementById("root")).render(
         <Route path="/results"        element={<Private><Results/></Private>} />
         <Route path="/creation/:id"   element={<Private><Creation/></Private>} />
         <Route path="/hub/:id"        element={<Private><Hub/></Private>} />
+        <Route path="/admin"          element={<Private><Admin/></Private>} />
         <Route path="/terms"          element={<TermsPage/>} />
         <Route path="/privacy"        element={<PrivacyPage/>} />
         <Route path="/disclaimer"     element={<DisclaimerPage/>} />

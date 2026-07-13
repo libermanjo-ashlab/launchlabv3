@@ -129,6 +129,9 @@ export const api = {
     generateSchedule:      bizId            => req("POST", `/agents/${bizId}/content-schedule`, {}),
     getSchedule:           bizId            => req("GET",  `/agents/${bizId}/content-schedule`),
   },
+  admin: {
+    users: () => req("GET", "/admin/users"),
+  },
   metrics: {
     get:      bizId               => req("GET",  `/metrics/${bizId}`),
     save:     (bizId,data)        => req("PUT",  `/metrics/${bizId}`, data),
