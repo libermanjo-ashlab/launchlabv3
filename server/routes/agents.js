@@ -1064,6 +1064,9 @@ router.get("/:businessId/autopilot", requireAuth, async (req, res, next) => {
  */
 router.post("/:businessId/content-lab", requireAuth, async (req, res, next) => {
   try {
+    const biz = await prisma.business.findFirst({ where:{ id:req.params.businessId, userId:req.userId } });
+    if (!biz) return res.status(404).json({ error:"Business not found" });
+
     const { user: _clUser, effective: clEffective } = await loadUserAndPlan(req.userId);
     const clDailyUsed = await getDailyTokens(req.params.businessId);
     const clTokenLimit = DAILY_TOKEN_LIMITS[clEffective.plan] || DAILY_TOKEN_LIMITS.starter;
@@ -1075,9 +1078,6 @@ router.post("/:businessId/content-lab", requireAuth, async (req, res, next) => {
       });
     }
     addDailyTokens(req.params.businessId, TOKEN_EST.task_run).catch(() => {});
-
-    const biz = await prisma.business.findFirst({ where:{ id:req.params.businessId, userId:req.userId } });
-    if (!biz) return res.status(404).json({ error:"Business not found" });
 
     const { channel = "instagram", context = "value tip post", tone = "professional" } = req.body;
     const VIDEO_CHANNELS = new Set(["tiktok"]);
