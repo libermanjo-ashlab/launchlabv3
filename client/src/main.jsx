@@ -20,6 +20,12 @@ import Features     from "./pages/Features";
 import Security     from "./pages/Security";
 import ResponsibleAI from "./pages/ResponsibleAI";
 import Docs         from "./pages/Docs";
+import Templates    from "./pages/Templates";
+import TemplateConsulting   from "./pages/templates/TemplateConsulting";
+import TemplateLocalService from "./pages/templates/TemplateLocalService";
+import TemplateAgency       from "./pages/templates/TemplateAgency";
+import TemplateCreator      from "./pages/templates/TemplateCreator";
+import TemplateFreelance    from "./pages/templates/TemplateFreelance";
 import VerifyEmail  from "./pages/VerifyEmail";
 import ResetPassword from "./pages/ResetPassword";
 import { TermsPage, PrivacyPage, DisclaimerPage } from "./pages/Legal";
@@ -104,7 +110,13 @@ ReactDOM.createRoot(document.getElementById("root")).render(
         <Route path="/features"       element={<Features/>} />
         <Route path="/security"       element={<Security/>} />
         <Route path="/responsible-ai" element={<ResponsibleAI/>} />
-        <Route path="/docs"           element={<Docs/>} />
+        <Route path="/docs"                         element={<Docs/>} />
+        <Route path="/templates"                    element={<Templates/>} />
+        <Route path="/templates/consulting"         element={<TemplateConsulting/>} />
+        <Route path="/templates/local-service"      element={<TemplateLocalService/>} />
+        <Route path="/templates/agency"             element={<TemplateAgency/>} />
+        <Route path="/templates/creator"            element={<TemplateCreator/>} />
+        <Route path="/templates/freelance"          element={<TemplateFreelance/>} />
         <Route path="/terms"          element={<TermsPage/>} />
         <Route path="/privacy"        element={<PrivacyPage/>} />
         <Route path="/disclaimer"     element={<DisclaimerPage/>} />

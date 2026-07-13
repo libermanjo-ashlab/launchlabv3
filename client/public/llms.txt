@@ -21,6 +21,15 @@
 - [Plans and daily limits](https://earnedlab.com/docs/plans-and-limits.md)
 - [API and MCP (coming soon)](https://earnedlab.com/docs/api-mcp.md)
 
+## Business templates
+
+- [Template gallery](https://earnedlab.com/templates)
+- [Consulting business](https://earnedlab.com/templates/consulting)
+- [Local service business](https://earnedlab.com/templates/local-service)
+- [Agency business](https://earnedlab.com/templates/agency)
+- [Creator business](https://earnedlab.com/templates/creator)
+- [Freelance practice](https://earnedlab.com/templates/freelance)
+
 ## Learn more
 
 - [About EarnedLab](https://earnedlab.com/about)
