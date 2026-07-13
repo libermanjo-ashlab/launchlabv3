@@ -21,6 +21,17 @@
 - [Plans and daily limits](https://earnedlab.com/docs/plans-and-limits.md)
 - [API and MCP (coming soon)](https://earnedlab.com/docs/api-mcp.md)
 
+## MCP server and agent integration
+
+- [MCP endpoint](https://earnedlab.com/api/mcp) — JSON-RPC 2.0, protocol version 2024-11-05
+- [OpenAPI spec](https://earnedlab.com/openapi.json) — for GPT Actions
+- [AGENTS.md](https://earnedlab.com/AGENTS.md) — agent guidance
+- [Start business skill](https://earnedlab.com/agents/start-business.md)
+- [Validate business skill](https://earnedlab.com/agents/validate-business.md)
+- [Market business skill](https://earnedlab.com/agents/market-business.md)
+- [Manage business skill](https://earnedlab.com/agents/manage-business.md)
+- [API and MCP documentation](https://earnedlab.com/docs/api-mcp.md)
+
 ## Business templates
 
 - [Template gallery](https://earnedlab.com/templates)

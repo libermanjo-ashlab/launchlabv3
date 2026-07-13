@@ -183,6 +183,38 @@
     <priority>0.7</priority>
   </url>
 
+  <!-- MCP and agent integration -->
+  <url>
+    <loc>https://earnedlab.com/AGENTS.md</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.6</priority>
+  </url>
+  <url>
+    <loc>https://earnedlab.com/openapi.json</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.5</priority>
+  </url>
+  <url>
+    <loc>https://earnedlab.com/agents/start-business.md</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.5</priority>
+  </url>
+  <url>
+    <loc>https://earnedlab.com/agents/validate-business.md</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.5</priority>
+  </url>
+  <url>
+    <loc>https://earnedlab.com/agents/market-business.md</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.5</priority>
+  </url>
+  <url>
+    <loc>https://earnedlab.com/agents/manage-business.md</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.5</priority>
+  </url>
+
   <!-- Machine-readable -->
   <url>
     <loc>https://earnedlab.com/llms.txt</loc>

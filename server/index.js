@@ -44,6 +44,7 @@ const ttRoutes       = require("./routes/tiktok");
 const emailChRoutes  = require("./routes/emailChannel");
 const { router: subscriptionRoutes, handleWebhook } = require("./routes/subscriptions");
 const adminRoutes    = require("./routes/admin");
+const mcpRoutes      = require("./routes/mcp");
 const { startBackupSchedule } = require("./services/backup");
 
 const app    = express();
@@ -74,6 +75,8 @@ app.use("/api/tiktok",        ttRoutes);
 app.use("/api/email",         emailChRoutes);
 app.use("/api/subscriptions", subscriptionRoutes);
 app.use("/api/admin",        adminRoutes);
+// MCP server — open to any origin so AI assistants can connect
+app.use("/api/mcp", cors({ origin: "*", methods: ["GET", "POST", "OPTIONS"] }), aiLimiter, mcpRoutes);
 
 app.get("/api/health", (req, res) => res.json({ ok: true, version: "1.2.0" }));
 

@@ -1,0 +1,137 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "EarnedLab Business Tools API",
+    "description": "EarnedLab helps entrepreneurs discover, validate, launch, market, and manage businesses. These tools generate structured business analysis, planning, marketing, and content outputs. Read-only tools require no authentication. Write tools (create_earnedlab_workspace, update_business_workspace) require a Bearer token.",
+    "version": "1.0.0",
+    "contact": { "email": "support@earnedlab.com" }
+  },
+  "servers": [
+    { "url": "https://earnedlab.com/api", "description": "Production" }
+  ],
+  "security": [],
+  "paths": {
+    "/mcp": {
+      "get": {
+        "operationId": "getServerInfo",
+        "summary": "Get MCP server information",
+        "description": "Returns EarnedLab MCP server metadata including available tools and authentication requirements.",
+        "responses": {
+          "200": {
+            "description": "Server info",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ServerInfo" }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "operationId": "callMcpTool",
+        "summary": "Invoke an EarnedLab business tool",
+        "description": "JSON-RPC 2.0 endpoint implementing the Model Context Protocol (MCP). Supports tools/list and tools/call. Read-only tools require no auth. Write tools require a Bearer token from a connected EarnedLab account.",
+        "security": [{ "bearerAuth": [] }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/JsonRpcRequest" },
+              "examples": {
+                "listTools": {
+                  "summary": "List available tools",
+                  "value": { "jsonrpc": "2.0", "method": "tools/list", "params": {}, "id": 1 }
+                },
+                "discoverOpportunities": {
+                  "summary": "Discover business opportunities",
+                  "value": {
+                    "jsonrpc": "2.0",
+                    "method": "tools/call",
+                    "params": {
+                      "name": "discover_business_opportunities",
+                      "arguments": {
+                        "skills": "marketing, copywriting",
+                        "hours_per_week": "10",
+                        "budget": "$500",
+                        "income_goal": "$2,000/month in 6 months"
+                      }
+                    },
+                    "id": 2
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "JSON-RPC response",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/JsonRpcResponse" }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "bearerAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "description": "EarnedLab JWT. Required only for write tools (create_earnedlab_workspace, update_business_workspace). Obtain by signing in at earnedlab.com."
+      }
+    },
+    "schemas": {
+      "JsonRpcRequest": {
+        "type": "object",
+        "required": ["jsonrpc", "method"],
+        "properties": {
+          "jsonrpc": { "type": "string", "enum": ["2.0"] },
+          "method": {
+            "type": "string",
+            "enum": ["initialize", "tools/list", "tools/call"],
+            "description": "MCP method to invoke"
+          },
+          "params": {
+            "type": "object",
+            "description": "For tools/call: { name: string, arguments: object }. For tools/list: {}."
+          },
+          "id": { "type": ["integer", "string", "null"] }
+        }
+      },
+      "JsonRpcResponse": {
+        "type": "object",
+        "properties": {
+          "jsonrpc": { "type": "string", "enum": ["2.0"] },
+          "result": {
+            "type": "object",
+            "description": "Successful result. For tools/call: { content: [{ type: 'text', text: string }], isError: boolean }"
+          },
+          "error": {
+            "type": "object",
+            "properties": {
+              "code": { "type": "integer" },
+              "message": { "type": "string" }
+            }
+          },
+          "id": { "type": ["integer", "string", "null"] }
+        }
+      },
+      "ServerInfo": {
+        "type": "object",
+        "properties": {
+          "name":        { "type": "string" },
+          "description": { "type": "string" },
+          "mcp_version": { "type": "string" },
+          "endpoint":    { "type": "string" },
+          "docs":        { "type": "string" },
+          "tools":       { "type": "array", "items": { "type": "object" } },
+          "auth":        { "type": "string" }
+        }
+      }
+    }
+  }
+}
