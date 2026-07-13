@@ -27,11 +27,17 @@ export const hint  = { fontSize:12,color:C.muted,marginTop:5,fontFamily:FB,lineH
 export function Logo({ size = 28 }) {
   return (
     <svg width={size} height={size} viewBox="0 0 56 56" fill="none" xmlns="http://www.w3.org/2000/svg">
-      <rect x="0" y="0"  width="29" height="23" rx="2" fill="#9980C8"/>
-      <rect x="0" y="27" width="5"  height="29" rx="1.5" fill="#8B6AC8"/>
-      <rect x="9" y="27" width="7"  height="29" rx="1.5" fill="#7655C0"/>
-      <rect x="21" y="27" width="13" height="29" rx="1.5" fill="#6468B8"/>
-      <rect x="38" y="27" width="18" height="29" rx="1.5" fill="#5060B0"/>
+      <defs>
+        <linearGradient id="el-grad" x1="0" y1="0" x2="56" y2="56" gradientUnits="userSpaceOnUse">
+          <stop offset="0%"   stopColor="#C855EA"/>
+          <stop offset="100%" stopColor="#4558D6"/>
+        </linearGradient>
+      </defs>
+      <rect x="0"  y="0"  width="30" height="22" rx="3"   fill="url(#el-grad)"/>
+      <rect x="0"  y="27" width="5"  height="29" rx="1.5" fill="url(#el-grad)"/>
+      <rect x="9"  y="27" width="7"  height="29" rx="1.5" fill="url(#el-grad)"/>
+      <rect x="20" y="27" width="12" height="29" rx="2"   fill="url(#el-grad)"/>
+      <rect x="36" y="27" width="20" height="29" rx="3"   fill="url(#el-grad)"/>
     </svg>
   );
 }
