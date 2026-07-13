@@ -14,6 +14,12 @@ import Hub          from "./pages/Hub";
 import Pricing      from "./pages/Pricing";
 import Admin        from "./pages/Admin";
 import Start        from "./pages/Start";
+import About        from "./pages/About";
+import HowItWorks   from "./pages/HowItWorks";
+import Features     from "./pages/Features";
+import Security     from "./pages/Security";
+import ResponsibleAI from "./pages/ResponsibleAI";
+import Docs         from "./pages/Docs";
 import VerifyEmail  from "./pages/VerifyEmail";
 import ResetPassword from "./pages/ResetPassword";
 import { TermsPage, PrivacyPage, DisclaimerPage } from "./pages/Legal";
@@ -93,6 +99,12 @@ ReactDOM.createRoot(document.getElementById("root")).render(
         <Route path="/creation/:id"   element={<Private><Creation/></Private>} />
         <Route path="/hub/:id"        element={<Private><Hub/></Private>} />
         <Route path="/admin"          element={<Private><Admin/></Private>} />
+        <Route path="/about"          element={<About/>} />
+        <Route path="/how-it-works"   element={<HowItWorks/>} />
+        <Route path="/features"       element={<Features/>} />
+        <Route path="/security"       element={<Security/>} />
+        <Route path="/responsible-ai" element={<ResponsibleAI/>} />
+        <Route path="/docs"           element={<Docs/>} />
         <Route path="/terms"          element={<TermsPage/>} />
         <Route path="/privacy"        element={<PrivacyPage/>} />
         <Route path="/disclaimer"     element={<DisclaimerPage/>} />
