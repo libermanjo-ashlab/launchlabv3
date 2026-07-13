@@ -45,6 +45,7 @@ const emailChRoutes  = require("./routes/emailChannel");
 const { router: subscriptionRoutes, handleWebhook } = require("./routes/subscriptions");
 const adminRoutes    = require("./routes/admin");
 const mcpRoutes      = require("./routes/mcp");
+const { publicRouter: oauthPublicRouter, apiRouter: oauthApiRouter } = require("./routes/oauth");
 const { startBackupSchedule } = require("./services/backup");
 
 const app    = express();
@@ -79,6 +80,26 @@ app.use("/api/admin",        adminRoutes);
 app.use("/api/mcp", cors({ origin: "*", methods: ["GET", "POST", "OPTIONS"] }), aiLimiter, mcpRoutes);
 
 app.get("/api/health", (req, res) => res.json({ ok: true, version: "1.2.0" }));
+
+// OAuth 2.0 — open CORS so Anthropic and other AI clients can reach these
+const oauthMeta = {
+  issuer:                                "https://earnedlab.com",
+  authorization_endpoint:               "https://earnedlab.com/oauth/authorize",
+  token_endpoint:                        "https://earnedlab.com/oauth/token",
+  registration_endpoint:                 "https://earnedlab.com/oauth/register",
+  response_types_supported:              ["code"],
+  grant_types_supported:                 ["authorization_code"],
+  code_challenge_methods_supported:      ["S256"],
+  token_endpoint_auth_methods_supported: ["client_secret_post"],
+  scopes_supported:                      ["read", "write"],
+};
+// Primary path-based discovery (MCP spec §2.3 — derived from /api/mcp)
+app.get("/.well-known/oauth-authorization-server/api/mcp", cors({ origin: "*" }), (_, res) => res.json(oauthMeta));
+// Root fallback (clients try this when path-based lookup returns non-2xx)
+app.get("/.well-known/oauth-authorization-server", cors({ origin: "*" }), (_, res) => res.json(oauthMeta));
+// OAuth endpoints
+app.use("/oauth",     cors({ origin: "*" }), oauthPublicRouter);
+app.use("/api/oauth", oauthApiRouter);
 
 if (isProd) {
   const dist = path.join(__dirname, "../client/dist");

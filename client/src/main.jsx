@@ -26,6 +26,7 @@ import TemplateLocalService from "./pages/templates/TemplateLocalService";
 import TemplateAgency       from "./pages/templates/TemplateAgency";
 import TemplateCreator      from "./pages/templates/TemplateCreator";
 import TemplateFreelance    from "./pages/templates/TemplateFreelance";
+import OAuthAuthorize from "./pages/OAuthAuthorize";
 import VerifyEmail  from "./pages/VerifyEmail";
 import ResetPassword from "./pages/ResetPassword";
 import { TermsPage, PrivacyPage, DisclaimerPage } from "./pages/Legal";
@@ -120,6 +121,7 @@ ReactDOM.createRoot(document.getElementById("root")).render(
         <Route path="/terms"          element={<TermsPage/>} />
         <Route path="/privacy"        element={<PrivacyPage/>} />
         <Route path="/disclaimer"     element={<DisclaimerPage/>} />
+        <Route path="/oauth/authorize" element={<OAuthAuthorize/>} />
         <Route path="/verify-email"   element={<VerifyEmail/>} />
         <Route path="/reset-password" element={<ResetPassword/>} />
         <Route path="*"               element={<NotFound/>} />
