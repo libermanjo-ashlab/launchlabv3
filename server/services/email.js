@@ -6,7 +6,9 @@ function getResend() {
 }
 
 const FROM = process.env.EMAIL_FROM || "EarnedLab <noreply@earnedlab.com>";
-const CLIENT_URL = process.env.CLIENT_URL || "http://localhost:5173";
+const CLIENT_URL = (process.env.CLIENT_URL || "http://localhost:5173")
+  .replace(/\/$/, "")
+  .replace("://earnedlab.com", "://www.earnedlab.com");
 
 async function sendEmail({ to, subject, html }) {
   const resend = getResend();
