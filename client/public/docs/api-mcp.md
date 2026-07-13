@@ -6,19 +6,19 @@ EarnedLab's remote MCP server lets AI assistants (Claude, ChatGPT, and any MCP-c
 
 ## MCP server
 
-**Endpoint:** `https://earnedlab.com/api/mcp`
+**Endpoint:** `https://www.earnedlab.com/api/mcp`
 **Protocol:** Model Context Protocol (MCP) 2024-11-05, JSON-RPC 2.0 over HTTP
 **Methods supported:** `initialize`, `tools/list`, `tools/call`
 
 ### Connecting from Claude
 
-In Claude.ai settings, go to Connectors → Add connector → enter `https://earnedlab.com/api/mcp`.
+In Claude.ai settings, go to Connectors → Add connector → enter `https://www.earnedlab.com/api/mcp`.
 
 Read-only tools are available immediately. Write tools require you to connect your EarnedLab account (Bearer token authentication).
 
 ### Connecting from other MCP clients
 
-Any MCP-compatible client can connect by pointing to `https://earnedlab.com/api/mcp` and sending JSON-RPC 2.0 requests.
+Any MCP-compatible client can connect by pointing to `https://www.earnedlab.com/api/mcp` and sending JSON-RPC 2.0 requests.
 
 ---
 
@@ -54,7 +54,7 @@ Write tools require a Bearer token: your EarnedLab JWT, obtained from the app.
 ### List available tools
 
 ```http
-POST https://earnedlab.com/api/mcp
+POST https://www.earnedlab.com/api/mcp
 Content-Type: application/json
 
 {
@@ -68,7 +68,7 @@ Content-Type: application/json
 ### Discover business opportunities
 
 ```http
-POST https://earnedlab.com/api/mcp
+POST https://www.earnedlab.com/api/mcp
 Content-Type: application/json
 
 {
@@ -91,7 +91,7 @@ Content-Type: application/json
 ### Create a workspace (authenticated)
 
 ```http
-POST https://earnedlab.com/api/mcp
+POST https://www.earnedlab.com/api/mcp
 Content-Type: application/json
 Authorization: Bearer <your-earnedlab-token>
 
@@ -126,7 +126,7 @@ Authorization: Bearer <your-earnedlab-token>
 
 The MCP endpoint is also described in an OpenAPI 3.1 spec for GPT Actions integration:
 
-`https://earnedlab.com/openapi.json`
+`https://www.earnedlab.com/openapi.json`
 
 ---
 
@@ -134,11 +134,11 @@ The MCP endpoint is also described in an OpenAPI 3.1 spec for GPT Actions integr
 
 For AI agent frameworks that use skill or agent files:
 
-- **AGENTS.md:** `https://earnedlab.com/AGENTS.md`
-- **Start business skill:** `https://earnedlab.com/agents/start-business.md`
-- **Validate business skill:** `https://earnedlab.com/agents/validate-business.md`
-- **Market business skill:** `https://earnedlab.com/agents/market-business.md`
-- **Manage business skill:** `https://earnedlab.com/agents/manage-business.md`
+- **AGENTS.md:** `https://www.earnedlab.com/AGENTS.md`
+- **Start business skill:** `https://www.earnedlab.com/agents/start-business.md`
+- **Validate business skill:** `https://www.earnedlab.com/agents/validate-business.md`
+- **Market business skill:** `https://www.earnedlab.com/agents/market-business.md`
+- **Manage business skill:** `https://www.earnedlab.com/agents/manage-business.md`
 
 ---
 

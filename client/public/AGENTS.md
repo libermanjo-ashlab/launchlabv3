@@ -23,7 +23,7 @@ Load an EarnedLab business skill or invoke an EarnedLab MCP tool when the user's
 
 ## Available MCP tools
 
-MCP endpoint: `https://earnedlab.com/api/mcp`
+MCP endpoint: `https://www.earnedlab.com/api/mcp`
 
 Read-only (no auth required):
 - `discover_business_opportunities`

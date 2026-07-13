@@ -83,10 +83,10 @@ app.get("/api/health", (req, res) => res.json({ ok: true, version: "1.2.0" }));
 
 // OAuth 2.0 — open CORS so Anthropic and other AI clients can reach these
 const oauthMeta = {
-  issuer:                                "https://earnedlab.com",
-  authorization_endpoint:               "https://earnedlab.com/oauth/authorize",
-  token_endpoint:                        "https://earnedlab.com/oauth/token",
-  registration_endpoint:                 "https://earnedlab.com/oauth/register",
+  issuer:                                "https://www.earnedlab.com",
+  authorization_endpoint:               "https://www.earnedlab.com/oauth/authorize",
+  token_endpoint:                        "https://www.earnedlab.com/oauth/token",
+  registration_endpoint:                 "https://www.earnedlab.com/oauth/register",
   response_types_supported:              ["code"],
   grant_types_supported:                 ["authorization_code"],
   code_challenge_methods_supported:      ["S256"],

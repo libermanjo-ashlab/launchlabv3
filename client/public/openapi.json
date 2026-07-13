@@ -7,7 +7,7 @@
     "contact": { "email": "support@earnedlab.com" }
   },
   "servers": [
-    { "url": "https://earnedlab.com/api", "description": "Production" }
+    { "url": "https://www.earnedlab.com/api", "description": "Production" }
   ],
   "security": [],
   "paths": {
