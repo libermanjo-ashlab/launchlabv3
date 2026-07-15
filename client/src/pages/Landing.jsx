@@ -47,6 +47,13 @@ const CSS = `
 `;
 
 // ── Data ───────────────────────────────────────────────────────────────────
+const TAGLINES = [
+  <>Build the business<br/><span style={{ background:C.grad, WebkitBackgroundClip:"text", WebkitTextFillColor:"transparent" }}>you've been putting off.</span></>,
+  <>Check the health of<br/><span style={{ background:C.grad, WebkitBackgroundClip:"text", WebkitTextFillColor:"transparent" }}>your existing business.</span></>,
+  <>Turn autopilot on<br/><span style={{ background:C.grad, WebkitBackgroundClip:"text", WebkitTextFillColor:"transparent" }}>for your business.</span></>,
+  <>Discover your next<br/><span style={{ background:C.grad, WebkitBackgroundClip:"text", WebkitTextFillColor:"transparent" }}>revenue stream.</span></>,
+];
+
 const SEQUENCES = [
   { input:"Good at writing, 8 hrs/week, startup costs under $200",
     results:[
@@ -159,7 +166,7 @@ function CursorGlow() {
 }
 
 // ── Animated input (hero) ───────────────────────────────────────────────────
-function AnimatedInput({ onCta }) {
+function AnimatedInput({ onCta, onNextTagline }) {
   const [text,      setText]      = useState("");
   const [results,   setResults]   = useState([]);
   const [analyzing, setAnalyzing] = useState(false);
@@ -174,6 +181,7 @@ function AnimatedInput({ onCta }) {
     const run = async () => {
       let si = 0;
       while (!dead()) {
+        if (si > 0) onNextTagline?.();         // advance tagline on each new run
         const seq = SEQUENCES[si++ % SEQUENCES.length];
         for (let i = 1; i <= seq.input.length; i++) {
           if (dead()) return;
@@ -737,17 +745,23 @@ function LiveChart({ active }) {
     const ctx = canvas.getContext("2d");
     ctx.scale(ratio, ratio);
 
-    const STEP    = 4;     // px per point
-    const MAX_PTS = Math.ceil(LW / STEP) + 4;
+    const STEP       = 4;
+    const MAX_PTS    = Math.ceil(LW / STEP) + 4;
+    const GRID_GAP   = 20;
+    const GRID_SPEED = 0.18; // px/frame — grid scrolls DOWN, making line appear to climb
     let t = 0;
+    let gridY = 0; // grid offset: increases → lines move down → line appears to rise
 
     const tick = () => {
       t++;
-      // Add a new point every 10 frames (~6 pts/sec at 60fps)
+      gridY += GRID_SPEED;
+      if (gridY >= GRID_GAP) gridY -= GRID_GAP; // seamless loop
+
+      // Add a new point every 10 frames
       if (t % 10 === 0) {
-        const last   = dataRef.current[dataRef.current.length - 1] ?? 68;
-        const wave   = Math.sin(t * 0.22) * 4.5;  // zigzag
-        const drift  = -(t / 400);                 // slow upward drift (lower y = higher on canvas)
+        const last   = dataRef.current[dataRef.current.length - 1] ?? 64;
+        const wave   = Math.sin(t * 0.22) * 5;
+        const drift  = -(t / 380);               // slow upward drift
         const noise  = (Math.random() - 0.45) * 3;
         const newY   = Math.max(7, Math.min(LH - 8, last + wave + drift + noise));
         dataRef.current.push(newY);
@@ -756,10 +770,10 @@ function LiveChart({ active }) {
 
       ctx.clearRect(0, 0, LW, LH);
 
-      // Grid lines
-      ctx.strokeStyle = "rgba(255,255,255,0.04)";
+      // Scrolling grid — moves DOWN to create illusion line is always climbing
+      ctx.strokeStyle = "rgba(255,255,255,0.05)";
       ctx.lineWidth   = 0.5;
-      for (let y = 0; y < LH; y += 20) {
+      for (let y = gridY; y < LH + GRID_GAP; y += GRID_GAP) {
         ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(LW, y); ctx.stroke();
       }
 
@@ -875,11 +889,29 @@ function ManagementSection({ flipCount }) {
   const seen   = useInView(ref, 0.2);
   const active = seen;
 
-  // Live-ticking stats — all continuously increase at different rates
-  const rev  = useLiveStat(6400,  1,   170, active);   // +$1 every 170ms ≈ very slow ticker
-  const cli  = useLiveStat(7,     1,  11000, active);  // +1 client every 11s
-  const comp = useLiveStat(73,    1,   8000, active);  // +1% every 8s
-  const hlth = useLiveStat(94,    1,  14000, active);  // +1 every 14s
+  // Revenue: slow live ticker
+  const rev    = useLiveStat(0,  1,   170, active);     // ~$6/s, slow and satisfying
+  // Clients: 0 → 100,000 in ~60s
+  const cli    = useLiveStat(0,  50,   30, active);     // +50 every 30ms = ~1,667/s
+  // Health: 0 → 100 in 5 min (300s)
+  const hlth   = useLiveStat(0,  1,  3000, active);     // +1 every 3s
+  // Finance stats
+  const profit = useLiveStat(0,  8,   100, active);     // +$8/100ms → +$80/s
+  const loss   = useLiveStat(0,  2,   100, active);     // +$2/100ms → +$20/s
+  const invest = useLiveStat(0, 18,   100, active);     // +$18/100ms → +$180/s
+
+  const statRows = [
+    [
+      { label:"Revenue",          val:`$${rev.toLocaleString()}`,         color:"#fff",     sub:"total earned" },
+      { label:"Clients",          val:cli.toLocaleString(),               color:"#fff",     sub:"active accounts" },
+      { label:"Business health",  val:`${hlth}`,                          color:"#4ADE80",  sub:"/ 100" },
+    ],
+    [
+      { label:"Profit",           val:`+$${profit.toLocaleString()}`,     color:"#4ADE80",  sub:"net positive" },
+      { label:"Loss",             val:`-$${loss.toLocaleString()}`,       color:"#F87171",  sub:"operating costs" },
+      { label:"Total investment", val:`$${invest.toLocaleString()}`,      color:C.primary,  sub:"deployed" },
+    ],
+  ];
 
   return (
     <section ref={ref} style={{ padding:"60px 24px 130px", borderTop:`1px solid ${border}`, position:"relative" }}
@@ -888,30 +920,28 @@ function ManagementSection({ flipCount }) {
       <div style={{ maxWidth:700, margin:"0 auto" }}>
         <A><h2 style={H2}>Running while<br/>you sleep.</h2></A>
 
-        {/* Stat tiles */}
-        <div className="stat-grid" style={{ marginTop:52, display:"grid", gridTemplateColumns:"repeat(4,1fr)", gap:10, marginBottom:12 }}>
-          {[
-            { label:"Revenue",    val:`$${rev.toLocaleString()}` },
-            { label:"Clients",    val:cli },
-            { label:"Completion", val:`${comp}%` },
-            { label:"Health",     val:`${hlth}` },
-          ].map((s,i) => (
-            <A key={s.label} delay={i * 80}>
-              <div className="glow-card" style={{ background:"rgba(255,255,255,0.03)", border:`1px solid ${border}`, borderRadius:12, padding:"16px 14px" }}>
-                <div style={{ fontFamily:FH, fontWeight:700, fontSize:22, color:"#fff", letterSpacing:"-0.04em", marginBottom:4, fontVariantNumeric:"tabular-nums" }}>{s.val}</div>
-                <div style={{ fontSize:10, color:dim, fontFamily:FB }}>{s.label}</div>
-              </div>
-            </A>
-          ))}
+        {/* Return connector — sits directly below heading, above the stats */}
+        <div style={{ display:"flex", justifyContent:"center", margin:"24px 0 8px" }}>
+          <DataConnector active={active && flipCount > 0} direction="up" label="Insights → Marketing agent"/>
         </div>
+
+        {/* Finance dashboard — two rows of 3 */}
+        {statRows.map((row, ri) => (
+          <div key={ri} style={{ display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:10, marginBottom:10 }}>
+            {row.map((s, i) => (
+              <A key={s.label} delay={(ri * 3 + i) * 60}>
+                <div className="glow-card" style={{ background:"rgba(255,255,255,0.03)", border:`1px solid ${border}`, borderRadius:12, padding:"14px 14px" }}>
+                  <div style={{ fontSize:9, color:dim, fontFamily:FB, fontWeight:600, textTransform:"uppercase", letterSpacing:"0.07em", marginBottom:7 }}>{s.label}</div>
+                  <div style={{ fontFamily:FH, fontWeight:700, fontSize:19, color:s.color, letterSpacing:"-0.04em", marginBottom:2, fontVariantNumeric:"tabular-nums" }}>{s.val}</div>
+                  <div style={{ fontSize:10, color:subtle, fontFamily:FB }}>{s.sub}</div>
+                </div>
+              </A>
+            ))}
+          </div>
+        ))}
 
         <LiveChart active={active} />
         <InsightsFeed active={active} />
-
-        {/* Return connector — management → marketing */}
-        <div style={{ display:"flex", justifyContent:"center", marginTop:28 }}>
-          <DataConnector active={active && flipCount > 0} direction="up" label="Insights → Marketing agent"/>
-        </div>
       </div>
     </section>
   );
@@ -968,20 +998,20 @@ function Nav({ onCta }) {
 }
 
 // ── Hero ────────────────────────────────────────────────────────────────────
-function Hero({ onCta }) {
+function Hero({ onCta, taglineIdx, onNextTagline }) {
   return (
     <section style={{ minHeight:"100vh", display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", padding:"110px 24px 90px", position:"relative", overflow:"hidden", textAlign:"center" }}>
       <div style={{ position:"absolute", inset:0, background:"radial-gradient(ellipse 80% 55% at 50% -5%, rgba(100,60,220,0.18), transparent)", pointerEvents:"none" }}/>
       <div style={{ position:"absolute", inset:0, background:"radial-gradient(ellipse 45% 35% at 80% 80%, rgba(8,145,178,0.07), transparent)", pointerEvents:"none" }}/>
       <div style={{ position:"relative", zIndex:1, width:"100%", maxWidth:700 }}>
         <div style={{ animation:"fadeUp 1s ease both" }}>
-          <h1 style={{ fontFamily:FH, fontWeight:700, fontSize:"clamp(40px,6vw,66px)", color:"#fff", lineHeight:1.06, letterSpacing:"-0.048em", margin:"0 0 52px" }}>
-            Build the business<br/>
-            <span style={{ background:C.grad, WebkitBackgroundClip:"text", WebkitTextFillColor:"transparent" }}>you've been putting off.</span>
+          {/* key forces remount → replays fadeUp animation when tagline changes */}
+          <h1 key={taglineIdx} style={{ fontFamily:FH, fontWeight:700, fontSize:"clamp(40px,6vw,66px)", color:"#fff", lineHeight:1.06, letterSpacing:"-0.048em", margin:"0 0 52px", animation:"fadeUp 0.9s ease both" }}>
+            {TAGLINES[taglineIdx % TAGLINES.length]}
           </h1>
         </div>
         <div style={{ animation:"fadeUp 1s ease 180ms both" }}>
-          <AnimatedInput onCta={onCta}/>
+          <AnimatedInput onCta={onCta} onNextTagline={onNextTagline}/>
         </div>
       </div>
     </section>
@@ -1074,17 +1104,19 @@ function Footer({ onCta }) {
 
 // ── Root ────────────────────────────────────────────────────────────────────
 export default function Landing() {
-  const navigate  = useNavigate();
-  const go        = () => navigate("/signup");
-  const [flipCount, setFlipCount] = useState(0);
-  const onFlip    = useCallback(() => setFlipCount(n => n + 1), []);
+  const navigate       = useNavigate();
+  const go             = () => navigate("/signup");
+  const [flipCount,    setFlipCount]    = useState(0);
+  const [taglineIdx,   setTaglineIdx]   = useState(0);
+  const onFlip         = useCallback(() => setFlipCount(n => n + 1), []);
+  const onNextTagline  = useCallback(() => setTaglineIdx(n => (n + 1) % TAGLINES.length), []);
 
   return (
     <div style={{ background:dark, color:"#fff", fontFamily:FB, minHeight:"100vh", position:"relative" }}>
       <style>{CSS}</style>
       <CursorGlow/>
       <Nav onCta={go}/>
-      <Hero onCta={go}/>
+      <Hero onCta={go} taglineIdx={taglineIdx} onNextTagline={onNextTagline}/>
       <div id="process">
         <BuildSection/>
         <MarketingSection onFlip={onFlip} flipCount={flipCount}/>
