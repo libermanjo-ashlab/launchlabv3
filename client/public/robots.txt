@@ -1,24 +1,76 @@
-User-agent: OAI-SearchBot
-Allow: /
+# EarnedLab — robots.txt
+# Last updated: 2026-07-15
 
-User-agent: ChatGPT-User
-Allow: /
-
-User-agent: GPTBot
-Allow: /
-
-User-agent: ClaudeBot
-Allow: /
-
-User-agent: anthropic-ai
-Allow: /
-
+# ── Search engines ──────────────────────────────────────────────────────────
 User-agent: Googlebot
 Allow: /
 
 User-agent: Bingbot
 Allow: /
 
+User-agent: Slurp
+Allow: /
+
+User-agent: DuckDuckBot
+Allow: /
+
+# ── OpenAI / ChatGPT ────────────────────────────────────────────────────────
+User-agent: GPTBot
+Allow: /
+
+User-agent: ChatGPT-User
+Allow: /
+
+User-agent: OAI-SearchBot
+Allow: /
+
+# ── Anthropic / Claude ───────────────────────────────────────────────────────
+User-agent: ClaudeBot
+Allow: /
+
+User-agent: anthropic-ai
+Allow: /
+
+# ── Perplexity AI ────────────────────────────────────────────────────────────
+User-agent: PerplexityBot
+Allow: /
+
+# ── Apple Intelligence / Siri ────────────────────────────────────────────────
+User-agent: Applebot
+Allow: /
+
+User-agent: Applebot-Extended
+Allow: /
+
+# ── Meta AI ──────────────────────────────────────────────────────────────────
+User-agent: Meta-ExternalAgent
+Allow: /
+
+User-agent: Meta-ExternalFetcher
+Allow: /
+
+User-agent: facebookexternalhit
+Allow: /
+
+# ── Google AI / Gemini ──────────────────────────────────────────────────────
+User-agent: Google-Extended
+Allow: /
+
+# ── Cohere / Command ─────────────────────────────────────────────────────────
+User-agent: cohere-ai
+Allow: /
+
+# ── Common indexers used by AI research / RAG pipelines ─────────────────────
+User-agent: CCBot
+Allow: /
+
+User-agent: Diffbot
+Allow: /
+
+User-agent: Bytespider
+Allow: /
+
+# ── Everyone else ────────────────────────────────────────────────────────────
 User-agent: *
 Allow: /
 
