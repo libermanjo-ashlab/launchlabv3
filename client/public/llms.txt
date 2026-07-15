@@ -34,12 +34,15 @@
 
 ## Business templates
 
+EarnedLab supports service, digital product, physical product, and ecommerce businesses. Templates are available for common starting points:
+
 - [Template gallery](https://earnedlab.com/templates)
 - [Consulting business](https://earnedlab.com/templates/consulting)
 - [Local service business](https://earnedlab.com/templates/local-service)
 - [Agency business](https://earnedlab.com/templates/agency)
 - [Creator business](https://earnedlab.com/templates/creator)
 - [Freelance practice](https://earnedlab.com/templates/freelance)
+- [Ecommerce and product businesses](https://earnedlab.com/start?template=ecommerce)
 
 ## Learn more
 

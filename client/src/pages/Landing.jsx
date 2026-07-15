@@ -3,11 +3,11 @@ import { useNavigate, Link } from "react-router-dom";
 import { C, FH, FB, btn, Logo } from "../components";
 import { Check } from "lucide-react";
 
-const dark = "#0A0A0F";
-const surface = "rgba(255,255,255,0.04)";
-const border  = "rgba(255,255,255,0.08)";
-const muted   = "rgba(255,255,255,0.55)";
-const subtle  = "rgba(255,255,255,0.3)";
+const dark   = "#0A0A0F";
+const surface= "rgba(255,255,255,0.04)";
+const border = "rgba(255,255,255,0.08)";
+const muted  = "rgba(255,255,255,0.55)";
+const subtle = "rgba(255,255,255,0.3)";
 
 const SUPPORT = "support@earnedlab.com";
 
@@ -16,47 +16,40 @@ function Nav({ onCta }) {
   const [menuOpen, setMenuOpen] = useState(false);
 
   return (
-    <nav style={{ position:"fixed", top:0, left:0, right:0, zIndex:50, backdropFilter:"blur(16px)", WebkitBackdropFilter:"blur(16px)", background:"rgba(10,10,15,0.85)", borderBottom:`1px solid ${border}`, height:58, display:"flex", alignItems:"center", padding:"0 28px" }}>
-      <div style={{ maxWidth:1080, margin:"0 auto", width:"100%", display:"flex", alignItems:"center", justifyContent:"space-between" }}>
+    <nav style={{ position:"fixed", top:0, left:0, right:0, zIndex:50, backdropFilter:"blur(16px)", WebkitBackdropFilter:"blur(16px)", background:"rgba(10,10,15,0.85)", borderBottom:`1px solid ${border}`, height:56, display:"flex", alignItems:"center", padding:"0 28px" }}>
+      <div style={{ maxWidth:1000, margin:"0 auto", width:"100%", display:"flex", alignItems:"center", justifyContent:"space-between" }}>
         <div style={{ display:"flex", alignItems:"center", gap:8 }}>
           <Logo size={20}/>
           <span style={{ fontFamily:FH, fontWeight:700, fontSize:14, background:C.grad, WebkitBackgroundClip:"text", WebkitTextFillColor:"transparent", letterSpacing:"-0.02em" }}>EARNEDLAB</span>
         </div>
 
-        {/* Desktop nav links */}
-        <div className="nav-desktop" style={{ display:"flex", alignItems:"center", gap:6 }}>
+        <div className="nav-desktop" style={{ display:"flex", alignItems:"center", gap:4 }}>
           <a href="#how-it-works" style={{ fontSize:13, color:muted, textDecoration:"none", padding:"6px 12px", fontFamily:FB }}>How it works</a>
-          <a href="#pricing" style={{ fontSize:13, color:muted, textDecoration:"none", padding:"6px 12px", fontFamily:FB }}>Pricing</a>
-          <a href="#faq" style={{ fontSize:13, color:muted, textDecoration:"none", padding:"6px 12px", fontFamily:FB, marginRight:8 }}>FAQ</a>
-          <Link to="/signup" style={{ fontSize:13, color:"rgba(255,255,255,0.7)", textDecoration:"none", padding:"6px 16px", fontFamily:FB, fontWeight:500, border:`1px solid ${border}`, borderRadius:8 }}>Sign in</Link>
-          <button onClick={onCta} style={{ ...btn(C.grad,"#fff",13), padding:"8px 18px", borderRadius:8, letterSpacing:"-0.01em" }}>Start free →</button>
+          <a href="#pricing"      style={{ fontSize:13, color:muted, textDecoration:"none", padding:"6px 12px", fontFamily:FB }}>Pricing</a>
+          <a href="#faq"          style={{ fontSize:13, color:muted, textDecoration:"none", padding:"6px 12px", fontFamily:FB, marginRight:12 }}>FAQ</a>
+          <Link to="/signup" style={{ fontSize:13, color:"rgba(255,255,255,0.65)", textDecoration:"none", padding:"6px 14px", fontFamily:FB, fontWeight:500, border:`1px solid ${border}`, borderRadius:8, marginRight:6 }}>Sign in</Link>
+          <button onClick={onCta} style={{ ...btn(C.grad,"#fff",13), padding:"8px 18px", borderRadius:8 }}>Start free →</button>
         </div>
 
-        {/* Mobile hamburger */}
-        <button
-          className="nav-mobile"
-          onClick={() => setMenuOpen(o => !o)}
-          aria-label={menuOpen ? "Close menu" : "Open menu"}
+        <button className="nav-mobile" onClick={() => setMenuOpen(o => !o)} aria-label="Toggle menu"
           style={{ display:"none", background:"none", border:"none", cursor:"pointer", padding:6, color:"rgba(255,255,255,0.75)" }}>
           <svg width="22" height="22" viewBox="0 0 22 22" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
             {menuOpen
               ? <><line x1="4" y1="4" x2="18" y2="18"/><line x1="18" y1="4" x2="4" y2="18"/></>
-              : <><line x1="3" y1="7" x2="19" y2="7"/><line x1="3" y1="11" x2="19" y2="11"/><line x1="3" y1="15" x2="19" y2="15"/></>
-            }
+              : <><line x1="3" y1="7" x2="19" y2="7"/><line x1="3" y1="11" x2="19" y2="11"/><line x1="3" y1="15" x2="19" y2="15"/></>}
           </svg>
         </button>
       </div>
 
-      {/* Mobile dropdown menu */}
       {menuOpen && (
-        <div style={{ position:"absolute", top:58, left:0, right:0, background:"rgba(10,10,15,0.97)", borderBottom:`1px solid ${border}`, display:"flex", flexDirection:"column", padding:"8px 0 16px", zIndex:51 }}>
+        <div style={{ position:"absolute", top:56, left:0, right:0, background:"rgba(10,10,15,0.97)", borderBottom:`1px solid ${border}`, display:"flex", flexDirection:"column", padding:"8px 0 16px", zIndex:51 }}>
           <a href="#how-it-works" onClick={() => setMenuOpen(false)} style={{ fontSize:15, color:muted, textDecoration:"none", padding:"12px 28px", fontFamily:FB }}>How it works</a>
-          <a href="#pricing" onClick={() => setMenuOpen(false)} style={{ fontSize:15, color:muted, textDecoration:"none", padding:"12px 28px", fontFamily:FB }}>Pricing</a>
-          <a href="#faq" onClick={() => setMenuOpen(false)} style={{ fontSize:15, color:muted, textDecoration:"none", padding:"12px 28px", fontFamily:FB }}>FAQ</a>
+          <a href="#pricing"      onClick={() => setMenuOpen(false)} style={{ fontSize:15, color:muted, textDecoration:"none", padding:"12px 28px", fontFamily:FB }}>Pricing</a>
+          <a href="#faq"          onClick={() => setMenuOpen(false)} style={{ fontSize:15, color:muted, textDecoration:"none", padding:"12px 28px", fontFamily:FB }}>FAQ</a>
           <div style={{ height:1, background:border, margin:"8px 28px" }} />
-          <Link to="/signup" onClick={() => setMenuOpen(false)} style={{ fontSize:15, color:"rgba(255,255,255,0.7)", textDecoration:"none", padding:"12px 28px", fontFamily:FB, fontWeight:500 }}>Sign in</Link>
+          <Link to="/signup" onClick={() => setMenuOpen(false)} style={{ fontSize:15, color:muted, textDecoration:"none", padding:"12px 28px", fontFamily:FB }}>Sign in</Link>
           <div style={{ padding:"8px 28px 0" }}>
-            <button onClick={() => { setMenuOpen(false); onCta(); }} style={{ ...btn(C.grad,"#fff",14), width:"100%", padding:"12px", borderRadius:10, letterSpacing:"-0.01em" }}>Start free →</button>
+            <button onClick={() => { setMenuOpen(false); onCta(); }} style={{ ...btn(C.grad,"#fff",14), width:"100%", padding:"12px", borderRadius:10 }}>Start free →</button>
           </div>
         </div>
       )}
@@ -74,39 +67,197 @@ function Nav({ onCta }) {
 // ── Hero ───────────────────────────────────────────────────────────────────
 function Hero({ onCta }) {
   return (
-    <section style={{ minHeight:"100vh", display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", padding:"100px 24px 80px", position:"relative", overflow:"hidden", textAlign:"center" }}>
-      <div style={{ position:"absolute", inset:0, background:"radial-gradient(ellipse 80% 50% at 50% -10%, #7C3AED22, transparent)", pointerEvents:"none" }} />
-      <div style={{ position:"absolute", inset:0, background:"radial-gradient(ellipse 60% 40% at 80% 60%, #0891B215, transparent)", pointerEvents:"none" }} />
+    <section style={{ minHeight:"100vh", display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", padding:"120px 24px 100px", position:"relative", overflow:"hidden", textAlign:"center" }}>
+      <div style={{ position:"absolute", inset:0, background:"radial-gradient(ellipse 70% 50% at 50% 0%, rgba(124,58,237,0.14), transparent)", pointerEvents:"none" }} />
 
-      <div style={{ position:"relative", zIndex:1, maxWidth:680 }}>
-        <div style={{ display:"inline-flex", alignItems:"center", gap:8, background:surface, border:`1px solid ${border}`, borderRadius:24, padding:"6px 14px", marginBottom:32, backdropFilter:"blur(8px)" }}>
-          <span style={{ width:6, height:6, borderRadius:"50%", background:"#4ADE80", boxShadow:"0 0 8px #4ADE8088", flexShrink:0 }} />
-          <span style={{ fontSize:12, color:muted, fontFamily:FB, fontWeight:500, letterSpacing:"0.02em" }}>Automated sidehustle platform — now in early access</span>
+      <div style={{ position:"relative", zIndex:1, maxWidth:620 }}>
+        <div style={{ display:"inline-flex", alignItems:"center", gap:8, background:surface, border:`1px solid ${border}`, borderRadius:24, padding:"5px 14px", marginBottom:36 }}>
+          <span style={{ width:5, height:5, borderRadius:"50%", background:"#4ADE80", boxShadow:"0 0 8px #4ADE8080", flexShrink:0 }} />
+          <span style={{ fontSize:11, color:muted, fontFamily:FB, fontWeight:500, letterSpacing:"0.03em" }}>Now in early access</span>
         </div>
 
-        <h1 style={{ fontFamily:FH, fontWeight:700, fontSize:"clamp(42px,6vw,68px)", color:"#fff", lineHeight:1.05, letterSpacing:"-0.045em", margin:"0 0 20px" }}>
+        <h1 style={{ fontFamily:FH, fontWeight:700, fontSize:"clamp(40px,6vw,66px)", color:"#fff", lineHeight:1.05, letterSpacing:"-0.045em", margin:"0 0 22px" }}>
           Your side business,<br />
           <span style={{ background:C.grad, WebkitBackgroundClip:"text", WebkitTextFillColor:"transparent" }}>built in 30 minutes.</span>
         </h1>
 
-        <p style={{ fontSize:"clamp(15px,2vw,18px)", color:muted, lineHeight:1.75, maxWidth:520, margin:"0 auto 40px", fontFamily:FB }}>
-          EarnedLab's agentic platform finds the right business for your situation, builds everything automatically, and keeps it growing — while you focus on what matters.
+        <p style={{ fontSize:"clamp(15px,2vw,17px)", color:muted, lineHeight:1.8, maxWidth:460, margin:"0 auto 44px", fontFamily:FB }}>
+          EarnedLab finds the right business for your situation, builds everything automatically, and keeps it growing with AI agents.
         </p>
 
-        <div style={{ display:"flex", flexDirection:"column", alignItems:"center", gap:14 }}>
-          <button onClick={onCta} style={{ ...btn(C.grad,"#fff",16), padding:"15px 36px", borderRadius:12, letterSpacing:"-0.02em", boxShadow:"0 8px 32px rgba(124,58,237,0.35)" }}>
-            Start your free trial →
-          </button>
-          <span style={{ fontSize:13, color:subtle, fontFamily:FB }}>7 days free · No credit card required · Cancel anytime</span>
-        </div>
+        <button onClick={onCta} style={{ ...btn(C.grad,"#fff",15), padding:"14px 34px", borderRadius:12, letterSpacing:"-0.01em", boxShadow:"0 8px 32px rgba(124,58,237,0.3)" }}>
+          Start your free trial →
+        </button>
 
-        <div style={{ display:"flex", justifyContent:"center", gap:"clamp(20px,5vw,48px)", marginTop:56, flexWrap:"wrap" }}>
-          {[["30 min","to launch"],["7 days","to first dollar"],["$0","to get started"]].map(([big,small]) => (
-            <div key={small}>
-              <div style={{ fontFamily:FH, fontWeight:700, fontSize:26, color:"#fff", letterSpacing:"-0.04em" }}>{big}</div>
-              <div style={{ fontSize:11, color:subtle, textTransform:"uppercase", letterSpacing:"0.08em", fontWeight:600, marginTop:3, fontFamily:FB }}>{small}</div>
-            </div>
+        <div style={{ marginTop:16, display:"flex", alignItems:"center", justifyContent:"center", gap:16, flexWrap:"wrap" }}>
+          {["7 days free","No credit card","Cancel anytime"].map((t) => (
+            <span key={t} style={{ fontSize:12, color:subtle, fontFamily:FB, display:"flex", alignItems:"center", gap:5 }}>
+              <svg width="10" height="10" viewBox="0 0 10 10" fill="none"><circle cx="5" cy="5" r="4" stroke="rgba(255,255,255,0.2)" strokeWidth="1.2"/><path d="M3 5l1.5 1.5L7 3.5" stroke="rgba(255,255,255,0.4)" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"/></svg>
+              {t}
+            </span>
           ))}
+        </div>
+      </div>
+    </section>
+  );
+}
+
+// ── Discovery Preview ─────────────────────────────────────────────────────
+const MATCHES = {
+  design:   { name:"Brand & Design Studio",          score:94 },
+  writing:  { name:"Content Strategy Practice",      score:93 },
+  tech:     { name:"Software Development Agency",    score:91 },
+  teaching: { name:"Coaching & Training Business",   score:96 },
+  sales:    { name:"B2B Sales Consulting",           score:89 },
+  ops:      { name:"Operations Consulting Practice", score:88 },
+};
+
+function DiscoveryPreview({ onCta }) {
+  const [phase,    setPhase]   = useState("quiz");   // quiz | loading | result
+  const [answers,  setAnswers] = useState({});
+
+  const pick = (key, id) => setAnswers(a => ({ ...a, [key]: id }));
+  const allDone = answers.skill && answers.time && answers.goal;
+  const result  = MATCHES[answers.skill] || { name:"Consulting Practice", score:90 };
+
+  const submit = () => {
+    setPhase("loading");
+    setTimeout(() => setPhase("result"), 1800);
+  };
+
+  const chipStyle = (active) => ({
+    padding:"9px 16px", borderRadius:8, cursor:"pointer", fontFamily:FB, fontSize:13,
+    fontWeight: active ? 600 : 400, border:`1.5px solid ${active ? C.primary : border}`,
+    background: active ? `${C.primary}18` : "transparent",
+    color: active ? "#fff" : muted, transition:"all 0.12s",
+  });
+
+  const groups = [
+    { key:"skill", label:"What's your strongest skill?", opts:[
+      { id:"design",   label:"Design & Creative" },
+      { id:"writing",  label:"Writing & Content"  },
+      { id:"tech",     label:"Tech & Software"    },
+      { id:"teaching", label:"Teaching & Coaching"},
+      { id:"sales",    label:"Sales & Marketing"  },
+      { id:"ops",      label:"Operations & Admin" },
+    ]},
+    { key:"time", label:"Hours per week you can commit?", opts:[
+      { id:"lt5",   label:"Under 5 hrs" },
+      { id:"5to15", label:"5 – 15 hrs"  },
+      { id:"15to30",label:"15 – 30 hrs" },
+      { id:"full",  label:"Full time"   },
+    ]},
+    { key:"goal", label:"What matters most to you?", opts:[
+      { id:"cost",     label:"Low startup cost"  },
+      { id:"fast",     label:"Fast first dollar" },
+      { id:"flexible", label:"Flexible schedule" },
+      { id:"growth",   label:"Long-term growth"  },
+    ]},
+  ];
+
+  return (
+    <section style={{ padding:"0 24px 104px" }}>
+      <div style={{ maxWidth:760, margin:"0 auto" }}>
+        <div style={{ background:surface, border:`1px solid ${border}`, borderRadius:20, overflow:"hidden" }}>
+
+          {/* Header */}
+          <div style={{ padding:"28px 32px 24px", borderBottom:`1px solid ${border}` }}>
+            <div style={{ fontSize:10, fontWeight:700, color:C.primary, textTransform:"uppercase", letterSpacing:"0.1em", fontFamily:FB, marginBottom:8 }}>Try the discovery quiz</div>
+            <h2 style={{ fontFamily:FH, fontWeight:700, fontSize:"clamp(18px,3vw,24px)", color:"#fff", letterSpacing:"-0.04em", margin:"0 0 4px" }}>
+              See what business fits your life.
+            </h2>
+            <p style={{ fontSize:13, color:muted, fontFamily:FB, margin:0 }}>3 questions. No account needed to see your match.</p>
+          </div>
+
+          {/* Quiz */}
+          {phase === "quiz" && (
+            <div style={{ padding:"28px 32px 32px" }}>
+              <div style={{ display:"flex", flexDirection:"column", gap:28 }}>
+                {groups.map(g => (
+                  <div key={g.key}>
+                    <div style={{ fontSize:12, fontWeight:600, color:"rgba(255,255,255,0.75)", fontFamily:FB, marginBottom:12 }}>{g.label}</div>
+                    <div style={{ display:"flex", flexWrap:"wrap", gap:8 }}>
+                      {g.opts.map(o => (
+                        <button key={o.id} onClick={() => pick(g.key, o.id)} style={chipStyle(answers[g.key] === o.id)}>{o.label}</button>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              <div style={{ marginTop:32 }}>
+                <button
+                  onClick={submit}
+                  disabled={!allDone}
+                  style={{ ...btn(allDone ? C.grad : "rgba(255,255,255,0.06)","#fff",14), padding:"13px 28px", borderRadius:10, opacity: allDone ? 1 : 0.5, cursor: allDone ? "pointer" : "default", boxShadow: allDone ? "0 4px 20px rgba(124,58,237,0.3)" : "none" }}>
+                  See my match →
+                </button>
+                {!allDone && <span style={{ fontSize:12, color:subtle, fontFamily:FB, marginLeft:14 }}>Answer all 3 to continue</span>}
+              </div>
+            </div>
+          )}
+
+          {/* Loading */}
+          {phase === "loading" && (
+            <div style={{ padding:"64px 32px", textAlign:"center" }}>
+              <div style={{ display:"inline-flex", alignItems:"center", gap:12, color:muted, fontFamily:FB, fontSize:14 }}>
+                <svg width="18" height="18" viewBox="0 0 18 18" fill="none" style={{ animation:"spin 0.9s linear infinite" }}>
+                  <circle cx="9" cy="9" r="7" stroke={border} strokeWidth="2"/>
+                  <path d="M9 2a7 7 0 0 1 7 7" stroke={C.primary} strokeWidth="2" strokeLinecap="round"/>
+                </svg>
+                Analyzing your profile…
+              </div>
+              <style>{`@keyframes spin { to { transform:rotate(360deg); } }`}</style>
+            </div>
+          )}
+
+          {/* Result */}
+          {phase === "result" && (
+            <div style={{ padding:"28px 32px 32px" }}>
+              <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", flexWrap:"wrap", gap:8, marginBottom:6 }}>
+                <div>
+                  <div style={{ fontSize:10, fontWeight:700, color:"#4ADE80", textTransform:"uppercase", letterSpacing:"0.1em", fontFamily:FB, marginBottom:8 }}>Your top match</div>
+                  <h3 style={{ fontFamily:FH, fontWeight:700, fontSize:"clamp(20px,3vw,26px)", color:"#fff", letterSpacing:"-0.04em", margin:0 }}>{result.name}</h3>
+                </div>
+                <span style={{ fontFamily:FH, fontWeight:700, fontSize:32, color:"#4ADE80", letterSpacing:"-0.04em" }}>{result.score}%</span>
+              </div>
+
+              {/* Match bar */}
+              <div style={{ height:3, background:border, borderRadius:2, margin:"16px 0 24px" }}>
+                <div style={{ width:`${result.score}%`, height:"100%", background:"linear-gradient(to right,#2563EB,#4ADE80)", borderRadius:2 }} />
+              </div>
+
+              {/* Blurred insights */}
+              <div style={{ position:"relative", marginBottom:28 }}>
+                <div style={{ filter:"blur(5px)", pointerEvents:"none", userSelect:"none" }}>
+                  {[
+                    "Why this business fits your exact skill set",
+                    "Your fastest realistic path to first revenue",
+                    "3 specific competitors to study before you launch",
+                    "Estimated startup cost and time to first dollar",
+                  ].map((t, i) => (
+                    <div key={i} style={{ display:"flex", gap:10, alignItems:"center", padding:"10px 0", borderTop:`1px solid ${border}`, fontSize:13, color:"rgba(255,255,255,0.7)", fontFamily:FB }}>
+                      <span style={{ color:C.primary, fontWeight:700, flexShrink:0 }}>+</span>{t}
+                    </div>
+                  ))}
+                  <div style={{ borderTop:`1px solid ${border}` }} />
+                </div>
+                {/* Lock overlay */}
+                <div style={{ position:"absolute", inset:0, display:"flex", alignItems:"center", justifyContent:"center" }}>
+                  <div style={{ background:"rgba(10,10,15,0.88)", border:`1px solid ${border}`, borderRadius:12, padding:"12px 20px", textAlign:"center", backdropFilter:"blur(8px)" }}>
+                    <div style={{ fontSize:13, color:"#fff", fontFamily:FH, fontWeight:600, marginBottom:2 }}>Full analysis ready</div>
+                    <div style={{ fontSize:11, color:muted, fontFamily:FB }}>Create a free account to unlock</div>
+                  </div>
+                </div>
+              </div>
+
+              <button onClick={onCta} style={{ ...btn(C.grad,"#fff",14), padding:"13px", borderRadius:10, boxShadow:"0 4px 20px rgba(124,58,237,0.3)", width:"100%" }}>
+                Create free account to unlock your full match →
+              </button>
+              <p style={{ fontSize:11, color:subtle, fontFamily:FB, textAlign:"center", marginTop:10, marginBottom:0 }}>No credit card · 7 days free</p>
+            </div>
+          )}
+
         </div>
       </div>
     </section>
@@ -116,73 +267,32 @@ function Hero({ onCta }) {
 // ── How it works ──────────────────────────────────────────────────────────
 function HowItWorks() {
   const steps = [
-    {
-      n:"01", title:"Tell us about yourself",
-      body:"Answer a few questions about your skills, available time, budget, and goals. Takes about 5 minutes.",
-      tag:"Discovery",
-    },
-    {
-      n:"02", title:"Smart matching finds your best business",
-      body:"We analyze hundreds of options and match you with the business type most likely to succeed given your specific situation.",
-      tag:"Matching",
-    },
-    {
-      n:"03", title:"Launch — and let it run",
-      body:"Your marketing and management agents handle content, website updates, and growth optimization automatically. You watch the results.",
-      tag:"Autopilot",
-    },
+    { n:"01", title:"Tell us about yourself", body:"Skills, time, budget, goals — a 5-minute intake. EarnedLab uses this to match you with the business most likely to work for your specific situation." },
+    { n:"02", title:"Your business is built", body:"Website, positioning, and launch plan are generated automatically. You review, approve, and go live — no technical setup needed." },
+    { n:"03", title:"Agents take it from here", body:"Marketing and management agents monitor performance, surface what to fix, and implement changes — on demand or on autopilot." },
   ];
 
   return (
-    <section id="how-it-works" style={{ padding:"96px 24px", borderTop:`1px solid ${border}` }}>
-      <div style={{ maxWidth:960, margin:"0 auto" }}>
-        <div style={{ textAlign:"center", marginBottom:64 }}>
-          <div style={{ fontSize:11, fontWeight:700, color:C.primary, textTransform:"uppercase", letterSpacing:"0.1em", fontFamily:FB, marginBottom:14 }}>HOW IT WORKS</div>
-          <h2 style={{ fontFamily:FH, fontWeight:700, fontSize:"clamp(28px,4vw,40px)", color:"#fff", letterSpacing:"-0.04em", margin:0 }}>From zero to launched in one afternoon.</h2>
+    <section id="how-it-works" style={{ padding:"104px 24px", borderTop:`1px solid ${border}` }}>
+      <div style={{ maxWidth:860, margin:"0 auto" }}>
+        <div style={{ marginBottom:72 }}>
+          <h2 style={{ fontFamily:FH, fontWeight:700, fontSize:"clamp(26px,4vw,38px)", color:"#fff", letterSpacing:"-0.04em", margin:"0 0 12px" }}>From zero to launched<br />in one afternoon.</h2>
+          <p style={{ fontSize:15, color:muted, fontFamily:FB, maxWidth:400, lineHeight:1.7, margin:0 }}>No experience required. No technical skills. Just your answers.</p>
         </div>
 
-        <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit,minmax(260px,1fr))", gap:24 }}>
-          {steps.map((s) => (
-            <div key={s.n} style={{ background:surface, border:`1px solid ${border}`, borderRadius:16, padding:"28px 24px" }}>
-              <div style={{ display:"flex", alignItems:"center", gap:12, marginBottom:20 }}>
-                <div style={{ fontFamily:FH, fontWeight:700, fontSize:13, color:C.primary, letterSpacing:"0.04em" }}>{s.n}</div>
-                <div style={{ height:1, flex:1, background:`linear-gradient(to right, ${C.primary}60, transparent)` }} />
-                <span style={{ fontSize:10, fontWeight:700, color:C.primary, background:C.primary+"18", padding:"3px 10px", borderRadius:20, textTransform:"uppercase", letterSpacing:"0.06em", fontFamily:FB }}>{s.tag}</span>
+        <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
+          {steps.map((s, i) => (
+            <div key={s.n} style={{ display:"grid", gridTemplateColumns:"80px 1fr", gap:"0 32px", paddingBottom: i < steps.length - 1 ? 48 : 0, position:"relative" }}>
+              {i < steps.length - 1 && (
+                <div style={{ position:"absolute", left:38, top:28, bottom:0, width:1, background:`linear-gradient(to bottom, ${border}, transparent)` }} />
+              )}
+              <div style={{ paddingTop:4 }}>
+                <span style={{ fontFamily:FH, fontWeight:700, fontSize:13, color:C.primary, letterSpacing:"0.06em" }}>{s.n}</span>
               </div>
-              <h3 style={{ fontFamily:FH, fontWeight:600, fontSize:18, color:"#fff", letterSpacing:"-0.03em", marginBottom:10 }}>{s.title}</h3>
-              <p style={{ fontSize:13, color:muted, lineHeight:1.7 }}>{s.body}</p>
-            </div>
-          ))}
-        </div>
-      </div>
-    </section>
-  );
-}
-
-// ── Who is this for ───────────────────────────────────────────────────────
-function WhoIsItFor() {
-  const profiles = [
-    { label:"First-time entrepreneurs", desc:"Never started a business before? EarnedLab guides you from zero — no jargon, no prior knowledge needed." },
-    { label:"Side hustlers with a day job", desc:"Limited time? The agents run in the background. You check in when it suits you." },
-    { label:"Freelancers going independent", desc:"Turn your existing skills into a real business with proper branding, a website, and a growth plan." },
-    { label:"Parents & career-switchers", desc:"Looking for flexible income that works around your schedule? EarnedLab matches you to ideas that fit your reality." },
-  ];
-
-  return (
-    <section style={{ padding:"96px 24px", borderTop:`1px solid ${border}` }}>
-      <div style={{ maxWidth:960, margin:"0 auto" }}>
-        <div style={{ textAlign:"center", marginBottom:64 }}>
-          <div style={{ fontSize:11, fontWeight:700, color:"#4ADE80", textTransform:"uppercase", letterSpacing:"0.1em", fontFamily:FB, marginBottom:14 }}>WHO IT'S FOR</div>
-          <h2 style={{ fontFamily:FH, fontWeight:700, fontSize:"clamp(28px,4vw,40px)", color:"#fff", letterSpacing:"-0.04em", margin:"0 0 14px" }}>Built for people starting from scratch.</h2>
-          <p style={{ fontSize:15, color:muted, fontFamily:FB, maxWidth:520, margin:"0 auto" }}>You don't need a business degree, a network, or technical skills. You need an idea and 30 minutes.</p>
-        </div>
-
-        <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit,minmax(220px,1fr))", gap:20 }}>
-          {profiles.map((p) => (
-            <div key={p.label} style={{ background:surface, border:`1px solid ${border}`, borderRadius:16, padding:"24px 20px" }}>
-              <div style={{ width:8, height:8, borderRadius:"50%", background:"#4ADE80", marginBottom:16, boxShadow:"0 0 10px #4ADE8066" }} />
-              <h3 style={{ fontFamily:FH, fontWeight:600, fontSize:16, color:"#fff", letterSpacing:"-0.02em", marginBottom:10 }}>{p.label}</h3>
-              <p style={{ fontSize:13, color:muted, lineHeight:1.7, margin:0 }}>{p.desc}</p>
+              <div>
+                <h3 style={{ fontFamily:FH, fontWeight:600, fontSize:18, color:"#fff", letterSpacing:"-0.03em", margin:"0 0 10px" }}>{s.title}</h3>
+                <p style={{ fontSize:14, color:muted, lineHeight:1.75, margin:0, maxWidth:500, fontFamily:FB }}>{s.body}</p>
+              </div>
             </div>
           ))}
         </div>
@@ -193,62 +303,39 @@ function WhoIsItFor() {
 
 // ── Agents ────────────────────────────────────────────────────────────────
 function Agents() {
-  const agents = [
-    {
-      color: C.primary,
-      name: "Marketing Agent",
-      tagline: "Finds what's holding you back, tells you exactly what to fix.",
-      capabilities: [
-        "Monitors your revenue, leads, and social engagement",
-        "Spots the specific metric that's limiting growth",
-        "Recommends one clear, actionable change",
-        "Tracks whether the change worked",
-      ],
-      example: { label:"Observation", text:"Instagram engagement is 2.3× the industry average, but only 8% of profile visitors click through to your website." },
-    },
-    {
-      color: C.accent,
-      name: "Management Agent",
-      tagline: "Takes the recommendation and implements it — automatically.",
-      capabilities: [
-        "Rewrites your website copy and layout",
-        "Deploys updates to your live site in under 30 seconds",
-        "Logs every change it makes and why",
-        "On Autopilot: runs both agents on a schedule, no input needed",
-      ],
-      example: { label:"Action taken", text:"Updated homepage hero with prominent booking CTA and deployed to yourbusiness.netlify.app", live:true },
-    },
-  ];
-
   return (
-    <section style={{ padding:"96px 24px", background:"rgba(255,255,255,0.015)", borderTop:`1px solid ${border}` }}>
-      <div style={{ maxWidth:1000, margin:"0 auto" }}>
-        <div style={{ textAlign:"center", marginBottom:64 }}>
-          <div style={{ fontSize:11, fontWeight:700, color:C.accent, textTransform:"uppercase", letterSpacing:"0.1em", fontFamily:FB, marginBottom:14 }}>THE AGENTS</div>
-          <h2 style={{ fontFamily:FH, fontWeight:700, fontSize:"clamp(28px,4vw,40px)", color:"#fff", letterSpacing:"-0.04em", margin:0 }}>Two agents working together, 24/7.</h2>
+    <section style={{ padding:"104px 24px", borderTop:`1px solid ${border}` }}>
+      <div style={{ maxWidth:860, margin:"0 auto" }}>
+        <div style={{ marginBottom:64 }}>
+          <h2 style={{ fontFamily:FH, fontWeight:700, fontSize:"clamp(26px,4vw,38px)", color:"#fff", letterSpacing:"-0.04em", margin:"0 0 12px" }}>Two agents.<br />One working business.</h2>
+          <p style={{ fontSize:15, color:muted, fontFamily:FB, maxWidth:400, lineHeight:1.7, margin:0 }}>They run together, share context, and compound results over time.</p>
         </div>
 
-        <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit,minmax(300px,1fr))", gap:24 }}>
-          {agents.map((a) => (
-            <div key={a.name} style={{ background:surface, border:`1px solid ${a.color}25`, borderRadius:20, padding:"32px 28px" }}>
-              <span style={{ fontSize:11, fontWeight:700, color:a.color, background:a.color+"18", padding:"4px 12px", borderRadius:20, textTransform:"uppercase", letterSpacing:"0.06em", fontFamily:FB }}>{a.name}</span>
-              <h3 style={{ fontFamily:FH, fontWeight:600, fontSize:20, color:"#fff", letterSpacing:"-0.03em", margin:"16px 0 8px", lineHeight:1.3 }}>{a.tagline}</h3>
-              <ul style={{ margin:"16px 0 24px", padding:0, listStyle:"none", display:"flex", flexDirection:"column", gap:10 }}>
-                {a.capabilities.map((c) => (
-                  <li key={c} style={{ display:"flex", alignItems:"flex-start", gap:10, fontSize:13, color:muted, lineHeight:1.6 }}>
-                    <span style={{ color:a.color, fontWeight:700, flexShrink:0, marginTop:2 }}>+</span>{c}
-                  </li>
-                ))}
-              </ul>
-              <div style={{ background:`${a.color}10`, border:`1px solid ${a.color}20`, borderRadius:10, padding:"12px 14px" }}>
-                <div style={{ fontSize:10, color:a.color, fontWeight:700, textTransform:"uppercase", letterSpacing:"0.06em", marginBottom:6, fontFamily:FB }}>{a.example.label}</div>
-                <div style={{ fontSize:13, color:"rgba(255,255,255,0.85)", lineHeight:1.6, fontFamily:FB, display:"flex", alignItems:"flex-start", gap:8 }}>
-                  {a.example.live && <span style={{ width:6, height:6, borderRadius:"50%", background:"#4ADE80", flexShrink:0, marginTop:4, boxShadow:"0 0 6px #4ADE8088" }} />}
-                  {a.example.text}
-                </div>
+        <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit,minmax(300px,1fr))", gap:20 }}>
+          {/* Marketing Agent */}
+          <div style={{ background:surface, border:`1px solid ${border}`, borderRadius:16, padding:"28px 26px" }}>
+            <div style={{ fontSize:10, fontWeight:700, color:C.primary, textTransform:"uppercase", letterSpacing:"0.1em", fontFamily:FB, marginBottom:14 }}>Marketing Agent</div>
+            <h3 style={{ fontFamily:FH, fontWeight:600, fontSize:19, color:"#fff", letterSpacing:"-0.03em", margin:"0 0 10px", lineHeight:1.3 }}>Finds what's holding you back. Tells you exactly what to fix.</h3>
+            <p style={{ fontSize:13, color:muted, lineHeight:1.75, margin:"0 0 24px", fontFamily:FB }}>Monitors revenue, leads, and engagement. Surfaces the one metric limiting your growth and recommends a clear action.</p>
+            <div style={{ background:`${C.primary}0D`, border:`1px solid ${C.primary}22`, borderRadius:10, padding:"12px 14px" }}>
+              <div style={{ fontSize:10, color:C.primary, fontWeight:700, textTransform:"uppercase", letterSpacing:"0.08em", marginBottom:7, fontFamily:FB }}>Example observation</div>
+              <div style={{ fontSize:13, color:"rgba(255,255,255,0.8)", lineHeight:1.6, fontFamily:FB }}>Instagram engagement is 2.3× the industry average, but only 8% of visitors click through to your site.</div>
+            </div>
+          </div>
+
+          {/* Management Agent */}
+          <div style={{ background:surface, border:`1px solid ${border}`, borderRadius:16, padding:"28px 26px" }}>
+            <div style={{ fontSize:10, fontWeight:700, color:C.accent, textTransform:"uppercase", letterSpacing:"0.1em", fontFamily:FB, marginBottom:14 }}>Management Agent</div>
+            <h3 style={{ fontFamily:FH, fontWeight:600, fontSize:19, color:"#fff", letterSpacing:"-0.03em", margin:"0 0 10px", lineHeight:1.3 }}>Takes the recommendation and implements it — automatically.</h3>
+            <p style={{ fontSize:13, color:muted, lineHeight:1.75, margin:"0 0 24px", fontFamily:FB }}>Rewrites copy, updates your website, deploys changes live. Logs everything it does and why. On Autopilot, it runs on a schedule with no input from you.</p>
+            <div style={{ background:`${C.accent}0D`, border:`1px solid ${C.accent}22`, borderRadius:10, padding:"12px 14px" }}>
+              <div style={{ fontSize:10, color:C.accent, fontWeight:700, textTransform:"uppercase", letterSpacing:"0.08em", marginBottom:7, fontFamily:FB }}>Example action</div>
+              <div style={{ display:"flex", alignItems:"flex-start", gap:8, fontSize:13, color:"rgba(255,255,255,0.8)", lineHeight:1.6, fontFamily:FB }}>
+                <span style={{ width:6, height:6, borderRadius:"50%", background:"#4ADE80", flexShrink:0, marginTop:4, boxShadow:"0 0 6px #4ADE8080" }} />
+                Updated homepage hero with prominent booking CTA and deployed to your live site.
               </div>
             </div>
-          ))}
+          </div>
         </div>
       </div>
     </section>
@@ -259,63 +346,58 @@ function Agents() {
 function Pricing({ onCta }) {
   const tiers = [
     {
-      id:"starter", name:"Starter", price:39, color:"#6366F1",
-      tagline:"Insights, reports, and manual tracking.",
+      id:"starter", name:"Starter", price:39, color:"rgba(255,255,255,0.5)",
+      tagline:"For founders who want insights without automation.",
       features:["Marketing insights & analysis","Revenue & lead tracking","Business planning tools","Email support"],
-      cta:"Start free trial",
     },
     {
       id:"pro", name:"Pro", price:89, color:C.primary, popular:true,
-      tagline:"Agents act on your request.",
-      features:["Everything in Starter","Management agent implements changes for you","Live website updates on demand","Marketing + Management working together","Priority support"],
-      cta:"Start free trial",
+      tagline:"Agents act on your behalf when you ask.",
+      features:["Everything in Starter","Management agent implements changes","Live website updates on demand","Marketing + Management working together","Priority support"],
     },
     {
-      id:"pro_autopilot", name:"Pro Autopilot", price:199, color:"#DB2777",
-      tagline:"Fully autonomous — just watch it run.",
-      features:["Everything in Pro","Agents run automatically on a schedule","No manual input required","Dedicated support"],
-      cta:"Start free trial",
+      id:"autopilot", name:"Pro Autopilot", price:199, color:"rgba(255,255,255,0.5)",
+      tagline:"Fully autonomous — agents run on a schedule.",
+      features:["Everything in Pro","Agents run automatically","No manual input required","Dedicated support"],
     },
   ];
 
   return (
-    <section id="pricing" style={{ padding:"96px 24px", borderTop:`1px solid ${border}` }}>
-      <div style={{ maxWidth:1000, margin:"0 auto" }}>
-        <div style={{ textAlign:"center", marginBottom:64 }}>
-          <div style={{ fontSize:11, fontWeight:700, color:"#F59E0B", textTransform:"uppercase", letterSpacing:"0.1em", fontFamily:FB, marginBottom:14 }}>PRICING</div>
-          <h2 style={{ fontFamily:FH, fontWeight:700, fontSize:"clamp(28px,4vw,40px)", color:"#fff", letterSpacing:"-0.04em", margin:"0 0 14px" }}>Start free. Upgrade when you're ready.</h2>
-          <p style={{ fontSize:15, color:muted, fontFamily:FB }}>7-day free trial on all plans. No credit card required to start.</p>
+    <section id="pricing" style={{ padding:"104px 24px", borderTop:`1px solid ${border}` }}>
+      <div style={{ maxWidth:900, margin:"0 auto" }}>
+        <div style={{ marginBottom:64 }}>
+          <h2 style={{ fontFamily:FH, fontWeight:700, fontSize:"clamp(26px,4vw,38px)", color:"#fff", letterSpacing:"-0.04em", margin:"0 0 12px" }}>Start free.<br />Upgrade when you're ready.</h2>
+          <p style={{ fontSize:15, color:muted, fontFamily:FB, lineHeight:1.7, margin:0 }}>7-day free trial on all plans. No credit card required.</p>
         </div>
 
-        <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit,minmax(280px,1fr))", gap:20, alignItems:"start" }}>
+        <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit,minmax(260px,1fr))", gap:16, alignItems:"start" }}>
           {tiers.map((t) => (
-            <div key={t.id} style={{ background:surface, border:`1.5px solid ${t.popular ? t.color : border}`, borderRadius:20, padding:"28px 24px", position:"relative" }}>
+            <div key={t.id} style={{ background: t.popular ? "rgba(37,99,235,0.06)" : surface, border:`1.5px solid ${t.popular ? C.primary+"55" : border}`, borderRadius:16, padding:"26px 22px", position:"relative" }}>
               {t.popular && (
-                <div style={{ position:"absolute", top:-12, left:"50%", transform:"translateX(-50%)", background:t.color, color:"#fff", fontSize:10, fontWeight:700, padding:"4px 14px", borderRadius:20, textTransform:"uppercase", letterSpacing:"0.06em", whiteSpace:"nowrap" }}>Most popular</div>
+                <div style={{ position:"absolute", top:-11, left:"50%", transform:"translateX(-50%)", background:C.primary, color:"#fff", fontSize:10, fontWeight:700, padding:"3px 14px", borderRadius:20, textTransform:"uppercase", letterSpacing:"0.06em", whiteSpace:"nowrap", fontFamily:FB }}>Most popular</div>
               )}
-              <div style={{ fontSize:11, fontWeight:700, color:t.color, textTransform:"uppercase", letterSpacing:"0.08em", fontFamily:FB, marginBottom:10 }}>{t.name}</div>
-              <div style={{ display:"flex", alignItems:"baseline", gap:4, marginBottom:8 }}>
-                <span style={{ fontFamily:FH, fontWeight:700, fontSize:36, color:"#fff", letterSpacing:"-0.04em" }}>${t.price}</span>
+              <div style={{ fontSize:11, fontWeight:700, color: t.popular ? C.primary : subtle, textTransform:"uppercase", letterSpacing:"0.08em", fontFamily:FB, marginBottom:8 }}>{t.name}</div>
+              <div style={{ display:"flex", alignItems:"baseline", gap:4, marginBottom:6 }}>
+                <span style={{ fontFamily:FH, fontWeight:700, fontSize:34, color:"#fff", letterSpacing:"-0.04em" }}>${t.price}</span>
                 <span style={{ fontSize:13, color:subtle }}>/month</span>
               </div>
-              <p style={{ fontSize:13, color:muted, lineHeight:1.6, marginBottom:24, fontFamily:FB }}>{t.tagline}</p>
-              <ul style={{ margin:"0 0 28px", padding:0, listStyle:"none", display:"flex", flexDirection:"column", gap:10 }}>
+              <p style={{ fontSize:13, color:muted, lineHeight:1.6, marginBottom:22, fontFamily:FB }}>{t.tagline}</p>
+              <ul style={{ margin:"0 0 26px", padding:0, listStyle:"none", display:"flex", flexDirection:"column", gap:9 }}>
                 {t.features.map((f) => (
                   <li key={f} style={{ display:"flex", gap:10, alignItems:"flex-start", fontSize:13, color:muted, lineHeight:1.5 }}>
-                    <Check size={14} color={t.color} strokeWidth={2.5} style={{ flexShrink:0, marginTop:2 }} aria-hidden="true" />{f}
+                    <Check size={13} color={t.popular ? C.primary : subtle} strokeWidth={2.5} style={{ flexShrink:0, marginTop:2 }} />{f}
                   </li>
                 ))}
               </ul>
-              <button onClick={onCta} style={{ ...btn(t.popular ? t.color : "transparent","#fff",13), width:"100%", padding:"12px", border:t.popular?"none":`1px solid ${border}`, borderRadius:10 }}>
-                {t.cta}
+              <button onClick={onCta} style={{ ...btn(t.popular ? C.primary : "transparent","#fff",13), width:"100%", padding:"11px", border: t.popular ? "none" : `1px solid ${border}`, borderRadius:10, fontFamily:FB }}>
+                Start free trial
               </button>
             </div>
           ))}
         </div>
 
-        <p style={{ textAlign:"center", fontSize:13, color:subtle, marginTop:32, fontFamily:FB }}>
-          Questions about which plan is right for you? Email us at{" "}
-          <a href={`mailto:${SUPPORT}`} style={{ color:C.primary, textDecoration:"none" }}>{SUPPORT}</a>
+        <p style={{ fontSize:13, color:subtle, marginTop:28, fontFamily:FB }}>
+          Not sure which plan? <a href={`mailto:${SUPPORT}`} style={{ color:muted, textDecoration:"underline", textUnderlineOffset:2 }}>Email us</a> — we'll point you in the right direction.
         </p>
       </div>
     </section>
@@ -325,32 +407,27 @@ function Pricing({ onCta }) {
 // ── FAQ ───────────────────────────────────────────────────────────────────
 function FAQ() {
   const faqs = [
-    { q:"I'm a complete beginner — is EarnedLab right for me?", a:"Yes. EarnedLab is designed for people who have never started a business before. You don't need any technical skills, marketing knowledge, or prior experience. The platform guides you step by step and the AI agents handle the complex parts automatically." },
-    { q:"How long does setup actually take?", a:"Most users finish the discovery questionnaire in about 5 minutes and have a live business in under 30. EarnedLab handles the research, idea selection, and initial setup automatically." },
-    { q:"What type of side businesses can I start?", a:"Service businesses work best — freelancing, consulting, coaching, cleaning, photography, tutoring, bookkeeping, handyman services, and similar local or online service businesses. E-commerce and physical products are not currently supported." },
-    { q:"How is EarnedLab different from just asking ChatGPT?", a:"ChatGPT gives you advice. EarnedLab actually builds and runs things. It creates your website, deploys it live, tracks your revenue and leads, generates marketing content, and implements changes automatically. It's an active platform, not a conversation." },
-    { q:"How much money do I need to start?", a:"You can start for $0 in out-of-pocket costs beyond the EarnedLab subscription. EarnedLab builds your website on a free hosting tier. Most service businesses don't require inventory or equipment — just your time and skills." },
-    { q:"Do I need any technical skills?", a:"None at all. EarnedLab handles everything from website creation to deployment. If you can send an email, you can use this." },
+    { q:"Do I need any experience or technical skills?", a:"No. EarnedLab is designed for people who have never started a business before. The platform guides you step by step and the AI agents handle the complex parts automatically. If you can send an email, you can use this." },
+    { q:"What type of businesses can I start?", a:"EarnedLab works for service businesses, freelance practices, consulting, agencies, ecommerce, and physical product businesses. You choose your business type during setup and the platform tailors everything — marketing, operations, and planning — to your model." },
+    { q:"How is this different from asking ChatGPT?", a:"ChatGPT gives you advice you have to act on yourself. EarnedLab builds and runs things — your website is live, your marketing agent is running, your tasks are tracked. It's a platform that does work, not a conversation you have to manage." },
     { q:"What happens at the end of the trial?", a:"Your account moves to a read-only view. Your data and business are saved. Upgrade any time to resume the agents. We'll email you before the trial ends." },
-    { q:"Can I cancel anytime?", a:"Yes, with one click from your billing settings. No calls, no forms, no questions. Your subscription ends at the current billing period." },
   ];
 
   return (
-    <section id="faq" style={{ padding:"96px 24px", borderTop:`1px solid ${border}` }}>
-      <div style={{ maxWidth:680, margin:"0 auto" }}>
-        <div style={{ textAlign:"center", marginBottom:56 }}>
-          <div style={{ fontSize:11, fontWeight:700, color:muted, textTransform:"uppercase", letterSpacing:"0.1em", fontFamily:FB, marginBottom:14 }}>QUESTIONS</div>
-          <h2 style={{ fontFamily:FH, fontWeight:700, fontSize:"clamp(26px,4vw,36px)", color:"#fff", letterSpacing:"-0.04em", margin:0 }}>Everything you need to know.</h2>
+    <section id="faq" style={{ padding:"104px 24px", borderTop:`1px solid ${border}` }}>
+      <div style={{ maxWidth:640, margin:"0 auto" }}>
+        <div style={{ marginBottom:56 }}>
+          <h2 style={{ fontFamily:FH, fontWeight:700, fontSize:"clamp(26px,4vw,36px)", color:"#fff", letterSpacing:"-0.04em", margin:0 }}>Common questions.</h2>
         </div>
 
-        <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
+        <div style={{ display:"flex", flexDirection:"column" }}>
           {faqs.map((f, i) => (
             <details key={i} style={{ borderTop:`1px solid ${border}`, padding:"22px 0", cursor:"pointer" }}>
-              <summary style={{ fontFamily:FH, fontWeight:600, fontSize:16, color:"#fff", letterSpacing:"-0.02em", listStyle:"none", display:"flex", justifyContent:"space-between", alignItems:"center", gap:16, userSelect:"none" }}>
+              <summary style={{ fontFamily:FH, fontWeight:600, fontSize:15, color:"#fff", letterSpacing:"-0.02em", listStyle:"none", display:"flex", justifyContent:"space-between", alignItems:"center", gap:16, userSelect:"none" }}>
                 {f.q}
-                <span style={{ color:muted, fontSize:18, flexShrink:0 }}>+</span>
+                <span style={{ color:subtle, fontSize:18, flexShrink:0, lineHeight:1 }}>+</span>
               </summary>
-              <p style={{ fontSize:14, color:muted, lineHeight:1.75, margin:"14px 0 0", fontFamily:FB }}>{f.a}</p>
+              <p style={{ fontSize:14, color:muted, lineHeight:1.8, margin:"14px 0 0", fontFamily:FB }}>{f.a}</p>
             </details>
           ))}
           <div style={{ borderTop:`1px solid ${border}` }} />
@@ -360,43 +437,37 @@ function FAQ() {
   );
 }
 
-// ── CTA Banner ────────────────────────────────────────────────────────────
-function CTABanner({ onCta }) {
+// ── Footer ────────────────────────────────────────────────────────────────
+function Footer({ onCta }) {
   return (
-    <section style={{ padding:"96px 24px", background:"rgba(124,58,237,0.06)", borderTop:`1px solid ${border}`, borderBottom:`1px solid ${border}` }}>
-      <div style={{ maxWidth:560, margin:"0 auto", textAlign:"center" }}>
-        <h2 style={{ fontFamily:FH, fontWeight:700, fontSize:"clamp(28px,4vw,42px)", color:"#fff", letterSpacing:"-0.045em", margin:"0 0 16px", lineHeight:1.1 }}>
-          Ready to start?
+    <footer style={{ borderTop:`1px solid ${border}` }}>
+      {/* Final CTA */}
+      <div style={{ padding:"96px 24px 80px", textAlign:"center" }}>
+        <h2 style={{ fontFamily:FH, fontWeight:700, fontSize:"clamp(26px,4vw,42px)", color:"#fff", letterSpacing:"-0.045em", margin:"0 0 14px", lineHeight:1.1 }}>
+          Ready to build?
         </h2>
-        <p style={{ fontSize:16, color:muted, lineHeight:1.7, marginBottom:36, fontFamily:FB }}>
-          Join founders who launched their business this week. The first 7 days are completely free.
+        <p style={{ fontSize:15, color:muted, lineHeight:1.7, marginBottom:32, fontFamily:FB, maxWidth:380, margin:"0 auto 32px" }}>
+          The first 7 days are completely free. No credit card, no commitment.
         </p>
-        <button onClick={onCta} style={{ ...btn(C.grad,"#fff",16), padding:"15px 40px", borderRadius:12, letterSpacing:"-0.02em", boxShadow:"0 8px 32px rgba(124,58,237,0.3)" }}>
+        <button onClick={onCta} style={{ ...btn(C.grad,"#fff",15), padding:"14px 36px", borderRadius:12, boxShadow:"0 8px 32px rgba(124,58,237,0.25)" }}>
           Start your free trial →
         </button>
-        <p style={{ fontSize:13, color:subtle, marginTop:16, fontFamily:FB }}>
-          Questions? <a href={`mailto:${SUPPORT}`} style={{ color:muted, textDecoration:"underline" }}>{SUPPORT}</a>
-        </p>
       </div>
-    </section>
-  );
-}
 
-// ── Footer ────────────────────────────────────────────────────────────────
-function Footer() {
-  return (
-    <footer style={{ padding:"36px 28px", borderTop:`1px solid ${border}` }}>
-      <div style={{ maxWidth:1080, margin:"0 auto", display:"flex", justifyContent:"space-between", alignItems:"center", flexWrap:"wrap", gap:16 }}>
-        <div style={{ display:"flex", alignItems:"center", gap:8 }}>
-          <Logo size={18}/>
-          <span style={{ fontFamily:FH, fontWeight:700, fontSize:13, color:subtle, letterSpacing:"-0.02em" }}>EarnedLab</span>
-          <span style={{ fontSize:12, color:subtle, fontFamily:FB, marginLeft:8 }}>© {new Date().getFullYear()}</span>
-        </div>
-        <div style={{ display:"flex", gap:20, flexWrap:"wrap", alignItems:"center" }}>
-          {[["Terms","/terms"],["Privacy","/privacy"],["Disclaimer","/disclaimer"]].map(([l,p]) => (
-            <Link key={p} to={p} style={{ fontSize:12, color:subtle, textDecoration:"none", fontFamily:FB }}>{l}</Link>
-          ))}
-          <a href={`mailto:${SUPPORT}`} style={{ fontSize:12, color:muted, textDecoration:"none", fontFamily:FB }}>{SUPPORT}</a>
+      {/* Links */}
+      <div style={{ padding:"24px 28px 28px", borderTop:`1px solid ${border}` }}>
+        <div style={{ maxWidth:1000, margin:"0 auto", display:"flex", justifyContent:"space-between", alignItems:"center", flexWrap:"wrap", gap:12 }}>
+          <div style={{ display:"flex", alignItems:"center", gap:8 }}>
+            <Logo size={16}/>
+            <span style={{ fontFamily:FH, fontWeight:700, fontSize:13, color:subtle, letterSpacing:"-0.02em" }}>EarnedLab</span>
+            <span style={{ fontSize:12, color:subtle, fontFamily:FB, marginLeft:6 }}>© {new Date().getFullYear()}</span>
+          </div>
+          <div style={{ display:"flex", gap:20, flexWrap:"wrap", alignItems:"center" }}>
+            {[["Terms","/terms"],["Privacy","/privacy"],["Disclaimer","/disclaimer"]].map(([l,p]) => (
+              <Link key={p} to={p} style={{ fontSize:12, color:subtle, textDecoration:"none", fontFamily:FB }}>{l}</Link>
+            ))}
+            <a href={`mailto:${SUPPORT}`} style={{ fontSize:12, color:muted, textDecoration:"none", fontFamily:FB }}>{SUPPORT}</a>
+          </div>
         </div>
       </div>
     </footer>
@@ -412,13 +483,12 @@ export default function Landing() {
     <div style={{ background:dark, color:"#fff", fontFamily:FB, minHeight:"100vh" }}>
       <Nav onCta={goSignup} />
       <Hero onCta={goSignup} />
+      <DiscoveryPreview onCta={goSignup} />
       <HowItWorks />
-      <WhoIsItFor />
       <Agents />
       <Pricing onCta={goSignup} />
       <FAQ />
-      <CTABanner onCta={goSignup} />
-      <Footer />
+      <Footer onCta={goSignup} />
     </div>
   );
 }
