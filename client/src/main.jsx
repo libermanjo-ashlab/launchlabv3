@@ -1,6 +1,6 @@
 import React, { useEffect } from "react";
 import ReactDOM from "react-dom/client";
-import { BrowserRouter, Routes, Route, Navigate, useNavigate } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate, useNavigate, useLocation } from "react-router-dom";
 import * as Sentry from "@sentry/react";
 import posthog from "posthog-js";
 import useStore from "./lib/store";
@@ -46,8 +46,18 @@ if (import.meta.env.VITE_POSTHOG_KEY) {
   posthog.init(import.meta.env.VITE_POSTHOG_KEY, {
     api_host: import.meta.env.VITE_POSTHOG_HOST || "https://us.i.posthog.com",
     person_profiles: "identified_only",
-    capture_pageview: true,
+    capture_pageview: false, // fired manually on each React Router navigation
   });
+}
+
+// Fires $pageview on every React Router navigation (SPA — no full reload)
+function PageviewTracker() {
+  const location = useLocation();
+  useEffect(() => {
+    if (!import.meta.env.VITE_POSTHOG_KEY) return;
+    posthog.capture("$pageview");
+  }, [location.pathname]);
+  return null;
 }
 
 // Identifies the logged-in user to PostHog whenever auth state changes
@@ -94,6 +104,7 @@ function NotFound() {
 ReactDOM.createRoot(document.getElementById("root")).render(
   <AppErrorBoundary>
     <BrowserRouter>
+      <PageviewTracker />
       <UserTracker />
       <Routes>
         <Route path="/"               element={<Landing/>} />
